@@ -4,6 +4,7 @@ import { join } from 'path';
 // get all file content recursively
 async function getFiles(dir: string): Promise<string[]> {
   const dirents = await fs.readdir(dir, { withFileTypes: true });
+  dirents.sort((a, b) => a.name.localeCompare(b.name));
   const files = await Promise.all(
     dirents.map((dirent) => {
       const res = join(dir, dirent.name);
