@@ -102,6 +102,8 @@ const ListView = ({
                     inProgress={
                       (title.mediaInfo?.downloadStatus ?? []).length > 0
                     }
+                    isHidden={title.mediaInfo?.isHidden}
+                    mediaId={title.mediaInfo?.id}
                     canExpand
                   />
                 );
@@ -124,6 +126,8 @@ const ListView = ({
                     inProgress={
                       (title.mediaInfo?.downloadStatus ?? []).length > 0
                     }
+                    isHidden={title.mediaInfo?.isHidden}
+                    mediaId={title.mediaInfo?.id}
                     canExpand
                   />
                 );

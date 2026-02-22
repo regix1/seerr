@@ -21,7 +21,6 @@ concurrency:
 jobs:
   i18n:
     name: i18n Check
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -74,19 +73,20 @@ jobs:
         run: |
           retry() { n=0; until "$@"; do n=$((n+1)); [ $n -ge 3 ] && break; echo "retry $n: $*" >&2; sleep 2; done; }
           check_failed=0; node bin/check-i18n.js || check_failed=$?
-          pr_labels=$(gh pr view "$NUMBER" -R "$GH_REPO" --json labels -q '.labels[].name' 2>/dev/null) || true
-          has_label=0
-          while IFS= read -r name; do [ -n "$name" ] && [ "$name" = "$I18N_LABEL" ] && has_label=1 && break; done <<< "$pr_labels"
-          if [ "$check_failed" -eq 1 ]; then
-            [ "$has_label" -eq 0 ] && { retry gh pr edit "$NUMBER" -R "$GH_REPO" --add-label "$I18N_LABEL" || true; retry gh pr comment "$NUMBER" -R "$GH_REPO" -b "$BODY" || true; }
-          else
-            [ "$has_label" -eq 1 ] && retry gh pr edit "$NUMBER" -R "$GH_REPO" --remove-label "$I18N_LABEL" || true
+          if [ -n "$NUMBER" ]; then
+            pr_labels=$(gh pr view "$NUMBER" -R "$GH_REPO" --json labels -q '.labels[].name' 2>/dev/null) || true
+            has_label=0
+            while IFS= read -r name; do [ -n "$name" ] && [ "$name" = "$I18N_LABEL" ] && has_label=1 && break; done <<< "$pr_labels"
+            if [ "$check_failed" -eq 1 ]; then
+              [ "$has_label" -eq 0 ] && { retry gh pr edit "$NUMBER" -R "$GH_REPO" --add-label "$I18N_LABEL" || true; retry gh pr comment "$NUMBER" -R "$GH_REPO" -b "$BODY" || true; }
+            else
+              [ "$has_label" -eq 1 ] && retry gh pr edit "$NUMBER" -R "$GH_REPO" --remove-label "$I18N_LABEL" || true
+            fi
           fi
           exit $check_failed
 
   test:
     name: Lint & Test Build
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     container: node:22-alpine
     steps:
@@ -126,6 +126,7 @@ jobs:
         run: pnpm build
 
   build-and-publish:
+    needs: [i18n, test]
     if: github.ref == 'refs/heads/develop'
     uses: ./.github/workflows/docker-build.yml
     with:

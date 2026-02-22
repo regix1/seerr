@@ -11,6 +11,7 @@ import {
   ExclamationTriangleIcon,
   EyeSlashIcon,
   FilmIcon,
+  NoSymbolIcon,
   SparklesIcon,
   TvIcon,
   UsersIcon,
@@ -28,6 +29,7 @@ export const menuMessages = defineMessages('components.Layout.Sidebar', {
   browsetv: 'Series',
   requests: 'Requests',
   blocklist: 'Blocklist',
+  hidden: 'Hidden',
   issues: 'Issues',
   users: 'Users',
   settings: 'Settings',
@@ -81,13 +83,20 @@ const SidebarLinks: SidebarLinkProps[] = [
   {
     href: '/blocklist',
     messagesKey: 'blocklist',
-    svgIcon: <EyeSlashIcon className="mr-3 h-6 w-6" />,
+    svgIcon: <NoSymbolIcon className="mr-3 h-6 w-6" />,
     activeRegExp: /^\/blocklist/,
     requiredPermission: [
       Permission.MANAGE_BLOCKLIST,
       Permission.VIEW_BLOCKLIST,
     ],
     permissionType: 'or',
+  },
+  {
+    href: '/hidden',
+    messagesKey: 'hidden',
+    svgIcon: <EyeSlashIcon className="mr-3 h-6 w-6" />,
+    activeRegExp: /^\/hidden/,
+    requiredPermission: Permission.MANAGE_REQUESTS,
   },
   {
     href: '/issues',

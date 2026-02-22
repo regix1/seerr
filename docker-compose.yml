@@ -1,6 +1,6 @@
 services:
   seerr:
-    image: ghcr.io/regix1/seerr:develop
+    image: ghcr.io/regix1/seerr:latest
     container_name: seerr
     restart: unless-stopped
     ports:

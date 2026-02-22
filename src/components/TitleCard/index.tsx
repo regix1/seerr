@@ -461,6 +461,12 @@ const TitleCard = ({
               </div>
             )}
           </div>
+          {currentIsHidden && (
+            <div className="absolute inset-0 z-30 flex items-center justify-center rounded-xl bg-gray-900 bg-opacity-60">
+              <EyeSlashIcon className="h-12 w-12 text-gray-300 opacity-70" />
+            </div>
+          )}
+
           <Transition
             as={Fragment}
             show={isUpdating}
