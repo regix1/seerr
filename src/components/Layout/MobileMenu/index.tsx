@@ -112,6 +112,14 @@ const MobileMenu = ({
       permissionType: 'or',
     },
     {
+      href: '/hidden',
+      content: intl.formatMessage(menuMessages.hidden),
+      svgIcon: <EyeSlashIcon className="h-6 w-6" />,
+      svgIconSelected: <FilledEyeSlashIcon className="h-6 w-6" />,
+      activeRegExp: /^\/hidden/,
+      requiredPermission: Permission.MANAGE_REQUESTS,
+    },
+    {
       href: '/issues',
       content: intl.formatMessage(menuMessages.issues),
       svgIcon: <ExclamationTriangleIcon className="h-6 w-6" />,

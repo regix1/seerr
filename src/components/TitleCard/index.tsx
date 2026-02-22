@@ -347,7 +347,9 @@ const TitleCard = ({
         role="link"
         tabIndex={0}
       >
-        <div className="absolute inset-0 h-full w-full overflow-hidden">
+        <div
+          className={`absolute inset-0 h-full w-full overflow-hidden ${currentIsHidden ? 'grayscale' : ''}`}
+        >
           <CachedImage
             type="tmdb"
             className="absolute inset-0 h-full w-full"
@@ -462,8 +464,8 @@ const TitleCard = ({
             )}
           </div>
           {currentIsHidden && (
-            <div className="absolute inset-0 z-30 flex items-center justify-center rounded-xl bg-gray-900 bg-opacity-60">
-              <EyeSlashIcon className="h-12 w-12 text-gray-300 opacity-70" />
+            <div className="absolute inset-0 z-30 flex items-center justify-center rounded-xl bg-gray-900/30">
+              <EyeSlashIcon className="h-10 w-10 text-white drop-shadow-lg" />
             </div>
           )}
 

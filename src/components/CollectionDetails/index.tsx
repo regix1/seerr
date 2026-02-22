@@ -372,6 +372,8 @@ const CollectionDetails = ({ collection }: CollectionDetailsProps) => {
               userScore={title.voteAverage}
               year={title.releaseDate}
               mediaType={title.mediaType}
+              isHidden={title.mediaInfo?.isHidden}
+              mediaId={title.mediaInfo?.id}
             />
           ))}
       />
