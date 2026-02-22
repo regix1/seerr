@@ -4,6 +4,12 @@ name: Deploy to GitHub Pages
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'docs/**'
+      - 'gen-docs/**'
   push:
     branches:
       - develop
@@ -15,7 +21,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -60,12 +66,14 @@ jobs:
         run: pnpm build
 
       - name: Upload Build Artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b6 # v4.0.0
         with:
           path: gen-docs/build
 
   deploy:
     name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-24.04
     permissions:
