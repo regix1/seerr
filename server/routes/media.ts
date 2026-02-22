@@ -69,14 +69,28 @@ mediaRoutes.get('/', async (req, res, next) => {
   }
 
   try {
-    const [media, mediaCount] = await mediaRepository.findAndCount({
-      order: sortFilter,
-      where: statusFilter && {
-        status: statusFilter,
-      },
-      take: pageSize,
-      skip,
-    });
+    let queryBuilder = mediaRepository.createQueryBuilder('media');
+
+    if (statusFilter) {
+      queryBuilder = queryBuilder.where({ status: statusFilter });
+    }
+
+    // Filter admin-hidden media for non-privileged users
+    if (!req.user?.hasPermission(Permission.MANAGE_REQUESTS)) {
+      queryBuilder = queryBuilder.andWhere('media.isHidden = :isHidden', {
+        isHidden: false,
+      });
+    }
+
+    const sortKey = Object.keys(sortFilter)[0];
+    const sortDir = Object.values(sortFilter)[0] as 'ASC' | 'DESC';
+    queryBuilder = queryBuilder
+      .orderBy(`media.${sortKey}`, sortDir)
+      .take(pageSize)
+      .skip(skip);
+
+    const [media, mediaCount] = await queryBuilder.getManyAndCount();
+
     return res.status(200).json({
       pageInfo: {
         pages: Math.ceil(mediaCount / pageSize),
@@ -380,6 +394,78 @@ mediaRoutes.get<{ id: string }, MediaWatchDataResponse>(
         mediaId: req.params.id,
       });
       next({ status: 500, message: 'Failed to fetch watch data.' });
+    }
+  }
+);
+
+mediaRoutes.post(
+  '/:id/hide',
+  isAuthenticated(Permission.MANAGE_REQUESTS),
+  async (req, res, next) => {
+    const mediaRepository = getRepository(Media);
+
+    try {
+      const media = await mediaRepository.findOne({
+        where: { id: Number(req.params.id) },
+      });
+
+      if (!media) {
+        return next({ status: 404, message: 'Media does not exist.' });
+      }
+
+      media.isHidden = true;
+      await mediaRepository.save(media);
+
+      logger.info('Media hidden by admin', {
+        label: 'Media',
+        mediaId: media.id,
+        tmdbId: media.tmdbId,
+        hiddenBy: req.user?.id,
+      });
+
+      return res.status(200).json(media);
+    } catch (e) {
+      logger.error('Something went wrong hiding media', {
+        label: 'Media',
+        message: e.message,
+      });
+      next({ status: 500, message: 'Failed to hide media.' });
+    }
+  }
+);
+
+mediaRoutes.post(
+  '/:id/unhide',
+  isAuthenticated(Permission.MANAGE_REQUESTS),
+  async (req, res, next) => {
+    const mediaRepository = getRepository(Media);
+
+    try {
+      const media = await mediaRepository.findOne({
+        where: { id: Number(req.params.id) },
+      });
+
+      if (!media) {
+        return next({ status: 404, message: 'Media does not exist.' });
+      }
+
+      media.isHidden = false;
+      await mediaRepository.save(media);
+
+      logger.info('Media unhidden by admin', {
+        label: 'Media',
+        mediaId: media.id,
+        tmdbId: media.tmdbId,
+        unhiddenBy: req.user?.id,
+      });
+
+      return res.status(200).json(media);
+    } catch (e) {
+      logger.error('Something went wrong unhiding media', {
+        label: 'Media',
+        message: e.message,
+      });
+      next({ status: 500, message: 'Failed to unhide media.' });
     }
   }
 );

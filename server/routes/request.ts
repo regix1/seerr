@@ -160,6 +160,14 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
         });
       }
 
+      // Filter hidden requests: non-privileged users can only see their own hidden requests
+      if (!req.user?.hasPermission(Permission.MANAGE_REQUESTS)) {
+        query = query.andWhere(
+          '(request.isHidden = false OR requestedBy.id = :currentUserId)',
+          { currentUserId: req.user?.id }
+        );
+      }
+
       switch (mediaType) {
         case 'all':
           break;
@@ -335,48 +343,63 @@ requestRoutes.post<never, MediaRequest, MediaRequestBody>(
   }
 );
 
-requestRoutes.get('/count', async (_req, res, next) => {
+requestRoutes.get('/count', async (req, res, next) => {
   const requestRepository = getRepository(MediaRequest);
 
   try {
-    const query = requestRepository
-      .createQueryBuilder('request')
-      .innerJoinAndSelect('request.media', 'media');
+    const isPrivileged = req.user?.hasPermission(Permission.MANAGE_REQUESTS);
 
-    const totalCount = await query.getCount();
+    const createBaseQuery = () => {
+      const q = requestRepository
+        .createQueryBuilder('request')
+        .innerJoinAndSelect('request.media', 'media')
+        .leftJoin('request.requestedBy', 'requestedBy');
 
-    const movieCount = await query
-      .where('request.type = :requestType', {
+      // Filter hidden requests for non-privileged users
+      if (!isPrivileged) {
+        q.andWhere(
+          '(request.isHidden = false OR requestedBy.id = :currentUserId)',
+          { currentUserId: req.user?.id }
+        );
+      }
+
+      return q;
+    };
+
+    const totalCount = await createBaseQuery().getCount();
+
+    const movieCount = await createBaseQuery()
+      .andWhere('request.type = :requestType', {
         requestType: MediaType.MOVIE,
       })
       .getCount();
 
-    const tvCount = await query
-      .where('request.type = :requestType', {
+    const tvCount = await createBaseQuery()
+      .andWhere('request.type = :requestType', {
         requestType: MediaType.TV,
       })
       .getCount();
 
-    const pendingCount = await query
-      .where('request.status = :requestStatus', {
+    const pendingCount = await createBaseQuery()
+      .andWhere('request.status = :requestStatus', {
         requestStatus: MediaRequestStatus.PENDING,
       })
       .getCount();
 
-    const approvedCount = await query
-      .where('request.status = :requestStatus', {
+    const approvedCount = await createBaseQuery()
+      .andWhere('request.status = :requestStatus', {
         requestStatus: MediaRequestStatus.APPROVED,
       })
       .getCount();
 
-    const declinedCount = await query
-      .where('request.status = :requestStatus', {
+    const declinedCount = await createBaseQuery()
+      .andWhere('request.status = :requestStatus', {
         requestStatus: MediaRequestStatus.DECLINED,
       })
       .getCount();
 
-    const processingCount = await query
-      .where('request.status = :requestStatus', {
+    const processingCount = await createBaseQuery()
+      .andWhere('request.status = :requestStatus', {
         requestStatus: MediaRequestStatus.APPROVED,
       })
       .andWhere(
@@ -387,8 +410,8 @@ requestRoutes.get('/count', async (_req, res, next) => {
       )
       .getCount();
 
-    const availableCount = await query
-      .where('request.status = :requestStatus', {
+    const availableCount = await createBaseQuery()
+      .andWhere('request.status = :requestStatus', {
         requestStatus: MediaRequestStatus.APPROVED,
       })
       .andWhere(
@@ -399,8 +422,8 @@ requestRoutes.get('/count', async (_req, res, next) => {
       )
       .getCount();
 
-    const completedCount = await query
-      .where('request.status = :requestStatus', {
+    const completedCount = await createBaseQuery()
+      .andWhere('request.status = :requestStatus', {
         requestStatus: MediaRequestStatus.COMPLETED,
       })
       .getCount();
@@ -433,6 +456,18 @@ requestRoutes.get('/:requestId', async (req, res, next) => {
       where: { id: Number(req.params.requestId) },
       relations: { requestedBy: true, modifiedBy: true },
     });
+
+    // Hidden requests return 404 for unauthorized users
+    if (
+      request.isHidden &&
+      request.requestedBy.id !== req.user?.id &&
+      !req.user?.hasPermission(Permission.MANAGE_REQUESTS)
+    ) {
+      return next({
+        status: 404,
+        message: 'Request not found.',
+      });
+    }
 
     if (
       request.requestedBy.id !== req.user?.id &&
@@ -483,6 +518,29 @@ requestRoutes.put<{ requestId: string }>(
           status: 403,
           message: 'You do not have permission to modify this request.',
         });
+      }
+
+      // Handle isHidden toggle
+      if (req.body.isHidden !== undefined) {
+        const canToggleHidden =
+          // Owner with HIDDEN_REQUEST permission can toggle their own
+          (request.requestedBy.id === req.user?.id &&
+            req.user?.hasPermission(
+              [Permission.HIDDEN_REQUEST, Permission.MANAGE_REQUESTS],
+              { type: 'or' }
+            )) ||
+          // MANAGE_REQUESTS/admin can toggle any
+          req.user?.hasPermission(Permission.MANAGE_REQUESTS);
+
+        if (!canToggleHidden) {
+          return next({
+            status: 403,
+            message:
+              'You do not have permission to change the hidden status of this request.',
+          });
+        }
+
+        request.isHidden = req.body.isHidden;
       }
 
       let requestUser = request.requestedBy;

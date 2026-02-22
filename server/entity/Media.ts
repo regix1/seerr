@@ -8,6 +8,7 @@ import type { User } from '@server/entity/User';
 import { Watchlist } from '@server/entity/Watchlist';
 import type { DownloadingItem } from '@server/lib/downloadtracker';
 import downloadTracker from '@server/lib/downloadtracker';
+import { Permission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { DbAwareColumn } from '@server/utils/DbColumnHelper';
@@ -80,6 +81,102 @@ class Media {
     } catch (e) {
       logger.error(e.message);
       return undefined;
+    }
+  }
+
+  public static async getMediaForUser(
+    id: number,
+    mediaType: MediaType,
+    user?: User
+  ): Promise<Media | undefined> {
+    const mediaRepository = getRepository(Media);
+
+    try {
+      const media = await mediaRepository.findOne({
+        where: { tmdbId: id, mediaType: mediaType },
+        relations: { requests: true, issues: true },
+      });
+
+      if (!media) {
+        return undefined;
+      }
+
+      const isPrivileged =
+        user?.hasPermission(Permission.MANAGE_REQUESTS) ?? false;
+
+      // If media is admin-hidden, non-privileged users can't see it
+      if (media.isHidden && !isPrivileged) {
+        return undefined;
+      }
+
+      // Filter hidden requests from other users for non-privileged users
+      if (!isPrivileged) {
+        media.requests = (media.requests ?? []).filter(
+          (request) => !request.isHidden || request.requestedBy?.id === user?.id
+        );
+      }
+
+      return media;
+    } catch (e) {
+      logger.error(e.message);
+      return undefined;
+    }
+  }
+
+  public static async getRelatedMediaForUser(
+    user: User | undefined,
+    tmdbIds: number | number[]
+  ): Promise<Media[]> {
+    const mediaRepository = getRepository(Media);
+
+    try {
+      let finalIds: number[];
+      if (!Array.isArray(tmdbIds)) {
+        finalIds = [tmdbIds];
+      } else {
+        finalIds = tmdbIds;
+      }
+
+      if (finalIds.length === 0) {
+        return [];
+      }
+
+      const query = mediaRepository
+        .createQueryBuilder('media')
+        .leftJoinAndSelect('media.requests', 'requests')
+        .leftJoinAndSelect('requests.requestedBy', 'requestedBy')
+        .leftJoinAndSelect(
+          'media.watchlists',
+          'watchlist',
+          'media.id = watchlist.media and watchlist.requestedBy = :userId',
+          { userId: user?.id }
+        )
+        .where('media.tmdbId IN (:...finalIds)', { finalIds });
+
+      const isPrivileged =
+        user?.hasPermission(Permission.MANAGE_REQUESTS) ?? false;
+
+      // Filter admin-hidden media for non-privileged users
+      if (!isPrivileged) {
+        query.andWhere('media.isHidden = :isHidden', { isHidden: false });
+      }
+
+      const media = await query.getMany();
+
+      // Filter hidden requests from other users for non-privileged users
+      if (!isPrivileged) {
+        for (const m of media) {
+          m.requests = (m.requests ?? []).filter(
+            (request) =>
+              !request.isHidden || request.requestedBy?.id === user?.id
+          );
+        }
+      }
+
+      return media;
+    } catch (e) {
+      logger.error(e.message);
+      return [];
     }
   }
 
@@ -157,6 +254,9 @@ class Media {
     nullable: true,
   })
   public mediaAddedAt: Date;
+
+  @Column({ default: false })
+  public isHidden: boolean;
 
   @Column({ nullable: true, type: 'int' })
   public serviceId?: number | null;

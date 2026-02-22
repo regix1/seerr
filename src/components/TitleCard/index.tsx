@@ -42,6 +42,8 @@ interface TitleCardProps {
   canExpand?: boolean;
   inProgress?: boolean;
   isAddedToWatchlist?: number | boolean;
+  isHidden?: boolean;
+  mediaId?: number;
   mutateParent?: () => void;
 }
 
@@ -53,6 +55,8 @@ const messages = defineMessages('components.TitleCard', {
     '<strong>{title}</strong> Removed from watchlist  successfully!',
   watchlistCancel: 'watchlist for <strong>{title}</strong> canceled.',
   watchlistError: 'Something went wrong. Please try again.',
+  hideMedia: 'Hide Media',
+  unhideMedia: 'Unhide Media',
 });
 
 const TitleCard = ({
@@ -64,6 +68,8 @@ const TitleCard = ({
   status,
   mediaType,
   isAddedToWatchlist = false,
+  isHidden = false,
+  mediaId,
   inProgress = false,
   canExpand = false,
   mutateParent,
@@ -79,6 +85,7 @@ const TitleCard = ({
   const [toggleWatchlist, setToggleWatchlist] =
     useState<boolean>(!isAddedToWatchlist);
   const [showBlocklistModal, setShowBlocklistModal] = useState(false);
+  const [currentIsHidden, setCurrentIsHidden] = useState(isHidden);
   const cardRef = useRef<HTMLDivElement>(null);
 
   // Just to get the year from the date
@@ -252,6 +259,20 @@ const TitleCard = ({
     setIsUpdating(false);
   };
 
+  const onClickToggleHideMedia = async (): Promise<void> => {
+    if (!mediaId) return;
+    setIsUpdating(true);
+    try {
+      const endpoint = currentIsHidden ? 'unhide' : 'hide';
+      await axios.post(`/api/v1/media/${mediaId}/${endpoint}`);
+      setCurrentIsHidden(!currentIsHidden);
+    } catch {
+      // silently fail
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const closeModal = useCallback(() => setShowRequestModal(false), []);
 
   const showRequestButton = hasPermission(
@@ -390,6 +411,24 @@ const TitleCard = ({
                       <EyeSlashIcon className={'h-3'} />
                     </Button>
                   )}
+                {hasPermission(Permission.MANAGE_REQUESTS) && mediaId && (
+                  <Tooltip
+                    content={intl.formatMessage(
+                      currentIsHidden
+                        ? messages.unhideMedia
+                        : messages.hideMedia
+                    )}
+                  >
+                    <Button
+                      buttonType={currentIsHidden ? 'warning' : 'ghost'}
+                      className="z-40"
+                      buttonSize={'sm'}
+                      onClick={onClickToggleHideMedia}
+                    >
+                      <EyeSlashIcon className={'h-3'} />
+                    </Button>
+                  </Tooltip>
+                )}
               </div>
             )}
             {showDetail &&

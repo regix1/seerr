@@ -33,7 +33,7 @@ searchRoutes.get('/', async (req, res, next) => {
       });
     }
 
-    const media = await Media.getRelatedMedia(
+    const media = await Media.getRelatedMediaForUser(
       req.user,
       results.results.map((result) => result.id)
     );

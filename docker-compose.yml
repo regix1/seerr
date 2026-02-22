@@ -1,0 +1,14 @@
+services:
+  seerr:
+    image: ghcr.io/regix1/seerr:develop
+    container_name: seerr
+    restart: unless-stopped
+    ports:
+      - '5055:5055'
+    volumes:
+      - seerr-config:/app/config
+    environment:
+      - TZ=America/New_York
+
+volumes:
+  seerr-config:

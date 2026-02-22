@@ -85,6 +85,9 @@ export const messages = defineMessages('components.PermissionEdit', {
   viewblocklistedItems: 'View blocklisted media.',
   viewblocklistedItemsDescription:
     'Grant permission to view blocklisted media.',
+  hiddenRequest: 'Hidden Requests',
+  hiddenRequestDescription:
+    'Grant permission to create hidden requests that are not visible to other users.',
 });
 
 interface PermissionEditProps {
@@ -181,6 +184,12 @@ export const PermissionEdit = ({
           name: intl.formatMessage(messages.requestTv),
           description: intl.formatMessage(messages.requestTvDescription),
           permission: Permission.REQUEST_TV,
+        },
+        {
+          id: 'hidden-request',
+          name: intl.formatMessage(messages.hiddenRequest),
+          description: intl.formatMessage(messages.hiddenRequestDescription),
+          permission: Permission.HIDDEN_REQUEST,
         },
       ],
     },

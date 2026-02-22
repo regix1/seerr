@@ -73,6 +73,13 @@ const ListView = ({
               );
             return title;
           })
+          .filter((title) => {
+            // Filter hidden media for non-privileged users
+            if (!hasPermission(Permission.MANAGE_REQUESTS)) {
+              return !(title as TvResult | MovieResult).mediaInfo?.isHidden;
+            }
+            return true;
+          })
           .map((title, index) => {
             let titleCard: React.ReactNode;
 

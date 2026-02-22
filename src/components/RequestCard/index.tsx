@@ -41,6 +41,7 @@ const messages = defineMessages('components.RequestCard', {
   editrequest: 'Edit Request',
   cancelrequest: 'Cancel Request',
   deleterequest: 'Delete Request',
+  hidden: 'Hidden',
   unknowntitle: 'Unknown Title',
 });
 
@@ -469,6 +470,12 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                 }
               />
             )}
+            {requestData.isHidden &&
+              hasPermission(Permission.MANAGE_REQUESTS) && (
+                <Badge badgeType="warning" className="ml-2">
+                  {intl.formatMessage(messages.hidden)}
+                </Badge>
+              )}
           </div>
           <div className="flex flex-1 items-end space-x-2">
             {requestData.status === MediaRequestStatus.FAILED &&

@@ -41,6 +41,7 @@ const messages = defineMessages('components.RequestList.RequestItem', {
   editrequest: 'Edit Request',
   deleterequest: 'Delete Request',
   cancelRequest: 'Cancel Request',
+  hidden: 'Hidden',
   tmdbid: 'TMDB ID',
   tvdbid: 'TheTVDB ID',
   unknowntitle: 'Unknown Title',
@@ -540,6 +541,12 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   }
                 />
               )}
+              {requestData.isHidden &&
+                hasPermission(Permission.MANAGE_REQUESTS) && (
+                  <Badge badgeType="warning">
+                    {intl.formatMessage(messages.hidden)}
+                  </Badge>
+                )}
             </div>
             <div className="card-field">
               {hasPermission(

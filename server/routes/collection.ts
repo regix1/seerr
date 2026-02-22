@@ -15,7 +15,7 @@ collectionRoutes.get<{ id: string }>('/:id', async (req, res, next) => {
       language: (req.query.language as string) ?? req.locale,
     });
 
-    const media = await Media.getRelatedMedia(
+    const media = await Media.getRelatedMediaForUser(
       req.user,
       collection.parts.map((part) => part.id)
     );

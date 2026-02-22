@@ -35,6 +35,7 @@ const messages = defineMessages('components.RequestModal', {
   requestApproved: 'Request for <strong>{title}</strong> approved!',
   requesterror: 'Something went wrong while submitting the request.',
   pendingapproval: 'Your request is pending approval.',
+  hiddenRequest: 'Hide this request from other users',
 });
 
 interface RequestModalProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -55,6 +56,7 @@ const MovieRequestModal = ({
   is4k = false,
 }: RequestModalProps) => {
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
   const [requestOverrides, setRequestOverrides] =
     useState<RequestOverrides | null>(null);
   const { addToast } = useToasts();
@@ -94,6 +96,7 @@ const MovieRequestModal = ({
         mediaId: data?.id,
         mediaType: 'movie',
         is4k,
+        isHidden,
         ...overrideParams,
       });
       mutate('/api/v1/request?filter=all&take=10&sort=modified&skip=0');
@@ -137,6 +140,7 @@ const MovieRequestModal = ({
     data?.id,
     data?.title,
     is4k,
+    isHidden,
     onComplete,
     addToast,
     intl,
@@ -363,6 +367,23 @@ const MovieRequestModal = ({
             setRequestOverrides(overrides);
           }}
         />
+      )}
+      {hasPermission(Permission.HIDDEN_REQUEST) && (
+        <div className="mt-4 flex items-center">
+          <input
+            type="checkbox"
+            id="hidden-request"
+            checked={isHidden}
+            onChange={(e) => setIsHidden(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-indigo-500 focus:ring-indigo-500"
+          />
+          <label
+            htmlFor="hidden-request"
+            className="ml-2 text-sm text-gray-300"
+          >
+            {intl.formatMessage(messages.hiddenRequest)}
+          </label>
+        </div>
       )}
     </Modal>
   );

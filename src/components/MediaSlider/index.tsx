@@ -82,6 +82,15 @@ const MediaSlider = ({
     );
   }
 
+  // Filter hidden media for non-privileged users
+  if (!hasPermission(Permission.MANAGE_REQUESTS)) {
+    titles = titles.filter(
+      (i) =>
+        (i.mediaType === 'movie' || i.mediaType === 'tv') &&
+        !i.mediaInfo?.isHidden
+    );
+  }
+
   useEffect(() => {
     if (
       titles.length < 24 &&
@@ -116,6 +125,13 @@ const MediaSlider = ({
           MediaStatus.BLOCKLISTED
         );
       return title;
+    })
+    .filter((title) => {
+      // Filter hidden media for non-privileged users
+      if (!hasPermission(Permission.MANAGE_REQUESTS)) {
+        return !(title as TvResult | MovieResult).mediaInfo?.isHidden;
+      }
+      return true;
     })
     .map((title) => {
       switch (title.mediaType) {

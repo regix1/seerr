@@ -1,4 +1,5 @@
 import BlocklistBlock from '@app/components/BlocklistBlock';
+import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import ConfirmButton from '@app/components/Common/ConfirmButton';
@@ -11,7 +12,11 @@ import useSettings from '@app/hooks/useSettings';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
-import { Bars4Icon, ServerIcon } from '@heroicons/react/24/outline';
+import {
+  Bars4Icon,
+  EyeSlashIcon,
+  ServerIcon,
+} from '@heroicons/react/24/outline';
 import {
   CheckCircleIcon,
   DocumentMinusIcon,
@@ -75,6 +80,9 @@ const messages = defineMessages('components.ManageSlideOver', {
   playedby: 'Played By',
   movie: 'movie',
   tvshow: 'series',
+  hidden: 'Hidden',
+  hideMedia: 'Hide Media',
+  unhideMedia: 'Unhide Media',
 });
 
 const isMovie = (movie: MovieDetails | TvDetails): movie is MovieDetails => {
@@ -326,6 +334,43 @@ const ManageSlideOver = ({
                 onDelete={() => onClose()}
               />
             </div>
+          </div>
+        )}
+        {hasPermission(Permission.MANAGE_REQUESTS) && data.mediaInfo && (
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <EyeSlashIcon className="h-5 w-5 text-gray-400" />
+                <span className="text-lg font-bold text-gray-200">
+                  {intl.formatMessage(messages.hidden)}
+                </span>
+                {data.mediaInfo.isHidden && (
+                  <Badge badgeType="warning">
+                    {intl.formatMessage(messages.hidden)}
+                  </Badge>
+                )}
+              </div>
+            </div>
+            <Button
+              buttonType={data.mediaInfo.isHidden ? 'warning' : 'ghost'}
+              className="w-full"
+              onClick={async () => {
+                const endpoint = data.mediaInfo?.isHidden ? 'unhide' : 'hide';
+                await axios.post(
+                  `/api/v1/media/${data.mediaInfo?.id}/${endpoint}`
+                );
+                revalidate();
+              }}
+            >
+              <EyeSlashIcon />
+              <span>
+                {intl.formatMessage(
+                  data.mediaInfo.isHidden
+                    ? messages.unhideMedia
+                    : messages.hideMedia
+                )}
+              </span>
+            </Button>
           </div>
         )}
         {hasPermission(Permission.ADMIN) &&

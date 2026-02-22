@@ -1263,6 +1263,10 @@ components:
           type: number
         rootFolder:
           type: string
+        isHidden:
+          type: boolean
+          description: Whether this request is hidden from other users
+          default: false
       required:
         - id
         - status
@@ -1296,6 +1300,10 @@ components:
           type: string
           example: '2020-09-12T10:00:27.000Z'
           readOnly: true
+        isHidden:
+          type: boolean
+          description: Whether this media is hidden from non-privileged users
+          default: false
     Cast:
       type: object
       properties:
@@ -6263,6 +6271,9 @@ paths:
                 userId:
                   type: number
                   nullable: true
+                isHidden:
+                  type: boolean
+                  description: Mark request as hidden (requires HIDDEN_REQUEST permission)
               required:
                 - mediaType
                 - mediaId
@@ -7094,6 +7105,44 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/User'
+  /media/{mediaId}/hide:
+    post:
+      summary: Hide media
+      description: Hide media from non-privileged users. Requires MANAGE_REQUESTS permission.
+      tags:
+        - media
+      parameters:
+        - in: path
+          name: mediaId
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Media hidden successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaInfo'
+  /media/{mediaId}/unhide:
+    post:
+      summary: Unhide media
+      description: Unhide previously hidden media. Requires MANAGE_REQUESTS permission.
+      tags:
+        - media
+      parameters:
+        - in: path
+          name: mediaId
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Media unhidden successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaInfo'
   /collection/{collectionId}:
     get:
       summary: Get collection details

@@ -22,7 +22,11 @@ movieRoutes.get('/:id', async (req, res, next) => {
       language: (req.query.language as string) ?? req.locale,
     });
 
-    const media = await Media.getMedia(tmdbMovie.id, MediaType.MOVIE);
+    const media = await Media.getMediaForUser(
+      tmdbMovie.id,
+      MediaType.MOVIE,
+      req.user
+    );
 
     const onUserWatchlist = await getRepository(Watchlist).exist({
       where: {
@@ -65,7 +69,7 @@ movieRoutes.get('/:id/recommendations', async (req, res, next) => {
       language: (req.query.language as string) ?? req.locale,
     });
 
-    const media = await Media.getRelatedMedia(
+    const media = await Media.getRelatedMediaForUser(
       req.user,
       results.results.map((result) => result.id)
     );
@@ -107,7 +111,7 @@ movieRoutes.get('/:id/similar', async (req, res, next) => {
       language: (req.query.language as string) ?? req.locale,
     });
 
-    const media = await Media.getRelatedMedia(
+    const media = await Media.getRelatedMediaForUser(
       req.user,
       results.results.map((result) => result.id)
     );

@@ -41,12 +41,12 @@ personRoutes.get('/:id/combined_credits', async (req, res, next) => {
       language: (req.query.language as string) ?? req.locale,
     });
 
-    const castMedia = await Media.getRelatedMedia(
+    const castMedia = await Media.getRelatedMediaForUser(
       req.user,
       combinedCredits.cast.map((result) => result.id)
     );
 
-    const crewMedia = await Media.getRelatedMedia(
+    const crewMedia = await Media.getRelatedMediaForUser(
       req.user,
       combinedCredits.crew.map((result) => result.id)
     );

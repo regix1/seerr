@@ -105,6 +105,8 @@ const messages = defineMessages('components.TvDetails', {
   watchlistError: 'Something went wrong. Please try again.',
   removefromwatchlist: 'Remove From Watchlist',
   addtowatchlist: 'Add To Watchlist',
+  hideMedia: 'Hide Media',
+  unhideMedia: 'Unhide Media',
 });
 
 interface TvDetailsProps {
@@ -692,6 +694,29 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                 </Button>
               </Tooltip>
             )}
+          {hasPermission(Permission.MANAGE_REQUESTS) && data.mediaInfo && (
+            <Tooltip
+              content={intl.formatMessage(
+                data.mediaInfo.isHidden
+                  ? messages.unhideMedia
+                  : messages.hideMedia
+              )}
+            >
+              <Button
+                buttonType={data.mediaInfo.isHidden ? 'warning' : 'ghost'}
+                className="ml-2 first:ml-0"
+                onClick={async () => {
+                  const endpoint = data.mediaInfo?.isHidden ? 'unhide' : 'hide';
+                  await axios.post(
+                    `/api/v1/media/${data.mediaInfo?.id}/${endpoint}`
+                  );
+                  revalidate();
+                }}
+              >
+                <EyeSlashIcon />
+              </Button>
+            </Tooltip>
+          )}
           {hasPermission(Permission.MANAGE_REQUESTS) && data.mediaInfo && (
             <Tooltip content={intl.formatMessage(messages.manageseries)}>
               <Button

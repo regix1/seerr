@@ -122,7 +122,7 @@ discoverRoutes.get('/movies', async (req, res, next) => {
       certificationCountry: query.certificationCountry,
     });
 
-    const media = await Media.getRelatedMedia(
+    const media = await Media.getRelatedMediaForUser(
       req.user,
       data.results.map((result) => result.id)
     );
@@ -191,7 +191,7 @@ discoverRoutes.get<{ language: string }>(
         originalLanguage: req.params.language,
       });
 
-      const media = await Media.getRelatedMedia(
+      const media = await Media.getRelatedMediaForUser(
         req.user,
         data.results.map((result) => result.id)
       );
@@ -249,7 +249,7 @@ discoverRoutes.get<{ genreId: string }>(
         genre: req.params.genreId as string,
       });
 
-      const media = await Media.getRelatedMedia(
+      const media = await Media.getRelatedMediaForUser(
         req.user,
         data.results.map((result) => result.id)
       );
@@ -297,7 +297,7 @@ discoverRoutes.get<{ studioId: string }>(
         studio: req.params.studioId as string,
       });
 
-      const media = await Media.getRelatedMedia(
+      const media = await Media.getRelatedMediaForUser(
         req.user,
         data.results.map((result) => result.id)
       );
@@ -347,7 +347,7 @@ discoverRoutes.get('/movies/upcoming', async (req, res, next) => {
       primaryReleaseDateGte: date,
     });
 
-    const media = await Media.getRelatedMedia(
+    const media = await Media.getRelatedMediaForUser(
       req.user,
       data.results.map((result) => result.id)
     );
@@ -415,7 +415,7 @@ discoverRoutes.get('/tv', async (req, res, next) => {
       certificationCountry: query.certificationCountry,
     });
 
-    const media = await Media.getRelatedMedia(
+    const media = await Media.getRelatedMediaForUser(
       req.user,
       data.results.map((result) => result.id)
     );
@@ -483,7 +483,7 @@ discoverRoutes.get<{ language: string }>(
         originalLanguage: req.params.language,
       });
 
-      const media = await Media.getRelatedMedia(
+      const media = await Media.getRelatedMediaForUser(
         req.user,
         data.results.map((result) => result.id)
       );
@@ -541,7 +541,7 @@ discoverRoutes.get<{ genreId: string }>(
         genre: req.params.genreId,
       });
 
-      const media = await Media.getRelatedMedia(
+      const media = await Media.getRelatedMediaForUser(
         req.user,
         data.results.map((result) => result.id)
       );
@@ -589,7 +589,7 @@ discoverRoutes.get<{ networkId: string }>(
         network: Number(req.params.networkId),
       });
 
-      const media = await Media.getRelatedMedia(
+      const media = await Media.getRelatedMediaForUser(
         req.user,
         data.results.map((result) => result.id)
       );
@@ -639,7 +639,7 @@ discoverRoutes.get('/tv/upcoming', async (req, res, next) => {
       firstAirDateGte: date,
     });
 
-    const media = await Media.getRelatedMedia(
+    const media = await Media.getRelatedMediaForUser(
       req.user,
       data.results.map((result) => result.id)
     );
@@ -678,7 +678,7 @@ discoverRoutes.get('/trending', async (req, res, next) => {
       language: (req.query.language as string) ?? req.locale,
     });
 
-    const media = await Media.getRelatedMedia(
+    const media = await Media.getRelatedMediaForUser(
       req.user,
       data.results.map((result) => result.id)
     );
@@ -733,7 +733,7 @@ discoverRoutes.get<{ keywordId: string }>(
         language: (req.query.language as string) ?? req.locale,
       });
 
-      const media = await Media.getRelatedMedia(
+      const media = await Media.getRelatedMediaForUser(
         req.user,
         data.results.map((result) => result.id)
       );

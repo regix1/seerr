@@ -30,7 +30,7 @@ tvRoutes.get('/:id', async (req, res, next) => {
       tvId: Number(req.params.id),
       language: (req.query.language as string) ?? req.locale,
     });
-    const media = await Media.getMedia(tv.id, MediaType.TV);
+    const media = await Media.getMediaForUser(tv.id, MediaType.TV, req.user);
 
     const onUserWatchlist = await getRepository(Watchlist).exist({
       where: {
@@ -108,7 +108,7 @@ tvRoutes.get('/:id/recommendations', async (req, res, next) => {
       language: (req.query.language as string) ?? req.locale,
     });
 
-    const media = await Media.getRelatedMedia(
+    const media = await Media.getRelatedMediaForUser(
       req.user,
       results.results.map((result) => result.id)
     );
@@ -149,7 +149,7 @@ tvRoutes.get('/:id/similar', async (req, res, next) => {
       language: (req.query.language as string) ?? req.locale,
     });
 
-    const media = await Media.getRelatedMedia(
+    const media = await Media.getRelatedMediaForUser(
       req.user,
       results.results.map((result) => result.id)
     );

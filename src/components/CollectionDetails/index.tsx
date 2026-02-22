@@ -353,6 +353,13 @@ const CollectionDetails = ({ collection }: CollectionDetailsProps) => {
               return title.mediaInfo?.status !== MediaStatus.BLOCKLISTED;
             return title;
           })
+          .filter((title) => {
+            // Filter hidden media for non-privileged users
+            if (!hasPermission(Permission.MANAGE_REQUESTS)) {
+              return !title.mediaInfo?.isHidden;
+            }
+            return true;
+          })
           .map((title) => (
             <TitleCard
               key={`collection-movie-${title.id}`}
