@@ -278,6 +278,8 @@ const TitleCard = ({
         mediaType === 'movie' ? `/api/v1/movie/${id}` : `/api/v1/tv/${id}`;
       mutate(swrKey);
       mutateParent?.();
+      mutate('/api/v1/media?filter=allavailable&take=20&sort=mediaAdded');
+      mutate('/api/v1/request?filter=all&take=10&sort=modified&skip=0');
     } catch {
       setCurrentIsHidden(!newHidden);
     }

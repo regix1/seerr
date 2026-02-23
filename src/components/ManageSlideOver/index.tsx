@@ -37,7 +37,7 @@ import type { TvDetails } from '@server/models/Tv';
 import axios from 'axios';
 import Link from 'next/link';
 import { useIntl } from 'react-intl';
-import useSWR from 'swr';
+import useSWR, { mutate } from 'swr';
 
 const filterDuplicateDownloads = (
   items: DownloadingItem[] = []
@@ -366,6 +366,12 @@ const ManageSlideOver = ({
                       `/api/v1/media/${data.mediaInfo?.id}/${endpoint}`
                     );
                     revalidate();
+                    mutate(
+                      '/api/v1/media?filter=allavailable&take=20&sort=mediaAdded'
+                    );
+                    mutate(
+                      '/api/v1/request?filter=all&take=10&sort=modified&skip=0'
+                    );
                   }}
                 >
                   <EyeSlashIcon />
