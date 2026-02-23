@@ -263,17 +263,23 @@ const TitleCard = ({
     setIsUpdating(false);
   };
 
-  const onClickToggleHideMedia = async (): Promise<void> => {
+  const onClickToggleHideMedia = async (e: React.MouseEvent): Promise<void> => {
+    e.stopPropagation();
+    e.preventDefault();
     if (!mediaId) return;
-    setIsUpdating(true);
+
+    const newHidden = !currentIsHidden;
+    setCurrentIsHidden(newHidden);
+
     try {
-      const endpoint = currentIsHidden ? 'unhide' : 'hide';
+      const endpoint = newHidden ? 'hide' : 'unhide';
       await axios.post(`/api/v1/media/${mediaId}/${endpoint}`);
-      setCurrentIsHidden(!currentIsHidden);
+      const swrKey =
+        mediaType === 'movie' ? `/api/v1/movie/${id}` : `/api/v1/tv/${id}`;
+      mutate(swrKey);
+      mutateParent?.();
     } catch {
-      // silently fail
-    } finally {
-      setIsUpdating(false);
+      setCurrentIsHidden(!newHidden);
     }
   };
 
