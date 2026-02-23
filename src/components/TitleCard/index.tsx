@@ -97,6 +97,10 @@ const TitleCard = ({
     setCurrentStatus(status);
   }, [status]);
 
+  useEffect(() => {
+    setCurrentIsHidden(isHidden);
+  }, [isHidden]);
+
   const requestComplete = useCallback((newStatus: MediaStatus) => {
     setCurrentStatus(newStatus);
     setShowRequestModal(false);

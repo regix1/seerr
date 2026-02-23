@@ -368,7 +368,7 @@ const MovieRequestModal = ({
           }}
         />
       )}
-      {hasPermission(Permission.HIDDEN_REQUEST) && (
+      {!editRequest && hasPermission(Permission.HIDDEN_REQUEST) && (
         <div className="mt-4 flex items-center">
           <input
             type="checkbox"
