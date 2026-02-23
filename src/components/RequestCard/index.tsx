@@ -331,11 +331,13 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
         }}
       />
       <div
-        className="relative flex w-72 overflow-hidden rounded-xl bg-gray-800 bg-cover bg-center p-4 text-gray-400 shadow ring-1 ring-gray-700 sm:w-96"
+        className={`relative flex w-72 overflow-hidden rounded-xl bg-gray-800 bg-cover bg-center p-4 text-gray-400 shadow ring-1 sm:w-96 ${requestData.isHidden ? 'ring-yellow-600/50' : 'ring-gray-700'}`}
         data-testid="request-card"
       >
         {title.backdropPath && (
-          <div className="absolute inset-0 z-0">
+          <div
+            className={`absolute inset-0 z-0 ${requestData.isHidden ? 'grayscale' : ''}`}
+          >
             <CachedImage
               type="tmdb"
               alt=""

@@ -541,6 +541,28 @@ requestRoutes.put<{ requestId: string }>(
         }
 
         request.isHidden = req.body.isHidden;
+
+        // Sync Media.isHidden with request hidden state
+        const mediaRepository = getRepository(Media);
+        const media = await mediaRepository.findOne({
+          where: { id: request.media.id },
+          relations: { requests: true },
+        });
+
+        if (media) {
+          if (req.body.isHidden) {
+            media.isHidden = true;
+            await mediaRepository.save(media);
+          } else {
+            const hasOtherHiddenRequests = media.requests.some(
+              (r) => r.id !== request.id && r.isHidden
+            );
+            if (!hasOtherHiddenRequests) {
+              media.isHidden = false;
+              await mediaRepository.save(media);
+            }
+          }
+        }
       }
 
       let requestUser = request.requestedBy;
@@ -676,7 +698,26 @@ requestRoutes.delete('/:requestId', async (req, res, next) => {
       });
     }
 
+    const wasHidden = request.isHidden;
+    const mediaId = request.media.id;
+
     await requestRepository.remove(request);
+
+    if (wasHidden) {
+      const mediaRepository = getRepository(Media);
+      const media = await mediaRepository.findOne({
+        where: { id: mediaId },
+        relations: { requests: true },
+      });
+
+      if (media) {
+        const hasOtherHiddenRequests = media.requests.some((r) => r.isHidden);
+        if (!hasOtherHiddenRequests) {
+          media.isHidden = false;
+          await mediaRepository.save(media);
+        }
+      }
+    }
 
     return res.status(204).send();
   } catch (e) {

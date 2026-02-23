@@ -14,6 +14,7 @@ import {
   ChevronRightIcon,
   EyeIcon,
 } from '@heroicons/react/24/solid';
+import { MediaStatus } from '@server/constants/media';
 import type Media from '@server/entity/Media';
 import type { MediaResultsResponse } from '@server/interfaces/api/mediaInterfaces';
 import type { MovieDetails } from '@server/models/Movie';
@@ -299,6 +300,26 @@ const HiddenMediaItem = ({ item, revalidateList }: HiddenMediaItemProps) => {
             <Badge badgeType="warning">
               {intl.formatMessage(messages.hiddenMedia)}
             </Badge>
+            {item.status === MediaStatus.PROCESSING && (
+              <Badge badgeType="primary">
+                {intl.formatMessage(globalMessages.processing)}
+              </Badge>
+            )}
+            {item.status === MediaStatus.AVAILABLE && (
+              <Badge badgeType="success">
+                {intl.formatMessage(globalMessages.available)}
+              </Badge>
+            )}
+            {item.status === MediaStatus.PARTIALLY_AVAILABLE && (
+              <Badge badgeType="success">
+                {intl.formatMessage(globalMessages.partiallyavailable)}
+              </Badge>
+            )}
+            {item.status === MediaStatus.PENDING && (
+              <Badge badgeType="default">
+                {intl.formatMessage(globalMessages.pending)}
+              </Badge>
+            )}
           </div>
           <div className="card-field">
             {item.mediaType === 'movie' ? (

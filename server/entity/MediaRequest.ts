@@ -350,6 +350,10 @@ export class MediaRequest {
       }
     }
 
+    if (requestBody.isHidden) {
+      media.isHidden = true;
+    }
+
     if (requestBody.mediaType === MediaType.MOVIE) {
       await mediaRepository.save(media);
 
