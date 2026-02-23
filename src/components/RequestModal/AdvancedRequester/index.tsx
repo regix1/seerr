@@ -8,6 +8,7 @@ import defineMessages from '@app/utils/defineMessages';
 import { formatBytes } from '@app/utils/numberHelpers';
 import { Listbox, Transition } from '@headlessui/react';
 import { CheckIcon, ChevronDownIcon } from '@heroicons/react/24/solid';
+import type OverrideRule from '@server/entity/OverrideRule';
 import type {
   ServiceCommonServer,
   ServiceCommonServerWithDetails,
@@ -115,6 +116,15 @@ const AdvancedRequester = ({
     requestUser ?? null
   );
 
+  const { data: overrideRules } = useSWR<OverrideRule[]>(
+    currentHasPermission([Permission.ADMIN]) ? '/api/v1/overrideRule' : null,
+    {
+      refreshInterval: 0,
+      refreshWhenHidden: false,
+      revalidateOnFocus: false,
+    }
+  );
+
   const { data: userData } = useSWR<UserResultsResponse>(
     currentHasPermission([Permission.MANAGE_REQUESTS, Permission.MANAGE_USERS])
       ? '/api/v1/user?take=1000&sort=displayname'
@@ -157,8 +167,41 @@ const AdvancedRequester = ({
       (server) => server.isDefault && is4k === server.is4k
     );
 
+    // When the series is anime, prefer a server with anime settings configured
+    if (isAnime && !defaultServer?.activeAnimeProfileId) {
+      const animeServer = data?.find(
+        (server) => server.activeAnimeProfileId && is4k === server.is4k
+      );
+      if (animeServer) {
+        defaultServer = animeServer;
+      }
+    }
+
     if (!defaultServer && (data ?? []).length > 0) {
       defaultServer = data?.[0];
+    }
+
+    // Check override rules for anime target server routing (admin users)
+    if (isAnime && defaultServer && overrideRules && type === 'tv') {
+      const sourceServiceId = defaultServer.id;
+      const matchingRule = overrideRules.find(
+        (rule) =>
+          rule.sonarrServiceId === sourceServiceId &&
+          rule.seriesType &&
+          rule.seriesType
+            .split(',')
+            .map((s) => s.trim().toLowerCase())
+            .includes('anime') &&
+          rule.targetServerId != null
+      );
+      if (matchingRule && matchingRule.targetServerId != null) {
+        const targetServer = data?.find(
+          (s) => s.id === matchingRule.targetServerId
+        );
+        if (targetServer) {
+          defaultServer = targetServer;
+        }
+      }
     }
 
     if (
@@ -168,7 +211,7 @@ const AdvancedRequester = ({
     ) {
       setSelectedServer(defaultServer.id);
     }
-  }, [data]);
+  }, [data, overrideRules]);
 
   useEffect(() => {
     if (serverData) {

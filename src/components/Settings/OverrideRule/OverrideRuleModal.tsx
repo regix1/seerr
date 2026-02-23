@@ -43,6 +43,15 @@ const messages = defineMessages('components.Settings.OverrideRuleModal', {
   tags: 'Tags',
   notagoptions: 'No tags.',
   selecttags: 'Select tags',
+  seriesType: 'Series Type',
+  seriesTypeDescription:
+    'Only apply this rule when the series matches the selected type(s).',
+  targetServer: 'Target Server',
+  targetServerDescription:
+    'Override the destination server when this rule matches.',
+  anime: 'Anime',
+  standard: 'Standard',
+  daily: 'Daily',
   ruleCreated: 'Override rule created successfully!',
   ruleUpdated: 'Override rule updated successfully!',
 });
@@ -70,6 +79,9 @@ const OverrideRuleModal = ({
   const { currentSettings } = useSettings();
   const [isValidated, setIsValidated] = useState(rule ? true : false);
   const [isTesting, setIsTesting] = useState(false);
+  const [isTestingTarget, setIsTestingTarget] = useState(false);
+  const [targetTestResponse, setTargetTestResponse] =
+    useState<DVRTestResponse | null>(null);
   const [testResponse, setTestResponse] = useState<DVRTestResponse>({
     profiles: [],
     rootFolders: [],
@@ -117,6 +129,40 @@ const OverrideRuleModal = ({
     []
   );
 
+  const getTargetServiceInfos = useCallback(
+    async (serviceId: number, type: 'radarr' | 'sonarr') => {
+      const services = type === 'radarr' ? radarrServices : sonarrServices;
+      const service = services.find((s) => s.id === serviceId);
+      if (!service) return;
+      setIsTestingTarget(true);
+      try {
+        const response = await axios.post<DVRTestResponse>(
+          `/api/v1/settings/${type}/test`,
+          {
+            hostname: service.hostname,
+            apiKey: service.apiKey,
+            port: Number(service.port),
+            baseUrl: service.baseUrl,
+            useSsl: service.useSsl,
+          }
+        );
+        setTargetTestResponse(response.data);
+      } catch {
+        setTargetTestResponse(null);
+      } finally {
+        setIsTestingTarget(false);
+      }
+    },
+    [radarrServices, sonarrServices]
+  );
+
+  useEffect(() => {
+    if (rule?.targetServerId != null) {
+      const type = rule?.sonarrServiceId != null ? 'sonarr' : 'radarr';
+      getTargetServiceInfos(rule.targetServerId, type);
+    }
+  }, [rule?.targetServerId, getTargetServiceInfos, rule?.sonarrServiceId]);
+
   useEffect(() => {
     if (
       rule?.radarrServiceId !== null &&
@@ -163,6 +209,8 @@ const OverrideRuleModal = ({
           profileId: rule?.profileId,
           rootFolder: rule?.rootFolder,
           tags: rule?.tags,
+          seriesType: rule?.seriesType,
+          targetServerId: rule?.targetServerId,
         }}
         onSubmit={async (values) => {
           try {
@@ -176,6 +224,11 @@ const OverrideRuleModal = ({
               tags: values.tags || null,
               radarrServiceId: values.radarrServiceId,
               sonarrServiceId: values.sonarrServiceId,
+              seriesType: values.seriesType || null,
+              targetServerId:
+                values.targetServerId != null
+                  ? Number(values.targetServerId)
+                  : null,
             };
             if (!rule) {
               await axios.post('/api/v1/overrideRule', submission);
@@ -205,6 +258,12 @@ const OverrideRuleModal = ({
           isSubmitting,
           isValid,
         }) => {
+          const activeTestResponse =
+            values.targetServerId != null && targetTestResponse
+              ? targetTestResponse
+              : testResponse;
+          const isLoadingTarget =
+            values.targetServerId != null && isTestingTarget;
           return (
             <Modal
               onCancel={onClose}
@@ -222,8 +281,12 @@ const OverrideRuleModal = ({
                 (!values.users &&
                   !values.genre &&
                   !values.language &&
-                  !values.keywords) ||
-                (!values.rootFolder && !values.profileId && !values.tags)
+                  !values.keywords &&
+                  !values.seriesType) ||
+                (!values.rootFolder &&
+                  !values.profileId &&
+                  !values.tags &&
+                  values.targetServerId == null)
               }
               onOk={() => handleSubmit()}
               title={
@@ -258,18 +321,26 @@ const OverrideRuleModal = ({
                           if (e.target.value.startsWith('radarr-')) {
                             setFieldValue('radarrServiceId', id);
                             setFieldValue('sonarrServiceId', null);
+                            setFieldValue('seriesType', null);
+                            setFieldValue('targetServerId', null);
+                            setTargetTestResponse(null);
                             if (radarrServices[id]) {
                               getServiceInfos(radarrServices[id], 'radarr');
                             }
                           } else if (e.target.value.startsWith('sonarr-')) {
                             setFieldValue('radarrServiceId', null);
                             setFieldValue('sonarrServiceId', id);
+                            setFieldValue('targetServerId', null);
+                            setTargetTestResponse(null);
                             if (sonarrServices[id]) {
                               getServiceInfos(sonarrServices[id], 'sonarr');
                             }
                           } else {
                             setFieldValue('radarrServiceId', null);
                             setFieldValue('sonarrServiceId', null);
+                            setFieldValue('seriesType', null);
+                            setFieldValue('targetServerId', null);
+                            setTargetTestResponse(null);
                             setIsValidated(false);
                           }
                         }}
@@ -412,12 +483,141 @@ const OverrideRuleModal = ({
                       )}
                   </div>
                 </div>
+                {values.sonarrServiceId != null && (
+                  <div className="form-row">
+                    <label htmlFor="seriesType" className="text-label">
+                      {intl.formatMessage(messages.seriesType)}
+                    </label>
+                    <div className="form-input-area">
+                      <Select<OptionType, true>
+                        options={[
+                          {
+                            value: 1,
+                            label: intl.formatMessage(messages.anime),
+                          },
+                          {
+                            value: 2,
+                            label: intl.formatMessage(messages.standard),
+                          },
+                          {
+                            value: 3,
+                            label: intl.formatMessage(messages.daily),
+                          },
+                        ]}
+                        isMulti
+                        isDisabled={!isValidated || isTesting}
+                        placeholder={intl.formatMessage(messages.seriesType)}
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                        value={
+                          values.seriesType
+                            ?.split(',')
+                            .map((type) => {
+                              const typeMap: Record<
+                                string,
+                                { value: number; label: string }
+                              > = {
+                                anime: {
+                                  value: 1,
+                                  label: intl.formatMessage(messages.anime),
+                                },
+                                standard: {
+                                  value: 2,
+                                  label: intl.formatMessage(messages.standard),
+                                },
+                                daily: {
+                                  value: 3,
+                                  label: intl.formatMessage(messages.daily),
+                                },
+                              };
+                              return typeMap[type.trim()];
+                            })
+                            .filter((v): v is OptionType => v !== undefined) ||
+                          []
+                        }
+                        onChange={(value) => {
+                          const valueMap: Record<number, string> = {
+                            1: 'anime',
+                            2: 'standard',
+                            3: 'daily',
+                          };
+                          setFieldValue(
+                            'seriesType',
+                            value.map((v) => valueMap[v.value]).join(',')
+                          );
+                        }}
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        {intl.formatMessage(messages.seriesTypeDescription)}
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <h3 className="mt-4 text-lg font-bold leading-8 text-gray-100">
                   {intl.formatMessage(messages.settings)}
                 </h3>
                 <p className="description">
                   {intl.formatMessage(messages.settingsDescription)}
                 </p>
+                {(values.radarrServiceId != null ||
+                  values.sonarrServiceId != null) && (
+                  <div className="form-row">
+                    <label htmlFor="targetServerId" className="text-label">
+                      {intl.formatMessage(messages.targetServer)}
+                    </label>
+                    <div className="form-input-area">
+                      <div className="form-input-field">
+                        <select
+                          id="targetServerId"
+                          name="targetServerId"
+                          value={values.targetServerId ?? ''}
+                          disabled={!isValidated || isTesting}
+                          onChange={(e) => {
+                            const val = e.target.value
+                              ? Number(e.target.value)
+                              : undefined;
+                            setFieldValue('targetServerId', val ?? null);
+                            if (val != null) {
+                              const type =
+                                values.sonarrServiceId != null
+                                  ? 'sonarr'
+                                  : 'radarr';
+                              getTargetServiceInfos(val, type);
+                            } else {
+                              setTargetTestResponse(null);
+                            }
+                          }}
+                        >
+                          <option value="">—</option>
+                          {values.sonarrServiceId != null
+                            ? sonarrServices
+                                .filter((s) => s.id !== values.sonarrServiceId)
+                                .map((s) => (
+                                  <option
+                                    key={`target-sonarr-${s.id}`}
+                                    value={s.id}
+                                  >
+                                    {s.name}
+                                  </option>
+                                ))
+                            : radarrServices
+                                .filter((s) => s.id !== values.radarrServiceId)
+                                .map((s) => (
+                                  <option
+                                    key={`target-radarr-${s.id}`}
+                                    value={s.id}
+                                  >
+                                    {s.name}
+                                  </option>
+                                ))}
+                        </select>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {intl.formatMessage(messages.targetServerDescription)}
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <div className="form-row">
                   <label htmlFor="rootFolderRule" className="text-label">
                     {intl.formatMessage(messages.rootfolder)}
@@ -428,13 +628,13 @@ const OverrideRuleModal = ({
                         as="select"
                         id="rootFolderRule"
                         name="rootFolder"
-                        disabled={!isValidated || isTesting}
+                        disabled={!isValidated || isTesting || isLoadingTarget}
                       >
                         <option value="">
                           {intl.formatMessage(messages.selectRootFolder)}
                         </option>
-                        {testResponse.rootFolders.length > 0 &&
-                          testResponse.rootFolders.map((folder) => (
+                        {activeTestResponse.rootFolders.length > 0 &&
+                          activeTestResponse.rootFolders.map((folder) => (
                             <option
                               key={`loaded-profile-${folder.id}`}
                               value={folder.path}
@@ -461,13 +661,13 @@ const OverrideRuleModal = ({
                         as="select"
                         id="profileIdRule"
                         name="profileId"
-                        disabled={!isValidated || isTesting}
+                        disabled={!isValidated || isTesting || isLoadingTarget}
                       >
                         <option value="">
                           {intl.formatMessage(messages.selectQualityProfile)}
                         </option>
-                        {testResponse.profiles.length > 0 &&
-                          testResponse.profiles.map((profile) => (
+                        {activeTestResponse.profiles.length > 0 &&
+                          activeTestResponse.profiles.map((profile) => (
                             <option
                               key={`loaded-profile-${profile.id}`}
                               value={profile.id}
@@ -490,12 +690,12 @@ const OverrideRuleModal = ({
                   </label>
                   <div className="form-input-area">
                     <Select<OptionType, true>
-                      options={testResponse.tags.map((tag) => ({
+                      options={activeTestResponse.tags.map((tag) => ({
                         label: tag.label,
                         value: tag.id,
                       }))}
                       isMulti
-                      isDisabled={!isValidated || isTesting}
+                      isDisabled={!isValidated || isTesting || isLoadingTarget}
                       placeholder={intl.formatMessage(messages.selecttags)}
                       className="react-select-container"
                       classNamePrefix="react-select"
@@ -503,7 +703,7 @@ const OverrideRuleModal = ({
                         (values?.tags
                           ?.split(',')
                           .map((tagId) => {
-                            const foundTag = testResponse.tags.find(
+                            const foundTag = activeTestResponse.tags.find(
                               (tag) => tag.id === Number(tagId)
                             );
 

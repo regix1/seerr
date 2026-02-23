@@ -34,6 +34,8 @@ overrideRuleRoutes.post<
     profileId?: number;
     rootFolder?: string;
     tags?: string;
+    seriesType?: string;
+    targetServerId?: number;
     radarrServiceId?: number;
     sonarrServiceId?: number;
   }
@@ -49,6 +51,8 @@ overrideRuleRoutes.post<
       profileId: req.body.profileId,
       rootFolder: req.body.rootFolder,
       tags: req.body.tags,
+      seriesType: req.body.seriesType,
+      targetServerId: req.body.targetServerId,
       radarrServiceId: req.body.radarrServiceId,
       sonarrServiceId: req.body.sonarrServiceId,
     });
@@ -72,6 +76,8 @@ overrideRuleRoutes.put<
     profileId?: number;
     rootFolder?: string;
     tags?: string;
+    seriesType?: string;
+    targetServerId?: number;
     radarrServiceId?: number;
     sonarrServiceId?: number;
   }
@@ -96,6 +102,8 @@ overrideRuleRoutes.put<
     rule.profileId = req.body.profileId;
     rule.rootFolder = req.body.rootFolder;
     rule.tags = req.body.tags;
+    rule.seriesType = req.body.seriesType;
+    rule.targetServerId = req.body.targetServerId;
     rule.radarrServiceId = req.body.radarrServiceId;
     rule.sonarrServiceId = req.body.sonarrServiceId;
 

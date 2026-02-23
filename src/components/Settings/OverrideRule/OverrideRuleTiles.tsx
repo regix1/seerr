@@ -27,6 +27,11 @@ const messages = defineMessages('components.Settings.OverrideRuleTile', {
   keywords: 'Keywords',
   conditions: 'Conditions',
   settings: 'Settings',
+  seriesType: 'Series Type',
+  targetServer: 'Target Server',
+  anime: 'Anime',
+  standard: 'Standard',
+  daily: 'Daily',
 });
 
 interface OverrideRuleTilesProps {
@@ -223,6 +228,27 @@ const OverrideRuleTiles = ({
                   </div>
                 </p>
               )}
+              {rule.seriesType && (
+                <p className="truncate text-sm leading-5 text-gray-300">
+                  <span className="mr-2 font-bold">
+                    {intl.formatMessage(messages.seriesType)}
+                  </span>
+                  <div className="inline-flex gap-2">
+                    {rule.seriesType.split(',').map((type) => {
+                      const typeMessages: Record<string, string> = {
+                        anime: intl.formatMessage(messages.anime),
+                        standard: intl.formatMessage(messages.standard),
+                        daily: intl.formatMessage(messages.daily),
+                      };
+                      return (
+                        <span key={type.trim()}>
+                          {typeMessages[type.trim()] || type.trim()}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </p>
+              )}
               <span className="text-lg">
                 {intl.formatMessage(messages.settings)}
               </span>
@@ -271,6 +297,26 @@ const OverrideRuleTiles = ({
                       </span>
                     ))}
                   </div>
+                </p>
+              )}
+              {rule.targetServerId != null && (
+                <p className="truncate text-sm leading-5 text-gray-300">
+                  <span className="mr-2 font-bold">
+                    {intl.formatMessage(messages.targetServer)}
+                  </span>
+                  {(() => {
+                    const sonarrTarget = sonarrServices.find(
+                      (s) => s.id === rule.targetServerId
+                    );
+                    const radarrTarget = radarrServices.find(
+                      (s) => s.id === rule.targetServerId
+                    );
+                    return (
+                      sonarrTarget?.name ||
+                      radarrTarget?.name ||
+                      `Server #${rule.targetServerId}`
+                    );
+                  })()}
                 </p>
               )}
             </div>

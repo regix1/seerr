@@ -247,21 +247,22 @@ export class MediaRequest {
             : { sonarrServiceId: defaultSonarrId },
       });
 
-      const appliedOverrideRules = overrideRules.filter((rule) => {
-        const hasAnimeKeyword =
-          'results' in tmdbMedia.keywords &&
-          tmdbMedia.keywords.results.some(
-            (keyword: TmdbKeyword) => keyword.id === ANIME_KEYWORD_ID
-          );
+      // Detect series type from TMDB keywords
+      const hasAnimeKeyword =
+        'results' in tmdbMedia.keywords &&
+        tmdbMedia.keywords.results.some(
+          (keyword: TmdbKeyword) => keyword.id === ANIME_KEYWORD_ID
+        );
+      const detectedSeriesType = hasAnimeKeyword ? 'anime' : 'standard';
 
-        // Skip override rules if the media is an anime TV show as anime TV
-        // is handled by default and override rules do not explicitly include
-        // the anime keyword
+      const appliedOverrideRules = overrideRules.filter((rule) => {
+        // Check seriesType condition if set on the rule
         if (
-          requestBody.mediaType === MediaType.TV &&
-          hasAnimeKeyword &&
-          (!rule.keywords ||
-            !rule.keywords.split(',').map(Number).includes(ANIME_KEYWORD_ID))
+          rule.seriesType &&
+          !rule.seriesType
+            .split(',')
+            .map((s) => s.trim().toLowerCase())
+            .includes(detectedSeriesType)
         ) {
           return false;
         }
@@ -318,7 +319,12 @@ export class MediaRequest {
       // hacky way to prioritize rules
       // TODO: make this better
       const prioritizedRule = appliedOverrideRules.sort((a, b) => {
-        const keys: (keyof OverrideRule)[] = ['genre', 'language', 'keywords'];
+        const keys: (keyof OverrideRule)[] = [
+          'genre',
+          'language',
+          'keywords',
+          'seriesType',
+        ];
 
         const aSpecificity = keys.filter((key) => a[key] !== null).length;
         const bSpecificity = keys.filter((key) => b[key] !== null).length;
@@ -341,6 +347,9 @@ export class MediaRequest {
               ...prioritizedRule.tags.split(',').map((tag) => Number(tag)),
             ]),
           ];
+        }
+        if (prioritizedRule.targetServerId != null) {
+          requestBody.serverId = prioritizedRule.targetServerId;
         }
 
         logger.debug('Override rule applied.', {

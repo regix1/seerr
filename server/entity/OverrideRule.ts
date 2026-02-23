@@ -33,6 +33,12 @@ class OverrideRule {
   @Column({ nullable: true })
   public tags?: string;
 
+  @Column({ nullable: true })
+  public seriesType?: string;
+
+  @Column({ type: 'int', nullable: true })
+  public targetServerId?: number;
+
   @DbAwareColumn({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
   public createdAt: Date;
 
