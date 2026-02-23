@@ -694,29 +694,34 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                 </Button>
               </Tooltip>
             )}
-          {hasPermission(Permission.MANAGE_REQUESTS) && data.mediaInfo && (
-            <Tooltip
-              content={intl.formatMessage(
-                data.mediaInfo.isHidden
-                  ? messages.unhideMedia
-                  : messages.hideMedia
-              )}
-            >
-              <Button
-                buttonType={data.mediaInfo.isHidden ? 'warning' : 'ghost'}
-                className="ml-2 first:ml-0"
-                onClick={async () => {
-                  const endpoint = data.mediaInfo?.isHidden ? 'unhide' : 'hide';
-                  await axios.post(
-                    `/api/v1/media/${data.mediaInfo?.id}/${endpoint}`
-                  );
-                  revalidate();
-                }}
-              >
-                <EyeSlashIcon />
-              </Button>
-            </Tooltip>
-          )}
+          {hasPermission(Permission.MANAGE_REQUESTS) &&
+            data.mediaInfo &&
+            (() => {
+              const isAnyHidden =
+                data.mediaInfo!.isHidden ||
+                data.mediaInfo!.requests?.some((r) => r.isHidden);
+              return (
+                <Tooltip
+                  content={intl.formatMessage(
+                    isAnyHidden ? messages.unhideMedia : messages.hideMedia
+                  )}
+                >
+                  <Button
+                    buttonType={isAnyHidden ? 'warning' : 'ghost'}
+                    className="ml-2 first:ml-0"
+                    onClick={async () => {
+                      const endpoint = isAnyHidden ? 'unhide' : 'hide';
+                      await axios.post(
+                        `/api/v1/media/${data.mediaInfo?.id}/${endpoint}`
+                      );
+                      revalidate();
+                    }}
+                  >
+                    <EyeSlashIcon />
+                  </Button>
+                </Tooltip>
+              );
+            })()}
           {hasPermission(Permission.MANAGE_REQUESTS) && data.mediaInfo && (
             <Tooltip content={intl.formatMessage(messages.manageseries)}>
               <Button

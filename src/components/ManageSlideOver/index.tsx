@@ -336,43 +336,48 @@ const ManageSlideOver = ({
             </div>
           </div>
         )}
-        {hasPermission(Permission.MANAGE_REQUESTS) && data.mediaInfo && (
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <EyeSlashIcon className="h-5 w-5 text-gray-400" />
-                <span className="text-lg font-bold text-gray-200">
-                  {intl.formatMessage(messages.hidden)}
-                </span>
-                {data.mediaInfo.isHidden && (
-                  <Badge badgeType="warning">
-                    {intl.formatMessage(messages.hidden)}
-                  </Badge>
-                )}
+        {hasPermission(Permission.MANAGE_REQUESTS) &&
+          data.mediaInfo &&
+          (() => {
+            const isAnyHidden =
+              data.mediaInfo!.isHidden ||
+              data.mediaInfo!.requests?.some((r) => r.isHidden);
+            return (
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <EyeSlashIcon className="h-5 w-5 text-gray-400" />
+                    <span className="text-lg font-bold text-gray-200">
+                      {intl.formatMessage(messages.hidden)}
+                    </span>
+                    {isAnyHidden && (
+                      <Badge badgeType="warning">
+                        {intl.formatMessage(messages.hidden)}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  buttonType={isAnyHidden ? 'warning' : 'ghost'}
+                  className="w-full"
+                  onClick={async () => {
+                    const endpoint = isAnyHidden ? 'unhide' : 'hide';
+                    await axios.post(
+                      `/api/v1/media/${data.mediaInfo?.id}/${endpoint}`
+                    );
+                    revalidate();
+                  }}
+                >
+                  <EyeSlashIcon />
+                  <span>
+                    {intl.formatMessage(
+                      isAnyHidden ? messages.unhideMedia : messages.hideMedia
+                    )}
+                  </span>
+                </Button>
               </div>
-            </div>
-            <Button
-              buttonType={data.mediaInfo.isHidden ? 'warning' : 'ghost'}
-              className="w-full"
-              onClick={async () => {
-                const endpoint = data.mediaInfo?.isHidden ? 'unhide' : 'hide';
-                await axios.post(
-                  `/api/v1/media/${data.mediaInfo?.id}/${endpoint}`
-                );
-                revalidate();
-              }}
-            >
-              <EyeSlashIcon />
-              <span>
-                {intl.formatMessage(
-                  data.mediaInfo.isHidden
-                    ? messages.unhideMedia
-                    : messages.hideMedia
-                )}
-              </span>
-            </Button>
-          </div>
-        )}
+            );
+          })()}
         {hasPermission(Permission.ADMIN) &&
           (data.mediaInfo?.serviceUrl ||
             data.mediaInfo?.tautulliUrl ||

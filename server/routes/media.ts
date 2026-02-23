@@ -5,6 +5,7 @@ import TheMovieDb from '@server/api/themoviedb';
 import { MediaStatus, MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
+import { MediaRequest } from '@server/entity/MediaRequest';
 import Season from '@server/entity/Season';
 import { User } from '@server/entity/User';
 import type {
@@ -128,6 +129,14 @@ mediaRoutes.post(
       media.isHidden = true;
       await mediaRepository.save(media);
 
+      const requestRepository = getRepository(MediaRequest);
+      await requestRepository
+        .createQueryBuilder()
+        .update(MediaRequest)
+        .set({ isHidden: true })
+        .where('mediaId = :mediaId', { mediaId: media.id })
+        .execute();
+
       logger.info('Media hidden by admin', {
         label: 'Media',
         mediaId: media.id,
@@ -163,6 +172,14 @@ mediaRoutes.post(
 
       media.isHidden = false;
       await mediaRepository.save(media);
+
+      const requestRepository = getRepository(MediaRequest);
+      await requestRepository
+        .createQueryBuilder()
+        .update(MediaRequest)
+        .set({ isHidden: false })
+        .where('mediaId = :mediaId', { mediaId: media.id })
+        .execute();
 
       logger.info('Media unhidden by admin', {
         label: 'Media',
