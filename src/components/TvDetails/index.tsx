@@ -804,12 +804,12 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
             </>
           )}
           {data.keywords.length > 0 && (
-            <div className="mt-6">
+            <div className="mt-6 flex flex-wrap gap-2">
               {data.keywords.map((keyword) => (
                 <Link
                   href={`/discover/tv?keywords=${keyword.id}`}
                   key={`keyword-id-${keyword.id}`}
-                  className="mb-2 mr-2 inline-flex last:mr-0"
+                  className="inline-flex"
                 >
                   <Tag>{keyword.name}</Tag>
                 </Link>

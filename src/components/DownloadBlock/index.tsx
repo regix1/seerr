@@ -65,12 +65,8 @@ const DownloadBlock = ({
         </div>
       </div>
       <div className="flex items-center justify-between text-xs">
-        <span>
-          {is4k && (
-            <Badge badgeType="warning" className="mr-2">
-              4K
-            </Badge>
-          )}
+        <span className="inline-flex gap-1">
+          {is4k && <Badge badgeType="warning">4K</Badge>}
           <Badge className="capitalize">{downloadItem.status}</Badge>
         </span>
         <span>

@@ -221,7 +221,7 @@ const SettingsNetwork = () => {
                     <span className="mr-2">
                       {intl.formatMessage(messages.csrfProtection)}
                     </span>
-                    <SettingsBadge badgeType="advanced" className="mr-2" />
+                    <SettingsBadge badgeType="advanced" />
                     <SettingsBadge badgeType="restartRequired" />
                     <span className="label-tip">
                       {intl.formatMessage(messages.csrfProtectionTip)}
@@ -252,7 +252,7 @@ const SettingsNetwork = () => {
                     <span className="mr-2">
                       {intl.formatMessage(messages.forceIpv4First)}
                     </span>
-                    <SettingsBadge badgeType="advanced" className="mr-2" />
+                    <SettingsBadge badgeType="advanced" />
                     <SettingsBadge badgeType="restartRequired" />
                     <SettingsBadge badgeType="experimental" />
                     <span className="label-tip">
@@ -275,9 +275,9 @@ const SettingsNetwork = () => {
                     <span className="mr-2">
                       {intl.formatMessage(messages.dnsCache)}
                     </span>
-                    <SettingsBadge badgeType="advanced" className="mr-2" />
+                    <SettingsBadge badgeType="advanced" />
                     <SettingsBadge badgeType="restartRequired" />
-                    <SettingsBadge badgeType="experimental" className="mr-2" />
+                    <SettingsBadge badgeType="experimental" />
                     <span className="label-tip">
                       {intl.formatMessage(messages.dnsCacheTip)}
                     </span>
@@ -384,7 +384,7 @@ const SettingsNetwork = () => {
                     <span className="mr-2">
                       {intl.formatMessage(messages.proxyEnabled)}
                     </span>
-                    <SettingsBadge badgeType="advanced" className="mr-2" />
+                    <SettingsBadge badgeType="advanced" />
                     <SettingsBadge badgeType="restartRequired" />
                     <span className="label-tip">
                       {intl.formatMessage(messages.proxyEnabledTip)}

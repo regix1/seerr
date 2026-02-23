@@ -22,11 +22,13 @@ const SettingsBadge = ({
 }) => {
   const intl = useIntl();
 
+  const badgeClass = ['ml-1', className].filter(Boolean).join(' ');
+
   switch (badgeType) {
     case 'advanced':
       return (
         <Tooltip content={intl.formatMessage(messages.advancedTooltip)}>
-          <Badge badgeType="danger" className={className}>
+          <Badge badgeType="danger" className={badgeClass}>
             {intl.formatMessage(globalMessages.advanced)}
           </Badge>
         </Tooltip>
@@ -34,7 +36,7 @@ const SettingsBadge = ({
     case 'experimental':
       return (
         <Tooltip content={intl.formatMessage(messages.experimentalTooltip)}>
-          <Badge badgeType="warning">
+          <Badge badgeType="warning" className={badgeClass}>
             {intl.formatMessage(globalMessages.experimental)}
           </Badge>
         </Tooltip>
@@ -42,7 +44,7 @@ const SettingsBadge = ({
     case 'restartRequired':
       return (
         <Tooltip content={intl.formatMessage(messages.restartrequiredTooltip)}>
-          <Badge badgeType="primary" className={className}>
+          <Badge badgeType="primary" className={badgeClass}>
             {intl.formatMessage(globalMessages.restartRequired)}
           </Badge>
         </Tooltip>

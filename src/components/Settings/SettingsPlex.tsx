@@ -579,7 +579,7 @@ const SettingsPlex = ({ onComplete }: SettingsPlexProps) => {
                       </a>
                     ),
                   })}
-                  <SettingsBadge badgeType="advanced" className="ml-2" />
+                  <SettingsBadge badgeType="advanced" />
                   <span className="label-tip">
                     {intl.formatMessage(messages.webAppUrlTip)}
                   </span>
