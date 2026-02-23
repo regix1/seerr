@@ -331,12 +331,12 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
         }}
       />
       <div
-        className={`relative flex w-72 overflow-hidden rounded-xl bg-gray-800 bg-cover bg-center p-4 text-gray-400 shadow ring-1 sm:w-96 ${requestData.isHidden ? 'ring-yellow-600/50' : 'ring-gray-700'}`}
+        className={`relative flex w-72 overflow-hidden rounded-xl bg-gray-800 bg-cover bg-center p-4 text-gray-400 shadow ring-1 sm:w-96 ${request.isHidden ? 'ring-yellow-600/50' : 'ring-gray-700'}`}
         data-testid="request-card"
       >
         {title.backdropPath && (
           <div
-            className={`absolute inset-0 z-0 ${requestData.isHidden ? 'grayscale' : ''}`}
+            className={`absolute inset-0 z-0 ${request.isHidden ? 'grayscale' : ''}`}
           >
             <CachedImage
               type="tmdb"
@@ -472,12 +472,11 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                 }
               />
             )}
-            {requestData.isHidden &&
-              hasPermission(Permission.MANAGE_REQUESTS) && (
-                <Badge badgeType="warning" className="ml-2">
-                  {intl.formatMessage(messages.hidden)}
-                </Badge>
-              )}
+            {request.isHidden && hasPermission(Permission.MANAGE_REQUESTS) && (
+              <Badge badgeType="warning" className="ml-2">
+                {intl.formatMessage(messages.hidden)}
+              </Badge>
+            )}
           </div>
           <div className="flex flex-1 items-end space-x-2">
             {requestData.status === MediaRequestStatus.FAILED &&
