@@ -123,21 +123,16 @@ class Media {
 
   public static async getRelatedMediaForUser(
     user: User | undefined,
-    tmdbIds: number | number[]
+    items: { tmdbId: number; mediaType: string }[]
   ): Promise<Media[]> {
     const mediaRepository = getRepository(Media);
 
     try {
-      let finalIds: number[];
-      if (!Array.isArray(tmdbIds)) {
-        finalIds = [tmdbIds];
-      } else {
-        finalIds = tmdbIds;
-      }
-
-      if (finalIds.length === 0) {
+      if (items.length === 0) {
         return [];
       }
+
+      const finalIds = [...new Set(items.map((i) => i.tmdbId))];
 
       const query = mediaRepository
         .createQueryBuilder('media')
@@ -159,7 +154,9 @@ class Media {
         query.andWhere('media.isHidden = :isHidden', { isHidden: false });
       }
 
-      const media = await query.getMany();
+      const media = (await query.getMany()).filter((m) =>
+        items.some((i) => i.tmdbId === m.tmdbId && i.mediaType === m.mediaType)
+      );
 
       // Filter hidden requests from other users for non-privileged users
       if (!isPrivileged) {
