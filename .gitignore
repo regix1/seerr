@@ -76,3 +76,24 @@ config/cache
 # Docker compose
 compose.override.yaml
 plan.md
+
+# AI tools
+.claude/
+.codex/
+.cursor/
+.aider*
+.firecrawl/
+.windsurf/
+.continue/
+.codeium/
+.copilot/
+.serena/
+.agentdb/
+.ruflo/
+.swarm/
+.context-mode/
+.mcp.json
+*claude*
+*CLAUDE*
+AGENTS.md
+agents.md
