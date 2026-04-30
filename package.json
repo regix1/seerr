@@ -174,8 +174,8 @@
     "ts-node": "10.9.2",
     "tsc-alias": "1.8.16",
     "tsconfig-paths": "4.2.0",
-    "typescript": "5.4.5",
-    "typescript-eslint": "^8.58.2"
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.59.1"
   },
   "engines": {
     "node": "^22.19.0",
