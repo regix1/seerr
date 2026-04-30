@@ -120,7 +120,7 @@ const OverrideRuleModal = ({
 
         setIsValidated(true);
         setTestResponse(response.data);
-      } catch (e) {
+      } catch {
         setIsValidated(false);
       } finally {
         setIsTesting(false);
@@ -164,20 +164,15 @@ const OverrideRuleModal = ({
   }, [rule?.targetServerId, getTargetServiceInfos, rule?.sonarrServiceId]);
 
   useEffect(() => {
-    if (
-      rule?.radarrServiceId !== null &&
-      rule?.radarrServiceId !== undefined &&
-      radarrServices[rule?.radarrServiceId]
-    ) {
-      getServiceInfos(radarrServices[rule?.radarrServiceId], 'radarr');
-    }
-    if (
-      rule?.sonarrServiceId !== null &&
-      rule?.sonarrServiceId !== undefined &&
-      sonarrServices[rule?.sonarrServiceId]
-    ) {
-      getServiceInfos(sonarrServices[rule?.sonarrServiceId], 'sonarr');
-    }
+    const radarrMatch = radarrServices.find(
+      (s) => s.id === rule?.radarrServiceId
+    );
+    if (radarrMatch) getServiceInfos(radarrMatch, 'radarr');
+
+    const sonarrMatch = sonarrServices.find(
+      (s) => s.id === rule?.sonarrServiceId
+    );
+    if (sonarrMatch) getServiceInfos(sonarrMatch, 'sonarr');
   }, [
     getServiceInfos,
     radarrServices,
@@ -244,7 +239,7 @@ const OverrideRuleModal = ({
               });
             }
             onClose();
-          } catch (e) {
+          } catch {
             // set error here
           }
         }}
@@ -324,16 +319,22 @@ const OverrideRuleModal = ({
                             setFieldValue('seriesType', null);
                             setFieldValue('targetServerId', null);
                             setTargetTestResponse(null);
-                            if (radarrServices[id]) {
-                              getServiceInfos(radarrServices[id], 'radarr');
+                            const match = radarrServices.find(
+                              (s) => s.id === id
+                            );
+                            if (match) {
+                              getServiceInfos(match, 'radarr');
                             }
                           } else if (e.target.value.startsWith('sonarr-')) {
                             setFieldValue('radarrServiceId', null);
                             setFieldValue('sonarrServiceId', id);
                             setFieldValue('targetServerId', null);
                             setTargetTestResponse(null);
-                            if (sonarrServices[id]) {
-                              getServiceInfos(sonarrServices[id], 'sonarr');
+                            const match = sonarrServices.find(
+                              (s) => s.id === id
+                            );
+                            if (match) {
+                              getServiceInfos(match, 'sonarr');
                             }
                           } else {
                             setFieldValue('radarrServiceId', null);

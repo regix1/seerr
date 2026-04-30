@@ -46,10 +46,11 @@ const NotificationsPushbullet = () => {
   const NotificationsPushbulletSchema = Yup.object().shape({
     accessToken: Yup.string().when('enabled', {
       is: true,
-      then: Yup.string()
-        .nullable()
-        .required(intl.formatMessage(messages.validationAccessTokenRequired)),
-      otherwise: Yup.string().nullable(),
+      then: (schema) =>
+        schema
+          .nullable()
+          .required(intl.formatMessage(messages.validationAccessTokenRequired)),
+      otherwise: (schema) => schema.nullable(),
     }),
   });
 
@@ -80,7 +81,7 @@ const NotificationsPushbullet = () => {
             appearance: 'success',
             autoDismiss: true,
           });
-        } catch (e) {
+        } catch {
           addToast(intl.formatMessage(messages.pushbulletSettingsFailed), {
             appearance: 'error',
             autoDismiss: true,
@@ -129,7 +130,7 @@ const NotificationsPushbullet = () => {
               autoDismiss: true,
               appearance: 'success',
             });
-          } catch (e) {
+          } catch {
             if (toastId) {
               removeToast(toastId);
             }

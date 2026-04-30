@@ -18,7 +18,7 @@ import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
 import { Router } from 'express';
 import type { FindOneOptions } from 'typeorm';
-import { In } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 
 const mediaRoutes = Router();
 
@@ -49,8 +49,6 @@ mediaRoutes.get('/', async (req, res, next) => {
     case 'pending':
       statusFilter = MediaStatus.PENDING;
       break;
-    default:
-      statusFilter = undefined;
   }
 
   const hiddenOnly = req.query.filter === 'hidden';
@@ -71,11 +69,23 @@ mediaRoutes.get('/', async (req, res, next) => {
       };
   }
 
+  let whereClause: FindOneOptions<Media>['where'];
+  if (statusFilter || req.query.sort === 'mediaAdded') {
+    whereClause = {};
+    if (statusFilter) whereClause.status = statusFilter;
+    if (req.query.sort === 'mediaAdded')
+      whereClause.mediaAddedAt = Not(IsNull());
+  }
+
   try {
     let queryBuilder = mediaRepository.createQueryBuilder('media');
 
     if (statusFilter) {
       queryBuilder = queryBuilder.where({ status: statusFilter });
+    }
+
+    if (req.query.sort === 'mediaAdded') {
+      queryBuilder = queryBuilder.andWhere('media.mediaAddedAt IS NOT NULL');
     }
 
     if (hiddenOnly && req.user?.hasPermission(Permission.MANAGE_REQUESTS)) {

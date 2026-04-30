@@ -31,6 +31,7 @@ movieRoutes.get('/:id', async (req, res, next) => {
     const onUserWatchlist = await getRepository(Watchlist).exist({
       where: {
         tmdbId: Number(req.params.id),
+        mediaType: MediaType.MOVIE,
         requestedBy: {
           id: req.user?.id,
         },
@@ -71,7 +72,10 @@ movieRoutes.get('/:id/recommendations', async (req, res, next) => {
 
     const media = await Media.getRelatedMediaForUser(
       req.user,
-      results.results.map((result) => result.id)
+      results.results.map((result) => ({
+        tmdbId: result.id,
+        mediaType: MediaType.MOVIE,
+      }))
     );
 
     return res.status(200).json({
@@ -113,7 +117,10 @@ movieRoutes.get('/:id/similar', async (req, res, next) => {
 
     const media = await Media.getRelatedMediaForUser(
       req.user,
-      results.results.map((result) => result.id)
+      results.results.map((result) => ({
+        tmdbId: result.id,
+        mediaType: MediaType.MOVIE,
+      }))
     );
 
     return res.status(200).json({

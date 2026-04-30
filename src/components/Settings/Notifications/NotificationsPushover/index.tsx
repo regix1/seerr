@@ -61,10 +61,13 @@ const NotificationsPushover = () => {
     accessToken: Yup.string()
       .when('enabled', {
         is: true,
-        then: Yup.string()
-          .nullable()
-          .required(intl.formatMessage(messages.validationAccessTokenRequired)),
-        otherwise: Yup.string().nullable(),
+        then: (schema) =>
+          schema
+            .nullable()
+            .required(
+              intl.formatMessage(messages.validationAccessTokenRequired)
+            ),
+        otherwise: (schema) => schema.nullable(),
       })
       .matches(
         /^[a-z\d]{30}$/i,
@@ -73,10 +76,11 @@ const NotificationsPushover = () => {
     userToken: Yup.string()
       .when('enabled', {
         is: true,
-        then: Yup.string()
-          .nullable()
-          .required(intl.formatMessage(messages.validationUserTokenRequired)),
-        otherwise: Yup.string().nullable(),
+        then: (schema) =>
+          schema
+            .nullable()
+            .required(intl.formatMessage(messages.validationUserTokenRequired)),
+        otherwise: (schema) => schema.nullable(),
       })
       .matches(
         /^[a-z\d]{30}$/i,
@@ -115,7 +119,7 @@ const NotificationsPushover = () => {
             appearance: 'success',
             autoDismiss: true,
           });
-        } catch (e) {
+        } catch {
           addToast(intl.formatMessage(messages.pushoversettingsfailed), {
             appearance: 'error',
             autoDismiss: true,
@@ -166,7 +170,7 @@ const NotificationsPushover = () => {
               autoDismiss: true,
               appearance: 'success',
             });
-          } catch (e) {
+          } catch {
             if (toastId) {
               removeToast(toastId);
             }

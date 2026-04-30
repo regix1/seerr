@@ -308,7 +308,7 @@ const SettingsJobs = () => {
 
       dispatch({ type: 'close' });
       revalidate();
-    } catch (e) {
+    } catch {
       addToast(intl.formatMessage(messages.jobScheduleEditFailed), {
         appearance: 'error',
         autoDismiss: true,
@@ -744,7 +744,7 @@ const SettingsJobs = () => {
         <p className="description">
           {intl.formatMessage(messages.imagecacheDescription, {
             code: (msg: React.ReactNode) => (
-              <code className="bg-opacity-50">{msg}</code>
+              <code className="bg-gray-800/50">{msg}</code>
             ),
             appDataPath: appData ? appData.appDataPath : '/app/config',
           })}

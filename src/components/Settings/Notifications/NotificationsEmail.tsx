@@ -73,10 +73,11 @@ const NotificationsEmail = () => {
       emailFrom: Yup.string()
         .when('enabled', {
           is: true,
-          then: Yup.string()
-            .nullable()
-            .required(intl.formatMessage(messages.validationEmail)),
-          otherwise: Yup.string().nullable(),
+          then: (schema) =>
+            schema
+              .nullable()
+              .required(intl.formatMessage(messages.validationEmail)),
+          otherwise: (schema) => schema.nullable(),
         })
         .test(
           'email',
@@ -85,36 +86,40 @@ const NotificationsEmail = () => {
         ),
       smtpHost: Yup.string().when('enabled', {
         is: true,
-        then: Yup.string()
-          .nullable()
-          .required(intl.formatMessage(messages.validationSmtpHostRequired)),
-        otherwise: Yup.string().nullable(),
+        then: (schema) =>
+          schema
+            .nullable()
+            .required(intl.formatMessage(messages.validationSmtpHostRequired)),
+        otherwise: (schema) => schema.nullable(),
       }),
       smtpPort: Yup.number().when('enabled', {
         is: true,
-        then: Yup.number()
-          .nullable()
-          .required(intl.formatMessage(messages.validationSmtpPortRequired)),
-        otherwise: Yup.number().nullable(),
+        then: (schema) =>
+          schema
+            .nullable()
+            .required(intl.formatMessage(messages.validationSmtpPortRequired)),
+        otherwise: (schema) => schema.nullable(),
       }),
       pgpPrivateKey: Yup.string()
         .when('pgpPassword', {
           is: (value: unknown) => !!value,
-          then: Yup.string()
-            .nullable()
-            .required(intl.formatMessage(messages.validationPgpPrivateKey)),
-          otherwise: Yup.string().nullable(),
+          then: (schema) =>
+            schema
+              .nullable()
+              .required(intl.formatMessage(messages.validationPgpPrivateKey)),
+          otherwise: (schema) => schema.nullable(),
         })
         .matches(
-          /-----BEGIN PGP PRIVATE KEY BLOCK-----.+-----END PGP PRIVATE KEY BLOCK-----/,
+          /-----BEGIN PGP PRIVATE KEY BLOCK-----.+-----END PGP PRIVATE KEY BLOCK-----/s,
           intl.formatMessage(messages.validationPgpPrivateKey)
         ),
       pgpPassword: Yup.string().when('pgpPrivateKey', {
         is: (value: unknown) => !!value,
-        then: Yup.string()
-          .nullable()
-          .required(intl.formatMessage(messages.validationPgpPassword)),
-        otherwise: Yup.string().nullable(),
+        then: (schema) =>
+          schema
+            .nullable()
+            .required(intl.formatMessage(messages.validationPgpPassword)),
+        otherwise: (schema) => schema.nullable(),
       }),
     },
     [['pgpPrivateKey', 'pgpPassword']]
@@ -175,7 +180,7 @@ const NotificationsEmail = () => {
             appearance: 'success',
             autoDismiss: true,
           });
-        } catch (e) {
+        } catch {
           addToast(intl.formatMessage(messages.emailsettingsfailed), {
             appearance: 'error',
             autoDismiss: true,
@@ -226,7 +231,7 @@ const NotificationsEmail = () => {
               autoDismiss: true,
               appearance: 'success',
             });
-          } catch (e) {
+          } catch {
             if (toastId) {
               removeToast(toastId);
             }

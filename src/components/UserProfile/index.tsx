@@ -7,7 +7,7 @@ import Slider from '@app/components/Slider';
 import TmdbTitleCard from '@app/components/TitleCard/TmdbTitleCard';
 import ProfileHeader from '@app/components/UserProfile/ProfileHeader';
 import { Permission, UserType, useUser } from '@app/hooks/useUser';
-import Error from '@app/pages/_error';
+import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
 import { ArrowRightCircleIcon } from '@heroicons/react/24/outline';
 import type { WatchlistResponse } from '@server/interfaces/api/discoverInterfaces';
@@ -116,7 +116,7 @@ const UserProfile = () => {
   }
 
   if (!user) {
-    return <Error statusCode={404} />;
+    return <ErrorPage statusCode={404} />;
   }
 
   const watchlistSliderTitle = intl.formatMessage(
@@ -153,7 +153,7 @@ const UserProfile = () => {
           )) && (
           <div className="relative z-40">
             <dl className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
-              <div className="overflow-hidden rounded-lg bg-gray-800 bg-opacity-50 px-4 py-5 shadow ring-1 ring-gray-700 sm:p-6">
+              <div className="overflow-hidden rounded-lg bg-gray-800/50 px-4 py-5 shadow ring-1 ring-gray-700 sm:p-6">
                 <dt className="truncate text-sm font-bold text-gray-300">
                   {intl.formatMessage(messages.totalrequests)}
                 </dt>
@@ -173,7 +173,7 @@ const UserProfile = () => {
                 </dd>
               </div>
               <div
-                className={`overflow-hidden rounded-lg bg-gray-800 bg-opacity-50 px-4 py-5 shadow ring-1 ${
+                className={`overflow-hidden rounded-lg bg-gray-800/50 px-4 py-5 shadow ring-1 ${
                   quota.movie.restricted
                     ? 'bg-gradient-to-t from-red-900 to-transparent ring-red-500'
                     : 'ring-gray-700'
@@ -228,7 +228,7 @@ const UserProfile = () => {
                 </dd>
               </div>
               <div
-                className={`overflow-hidden rounded-lg bg-gray-800 bg-opacity-50 px-4 py-5 shadow ring-1 ${
+                className={`overflow-hidden rounded-lg bg-gray-800/50 px-4 py-5 shadow ring-1 ${
                   quota.tv.restricted
                     ? 'bg-gradient-to-t from-red-900 to-transparent ring-red-500'
                     : 'ring-gray-700'

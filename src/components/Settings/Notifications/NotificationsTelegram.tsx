@@ -53,31 +53,28 @@ const NotificationsTelegram = () => {
   const NotificationsTelegramSchema = Yup.object().shape({
     botAPI: Yup.string().when('enabled', {
       is: true,
-      then: Yup.string()
-        .nullable()
-        .required(intl.formatMessage(messages.validationBotAPIRequired)),
-      otherwise: Yup.string().nullable(),
+      then: (schema) =>
+        schema
+          .nullable()
+          .required(intl.formatMessage(messages.validationBotAPIRequired)),
+      otherwise: (schema) => schema.nullable(),
     }),
     chatId: Yup.string()
       .when(['enabled', 'types'], {
         is: (enabled: boolean, types: number) => enabled && !!types,
-        then: Yup.string()
-          .nullable()
-          .required(intl.formatMessage(messages.validationChatIdRequired)),
-        otherwise: Yup.string().nullable(),
+        then: (schema) =>
+          schema
+            .nullable()
+            .required(intl.formatMessage(messages.validationChatIdRequired)),
+        otherwise: (schema) => schema.nullable(),
       })
       .matches(
         /^-?\d+$/,
         intl.formatMessage(messages.validationChatIdRequired)
       ),
     messageThreadId: Yup.string()
-      .when(['types'], {
-        is: (enabled: boolean, types: number) => enabled && !!types,
-        then: Yup.string()
-          .nullable()
-          .required(intl.formatMessage(messages.validationMessageThreadId)),
-        otherwise: Yup.string().nullable(),
-      })
+      .transform((v) => v || null)
+      .nullable()
       .matches(/^\d+$/, intl.formatMessage(messages.validationMessageThreadId)),
   });
 
@@ -117,7 +114,7 @@ const NotificationsTelegram = () => {
             appearance: 'success',
             autoDismiss: true,
           });
-        } catch (e) {
+        } catch {
           addToast(intl.formatMessage(messages.telegramsettingsfailed), {
             appearance: 'error',
             autoDismiss: true,
@@ -169,7 +166,7 @@ const NotificationsTelegram = () => {
               autoDismiss: true,
               appearance: 'success',
             });
-          } catch (e) {
+          } catch {
             if (toastId) {
               removeToast(toastId);
             }
@@ -228,7 +225,7 @@ const NotificationsTelegram = () => {
                       </a>
                     ),
                     code: (msg: React.ReactNode) => (
-                      <code className="bg-opacity-50">{msg}</code>
+                      <code className="bg-gray-800/50">{msg}</code>
                     ),
                   })}
                 </span>

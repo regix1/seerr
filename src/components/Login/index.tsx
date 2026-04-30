@@ -169,7 +169,7 @@ const Login = () => {
       </div>
       <div className="relative z-50 mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div
-          className="bg-gray-800 bg-opacity-50 shadow sm:rounded-lg"
+          className="bg-gray-800/50 shadow sm:rounded-lg"
           style={{ backdropFilter: 'blur(5px)' }}
         >
           <>
@@ -201,24 +201,17 @@ const Login = () => {
                 <CSSTransition
                   key={mediaServerLogin ? 'ms' : 'local'}
                   nodeRef={loginRef}
-                  addEndListener={(done) => {
-                    loginRef.current?.addEventListener(
-                      'transitionend',
-                      done,
-                      false
-                    );
-                  }}
+                  timeout={{ enter: 300, exit: 150 }}
                   onEntered={() => {
                     document
                       .querySelector<HTMLInputElement>('#email, #username')
                       ?.focus();
                   }}
                   classNames={{
-                    appear: 'opacity-0',
-                    appearActive: 'transition-opacity duration-500 opacity-100',
                     enter: 'opacity-0',
-                    enterActive: 'transition-opacity duration-500 opacity-100',
-                    exitActive: 'transition-opacity duration-0 opacity-0',
+                    enterActive: 'transition-opacity duration-300 opacity-100',
+                    exit: 'opacity-100',
+                    exitActive: 'transition-opacity duration-150 opacity-0',
                   }}
                 >
                   <div ref={loginRef} className="button-container">

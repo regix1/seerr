@@ -10,7 +10,7 @@ import useDebouncedState from '@app/hooks/useDebouncedState';
 import { useUpdateQueryParams } from '@app/hooks/useUpdateQueryParams';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
-import Error from '@app/pages/_error';
+import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
 import {
   ChevronLeftIcon,
@@ -90,7 +90,7 @@ const Blocklist = () => {
   // check if there's no data and no errors in the table
   // so as to show a spinner inside the table and not refresh the whole component
   if (!data && error) {
-    return <Error statusCode={500} />;
+    return <ErrorPage statusCode={500} />;
   }
 
   const searchItem = (e: ChangeEvent<HTMLInputElement>) => {
@@ -178,7 +178,10 @@ const Blocklist = () => {
       ) : (
         data.results.map((item: BlocklistItem) => {
           return (
-            <div className="py-2" key={`request-list-${item.tmdbId}`}>
+            <div
+              className="py-2"
+              key={`request-list-${item.mediaType}-${item.tmdbId}`}
+            >
               <BlocklistedItem item={item} revalidateList={revalidate} />
             </div>
           );
@@ -297,7 +300,9 @@ const BlocklistedItem = ({ item, revalidateList }: BlocklistedItemProps) => {
     setIsUpdating(true);
 
     try {
-      await axios.delete(`/api/v1/blocklist/${tmdbId}`);
+      await axios.delete(
+        `/api/v1/blocklist/${tmdbId}?mediaType=${item.mediaType}`
+      );
 
       addToast(
         <span>
@@ -441,13 +446,13 @@ const BlocklistedItem = ({ item, revalidateList }: BlocklistedItemProps) => {
           )}
           <div className="card-field">
             {item.mediaType === 'movie' ? (
-              <div className="pointer-events-none z-40 self-start rounded-full border border-blue-500 bg-blue-600 bg-opacity-80 shadow-md">
+              <div className="pointer-events-none z-40 self-start rounded-full border border-blue-500 bg-blue-600/80 shadow-md">
                 <div className="flex h-4 items-center px-2 py-2 text-center text-xs font-medium uppercase tracking-wider text-white sm:h-5">
                   {intl.formatMessage(globalMessages.movie)}
                 </div>
               </div>
             ) : (
-              <div className="pointer-events-none z-40 self-start rounded-full border border-purple-600 bg-purple-600 bg-opacity-80 shadow-md">
+              <div className="pointer-events-none z-40 self-start rounded-full border border-purple-600 bg-purple-600/80 shadow-md">
                 <div className="flex h-4 items-center px-2 py-2 text-center text-xs font-medium uppercase tracking-wider text-white sm:h-5">
                   {intl.formatMessage(globalMessages.tvshow)}
                 </div>
