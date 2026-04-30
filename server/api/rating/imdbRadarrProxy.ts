@@ -17,7 +17,7 @@ interface IMDBMovie {
   Popularity: number;
   Premier: string;
   InCinema: string;
-  PhysicalRelease: any;
+  PhysicalRelease: string;
   DigitalRelease: string;
   Year: number;
   AlternativeTitles: AlternativeTitle[];
@@ -27,7 +27,7 @@ interface IMDBMovie {
   Studio: string;
   YoutubeTrailerId: string;
   Certifications: Certification[];
-  Status: any;
+  Status: string;
   Collection: Collection;
   OriginalLanguage: string;
   Homepage: string;
@@ -134,10 +134,10 @@ interface Certification {
 
 interface Collection {
   Name: string;
-  Images: any;
-  Overview: any;
-  Translations: any;
-  Parts: any;
+  Images: unknown;
+  Overview: unknown;
+  Translations: unknown;
+  Parts: unknown;
   TmdbId: number;
 }
 

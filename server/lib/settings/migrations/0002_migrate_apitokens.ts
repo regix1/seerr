@@ -3,9 +3,12 @@ import { MediaServerType } from '@server/constants/server';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
 import type { AllSettings } from '@server/lib/settings';
+import type { LegacySettings } from '@server/lib/settings/migrations/types';
 import { getHostname } from '@server/utils/getHostname';
 
-const migrateApiTokens = async (settings: any): Promise<AllSettings> => {
+const migrateApiTokens = async (
+  settings: LegacySettings
+): Promise<AllSettings> => {
   const mediaServerType = settings.main.mediaServerType;
   if (
     !settings.jellyfin?.apiKey &&

@@ -1,6 +1,7 @@
 import type { AllSettings } from '@server/lib/settings';
+import type { LegacySettings } from '@server/lib/settings/migrations/types';
 
-const migrateRegionSetting = (settings: any): AllSettings => {
+const migrateRegionSetting = (settings: LegacySettings): AllSettings => {
   if (
     settings.main.discoverRegion !== undefined &&
     settings.main.streamingRegion !== undefined
