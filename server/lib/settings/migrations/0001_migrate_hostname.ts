@@ -15,8 +15,8 @@ const migrateHostname = (settings: LegacySettings): AllSettings => {
       settings.jellyfin = {
         ...settings.jellyfin,
         ip,
-        port: port || (useSsl ? 443 : 80),
-        useSsl,
+        port: port ? Number(port) : useSsl ? 443 : 80,
+        useSsl: !!useSsl,
         urlBase: urlBase ? urlBase.replace(/\/$/, '') : '',
       };
     }

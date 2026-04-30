@@ -165,6 +165,7 @@ const useDiscover = <
         appearance: 'error',
         autoDismiss: true,
       });
+      // eslint-disable-next-line no-console
       console.error('Error while fetching discover titles:', error);
     }
   }, [data, error, addToast, intl, titles.length]);

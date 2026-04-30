@@ -3,8 +3,12 @@ import SonarrAPI from '@server/api/servarr/sonarr';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
 import type { AllSettings } from '@server/lib/settings';
+import type { LegacySettings } from '@server/lib/settings/migrations/types';
+import logger from '@server/logger';
 
-const migrationArrTags = async (settings: any): Promise<AllSettings> => {
+const migrationArrTags = async (
+  settings: LegacySettings
+): Promise<AllSettings> => {
   if (
     Array.isArray(settings.migrations) &&
     settings.migrations.includes('0007_migrate_arr_tags')
@@ -51,9 +55,9 @@ const migrationArrTags = async (settings: any): Promise<AllSettings> => {
         });
       }
     } catch (error) {
-      console.error(
+      logger.error(
         `Unable to rename Radarr tags to the new format. Please check your Radarr connection settings for the instance "${radarrSettings.name}".`,
-        error.message
+        { label: 'Settings Migration', errorMessage: error.message }
       );
       errorOccurred = true;
     }
@@ -93,9 +97,9 @@ const migrationArrTags = async (settings: any): Promise<AllSettings> => {
         });
       }
     } catch (error) {
-      console.error(
+      logger.error(
         `Unable to rename Sonarr tags to the new format. Please check your Sonarr connection settings for the instance "${sonarrSettings.name}".`,
-        error.message
+        { label: 'Settings Migration', errorMessage: error.message }
       );
       errorOccurred = true;
     }

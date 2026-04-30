@@ -1,6 +1,9 @@
 import type { AllSettings } from '@server/lib/settings';
+import type { LegacySettings } from '@server/lib/settings/migrations/types';
 
-const migrateBlacklistToBlocklist = (settings: any): AllSettings => {
+const migrateBlacklistToBlocklist = (
+  settings: LegacySettings
+): AllSettings => {
   if (
     Array.isArray(settings.migrations) &&
     settings.migrations.includes('0008_migrate_blacklist_to_blocklist')
@@ -23,10 +26,10 @@ const migrateBlacklistToBlocklist = (settings: any): AllSettings => {
     delete settings.main.blacklistedTagsLimit;
   }
 
-  if (settings.jobs?.['process-blacklisted-tags']) {
-    settings.jobs['process-blocklisted-tags'] =
-      settings.jobs['process-blacklisted-tags'];
-    delete settings.jobs['process-blacklisted-tags'];
+  const jobs = settings.jobs;
+  if (jobs && jobs['process-blacklisted-tags']) {
+    jobs['process-blocklisted-tags'] = jobs['process-blacklisted-tags'];
+    delete jobs['process-blacklisted-tags'];
   }
 
   if (!Array.isArray(settings.migrations)) {

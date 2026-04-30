@@ -1,6 +1,7 @@
 import type { AllSettings } from '@server/lib/settings';
+import type { LegacySettings } from '@server/lib/settings/migrations/types';
 
-const migrateNetworkSettings = (settings: any): AllSettings => {
+const migrateNetworkSettings = (settings: LegacySettings): AllSettings => {
   if (settings.network) {
     return settings;
   }

@@ -731,7 +731,14 @@ discoverRoutes.get('/trending', async (req, res, next) => {
       }),
       all: async () => ({
         data: await tmdb.getAllTrending({ page, language, timeWindow }),
-        mapper: (result: any, media?: Media) => {
+        mapper: (
+          result:
+            | TmdbMovieResult
+            | TmdbTvResult
+            | TmdbPersonResult
+            | TmdbCollectionResult,
+          media?: Media
+        ) => {
           if (isMovie(result)) {
             return mapMovieResult(result, media);
           } else if (isPerson(result)) {
