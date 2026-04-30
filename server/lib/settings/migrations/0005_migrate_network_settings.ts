@@ -7,11 +7,13 @@ const migrateNetworkSettings = (settings: LegacySettings): AllSettings => {
   }
   const newSettings = { ...settings };
   newSettings.network = {
-    ...settings.network,
+    ...((settings.network ?? {}) as Record<string, unknown>),
     csrfProtection: settings.main.csrfProtection ?? false,
     trustProxy: settings.main.trustProxy ?? false,
     forceIpv4First: settings.main.forceIpv4First ?? false,
-    proxy: settings.main.proxy ?? {
+    proxy: (settings.main.proxy as
+      | AllSettings['network']['proxy']
+      | undefined) ?? {
       enabled: false,
       hostname: '',
       port: 8080,
@@ -21,6 +23,12 @@ const migrateNetworkSettings = (settings: LegacySettings): AllSettings => {
       bypassFilter: '',
       bypassLocalAddresses: true,
     },
+    dnsCache: {
+      enabled: false,
+      forceMinTtl: 0,
+      forceMaxTtl: -1,
+    },
+    apiRequestTimeout: 10000,
   };
   delete settings.main.csrfProtection;
   delete settings.main.trustProxy;

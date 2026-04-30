@@ -26,7 +26,7 @@ const migrateBlacklistToBlocklist = (
     delete settings.main.blacklistedTagsLimit;
   }
 
-  const jobs = settings.jobs;
+  const jobs = settings.jobs as Record<string, { schedule: string }> | undefined;
   if (jobs && jobs['process-blacklisted-tags']) {
     jobs['process-blocklisted-tags'] = jobs['process-blacklisted-tags'];
     delete jobs['process-blacklisted-tags'];

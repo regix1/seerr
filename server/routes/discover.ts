@@ -731,14 +731,10 @@ discoverRoutes.get('/trending', async (req, res, next) => {
       }),
       all: async () => ({
         data: await tmdb.getAllTrending({ page, language, timeWindow }),
-        mapper: (
-          result:
-            | TmdbMovieResult
-            | TmdbTvResult
-            | TmdbPersonResult
-            | TmdbCollectionResult,
-          media?: Media
-        ) => {
+        // The polymorphic union of mapper signatures collapses parameters to
+        // `never` in strict mode; `any` is the practical escape hatch here.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        mapper: (result: any, media?: Media) => {
           if (isMovie(result)) {
             return mapMovieResult(result, media);
           } else if (isPerson(result)) {
