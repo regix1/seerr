@@ -106,13 +106,23 @@ router.get('/status/appdata', (_req, res) => {
 router.use('/user', isAuthenticated(), user);
 router.get('/settings/public', async (req, res) => {
   const settings = getSettings();
+  const fullPublic = settings.fullPublicSettings;
+
+  logger.debug('Serving /settings/public', {
+    label: 'Settings',
+    mediaServerType: fullPublic?.mediaServerType,
+    plexLoginEnabled: fullPublic?.plexLoginEnabled,
+    jellyfinLoginEnabled: fullPublic?.jellyfinLoginEnabled,
+    localLogin: fullPublic?.localLogin,
+    initialized: fullPublic?.initialized,
+  });
 
   if (!(req.user?.settings?.notificationTypes.webpush ?? true)) {
     return res
       .status(200)
-      .json({ ...settings.fullPublicSettings, enablePushRegistration: false });
+      .json({ ...fullPublic, enablePushRegistration: false });
   } else {
-    return res.status(200).json(settings.fullPublicSettings);
+    return res.status(200).json(fullPublic);
   }
 });
 router.get('/settings/discover', isAuthenticated(), async (_req, res) => {

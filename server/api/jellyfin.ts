@@ -161,6 +161,15 @@ class JellyfinAPI extends ExternalAPI {
     );
 
     this.mediaServerType = settings.main.mediaServerType;
+
+    logger.debug('JellyfinAPI instance created', {
+      label: 'Jellyfin',
+      host: jellyfinHost,
+      mediaServerType:
+        MediaServerType[this.mediaServerType] ?? this.mediaServerType,
+      hasAuthToken: !!authToken,
+      deviceId: safeDeviceId,
+    });
   }
 
   public async login(

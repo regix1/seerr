@@ -291,6 +291,19 @@ authRoutes.post('/jellyfin', async (req, res, next) => {
       deviceId = Buffer.from(`BOT_seerr_${body.username}`).toString('base64');
     }
 
+    logger.info('Jellyfin/Emby auth route entered', {
+      label: 'Auth',
+      bodyServerType:
+        body.serverType !== undefined
+          ? (MediaServerType[body.serverType] ?? body.serverType)
+          : 'unset',
+      settingsMediaServerType:
+        MediaServerType[settings.main.mediaServerType] ??
+        settings.main.mediaServerType,
+      username: body.username,
+      ip: req.ip,
+    });
+
     // First we need to attempt to log the user in to jellyfin
     const jellyfinserver = new JellyfinAPI(hostname ?? '', undefined, deviceId);
 
@@ -511,16 +524,27 @@ authRoutes.post('/jellyfin', async (req, res, next) => {
         }
       );
 
+      const resolvedUserType =
+        settings.main.mediaServerType === MediaServerType.JELLYFIN
+          ? UserType.JELLYFIN
+          : UserType.EMBY;
+
+      logger.info('Creating new Seerr user from Jellyfin/Emby login', {
+        label: 'Auth',
+        settingsMediaServerType:
+          MediaServerType[settings.main.mediaServerType] ??
+          settings.main.mediaServerType,
+        assignedUserType: UserType[resolvedUserType] ?? resolvedUserType,
+        jellyfinUsername: account.User.Name,
+      });
+
       user = new User({
         email: body.email,
         jellyfinUsername: account.User.Name,
         jellyfinUserId: account.User.Id,
         jellyfinDeviceId: deviceId,
         permissions: settings.main.defaultPermissions,
-        userType:
-          settings.main.mediaServerType === MediaServerType.JELLYFIN
-            ? UserType.JELLYFIN
-            : UserType.EMBY,
+        userType: resolvedUserType,
       });
       user.avatar = getUserAvatarUrl(user);
 

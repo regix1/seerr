@@ -284,6 +284,18 @@ export class User {
       providers.push(type);
     }
     this.linkedProviders = providers;
+
+    logger.debug('User.linkedProviders derived (@AfterLoad)', {
+      label: 'User',
+      userId: this.id,
+      hasPlexId: this.plexId != null,
+      hasJellyfinUserId: this.jellyfinUserId != null,
+      mediaServerType:
+        MediaServerType[getSettings().main.mediaServerType] ??
+        getSettings().main.mediaServerType,
+      linkedProviders: providers,
+      userType: this.userType,
+    });
   }
 
   public async getQuota(): Promise<QuotaResponse> {
