@@ -3,11 +3,9 @@ import Button from '@app/components/Common/Button';
 import { SmallLoadingSpinner } from '@app/components/Common/LoadingSpinner';
 import usePlexLogin from '@app/hooks/usePlexLogin';
 import defineMessages from '@app/utils/defineMessages';
-import { Fragment } from 'react';
-import { FormattedMessage, useIntl } from 'react-intl';
+import { useIntl } from 'react-intl';
 
 const messages = defineMessages('components.Login', {
-  loginwithapp: 'Login with {appName}',
   loginWithPlex: 'Sign in with Plex',
 });
 
@@ -42,24 +40,10 @@ const PlexLoginButton = ({
       )}
 
       {large ? (
-        <FormattedMessage
-          {...messages.loginwithapp}
-          values={{
-            appName: <PlexIcon className="ml-[0.35em] mt-[2px] w-8" />,
-          }}
-        >
-          {(chunks) => (
-            <>
-              {chunks.map((c, index) =>
-                typeof c === 'string' ? (
-                  <span key={index}>{c}</span>
-                ) : (
-                  <Fragment key={index}>{c}</Fragment>
-                )
-              )}
-            </>
-          )}
-        </FormattedMessage>
+        <span className="flex items-center justify-center">
+          <PlexIcon className="mr-2 h-5 w-5 shrink-0" />
+          <span>{intl.formatMessage(messages.loginWithPlex)}</span>
+        </span>
       ) : (
         <PlexIcon className="w-8" />
       )}

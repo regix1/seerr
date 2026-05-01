@@ -160,7 +160,7 @@ app
 
     const server = express();
     if (settings.network.trustProxy) {
-      server.enable('trust proxy');
+      server.set('trust proxy', process.env.TRUST_PROXY ?? 'loopback');
     }
     server.use(cookieParser());
     server.use(express.json());

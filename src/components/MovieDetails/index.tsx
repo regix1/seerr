@@ -6,6 +6,7 @@ import ImdbLogo from '@app/assets/services/imdb.svg';
 import Spinner from '@app/assets/spinner.svg';
 import TmdbLogo from '@app/assets/tmdb_logo.svg';
 import BlocklistModal from '@app/components/BlocklistModal';
+import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
@@ -562,6 +563,38 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
                   </>
                 ))}
           </span>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {data.mediaInfo?.ratingKey && (
+              <a
+                href={data.mediaInfo.mediaUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Badge badgeType="warning">Plex</Badge>
+              </a>
+            )}
+            {data.mediaInfo?.jellyfinMediaId && (
+              <a
+                href={data.mediaInfo.jellyfinMediaUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Badge
+                  badgeType={
+                    settings.currentSettings.mediaServerType ===
+                    MediaServerType.EMBY
+                      ? 'success'
+                      : 'default'
+                  }
+                >
+                  {settings.currentSettings.mediaServerType ===
+                  MediaServerType.EMBY
+                    ? 'Emby'
+                    : 'Jellyfin'}
+                </Badge>
+              </a>
+            )}
+          </div>
         </div>
         <div className="media-actions">
           {showHideButton &&

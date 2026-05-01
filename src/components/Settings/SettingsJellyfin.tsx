@@ -1,3 +1,4 @@
+import Alert from '@app/components/Common/Alert';
 import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
@@ -67,6 +68,12 @@ const messages = defineMessages('components.Settings', {
   tip: 'Tip',
   scanbackground:
     'Scanning will run in the background. You can continue the setup process in the meantime.',
+  bothProvidersBanner:
+    'Libraries from Plex and {server} are scanned independently. Items present on both servers are deduplicated by TMDB ID.',
+  crossStatusTitle: 'Plex Last Scan',
+  crossStatusNotRun: 'Not yet run',
+  crossStatusRunning: 'Currently running ({progress} of {total})',
+  crossStatusDone: '{progress} of {total} items',
 });
 
 interface Library {
@@ -109,6 +116,15 @@ const SettingsJellyfin: React.FC<SettingsJellyfinProps> = ({
   const intl = useIntl();
   const { addToast } = useToasts();
   const settings = useSettings();
+
+  const showBothProvidersBanner =
+    settings.currentSettings.plexLoginEnabled &&
+    settings.currentSettings.jellyfinLoginEnabled;
+
+  const { data: plexSyncData } = useSWR<SyncStatus>(
+    showBothProvidersBanner ? '/api/v1/settings/plex/sync' : null,
+    { refreshInterval: 10000 }
+  );
 
   const JellyfinSettingsSchema = Yup.object().shape({
     hostname: Yup.string()
@@ -265,8 +281,23 @@ const SettingsJellyfin: React.FC<SettingsJellyfinProps> = ({
           : undefined,
   };
 
+  const serverLabel =
+    settings.currentSettings.mediaServerType === MediaServerType.EMBY
+      ? 'Emby'
+      : 'Jellyfin';
+
   return (
     <>
+      {showBothProvidersBanner && (
+        <div className="section">
+          <Alert
+            title={intl.formatMessage(messages.bothProvidersBanner, {
+              server: serverLabel,
+            })}
+            type="info"
+          />
+        </div>
+      )}
       <div className="mb-6">
         <h3 className="heading">
           {intl.formatMessage(
@@ -418,6 +449,30 @@ const SettingsJellyfin: React.FC<SettingsJellyfinProps> = ({
           </div>
         </div>
       </div>
+      {showBothProvidersBanner && (
+        <div className="mb-6 mt-4">
+          <div className="rounded-md bg-gray-800 p-4">
+            <h4 className="mb-2 text-sm font-medium text-gray-300">
+              {intl.formatMessage(messages.crossStatusTitle)}
+            </h4>
+            <div className="text-sm text-gray-400">
+              {!plexSyncData
+                ? intl.formatMessage(messages.crossStatusNotRun)
+                : plexSyncData.running
+                  ? intl.formatMessage(messages.crossStatusRunning, {
+                      progress: plexSyncData.progress,
+                      total: plexSyncData.total,
+                    })
+                  : plexSyncData.total > 0
+                    ? intl.formatMessage(messages.crossStatusDone, {
+                        progress: plexSyncData.progress,
+                        total: plexSyncData.total,
+                      })
+                    : intl.formatMessage(messages.crossStatusNotRun)}
+            </div>
+          </div>
+        </div>
+      )}
       {isSetupSettings && (
         <div className="text-sm text-gray-500">
           <span className="mr-2">

@@ -6,6 +6,7 @@ import PageTitle from '@app/components/Common/PageTitle';
 import SensitiveInput from '@app/components/Common/SensitiveInput';
 import LibraryItem from '@app/components/Settings/LibraryItem';
 import SettingsBadge from '@app/components/Settings/SettingsBadge';
+import useSettings from '@app/hooks/useSettings';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import { isValidURL } from '@app/utils/urlValidationHelper';
@@ -81,6 +82,12 @@ const messages = defineMessages('components.Settings', {
   toastTautulliSettingsSuccess: 'Tautulli settings saved successfully!',
   toastTautulliSettingsFailure:
     'Something went wrong while saving Tautulli settings.',
+  bothProvidersBanner:
+    'Libraries from Plex and {server} are scanned independently. Items present on both servers are deduplicated by TMDB ID.',
+  crossStatusTitle: '{server} Last Scan',
+  crossStatusNotRun: 'Not yet run',
+  crossStatusRunning: 'Currently running ({progress} of {total})',
+  crossStatusDone: '{progress} of {total} items',
 });
 
 interface Library {
@@ -132,6 +139,18 @@ const SettingsPlex = ({ onComplete }: SettingsPlexProps) => {
   );
   const intl = useIntl();
   const { addToast, removeToast } = useToasts();
+  const settings = useSettings();
+
+  const showBothProvidersBanner =
+    settings.currentSettings.plexLoginEnabled &&
+    settings.currentSettings.jellyfinLoginEnabled;
+
+  const { data: jellyfinSyncData } = useSWR<SyncStatus>(
+    showBothProvidersBanner ? '/api/v1/settings/jellyfin/sync' : null,
+    { refreshInterval: 10000 }
+  );
+
+  const jellyfinServerLabel = 'Jellyfin';
 
   const PlexSettingsSchema = Yup.object().shape({
     hostname: Yup.string()
@@ -349,6 +368,16 @@ const SettingsPlex = ({ onComplete }: SettingsPlexProps) => {
           intl.formatMessage(globalMessages.settings),
         ]}
       />
+      {showBothProvidersBanner && (
+        <div className="section">
+          <Alert
+            title={intl.formatMessage(messages.bothProvidersBanner, {
+              server: jellyfinServerLabel,
+            })}
+            type="info"
+          />
+        </div>
+      )}
       <div className="mb-6">
         <h3 className="heading">{intl.formatMessage(messages.plexsettings)}</h3>
         <p className="description">
@@ -738,6 +767,32 @@ const SettingsPlex = ({ onComplete }: SettingsPlexProps) => {
           </div>
         </div>
       </div>
+      {showBothProvidersBanner && (
+        <div className="mb-6 mt-4">
+          <div className="rounded-md bg-gray-800 p-4">
+            <h4 className="mb-2 text-sm font-medium text-gray-300">
+              {intl.formatMessage(messages.crossStatusTitle, {
+                server: jellyfinServerLabel,
+              })}
+            </h4>
+            <div className="text-sm text-gray-400">
+              {!jellyfinSyncData
+                ? intl.formatMessage(messages.crossStatusNotRun)
+                : jellyfinSyncData.running
+                  ? intl.formatMessage(messages.crossStatusRunning, {
+                      progress: jellyfinSyncData.progress,
+                      total: jellyfinSyncData.total,
+                    })
+                  : jellyfinSyncData.total > 0
+                    ? intl.formatMessage(messages.crossStatusDone, {
+                        progress: jellyfinSyncData.progress,
+                        total: jellyfinSyncData.total,
+                      })
+                    : intl.formatMessage(messages.crossStatusNotRun)}
+            </div>
+          </div>
+        </div>
+      )}
       {!onComplete && (
         <>
           <div className="mb-6 mt-10">

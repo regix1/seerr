@@ -148,12 +148,12 @@ const Login = () => {
                 </h2>
               )}
 
-              {/* Brand login buttons — horizontal row, wraps on narrow viewports.
+              {/* Brand login buttons — stacked vertically on mobile, side-by-side on lg+.
                   Order: Plex → Jellyfin/Emby */}
               {hasMediaServerLogin && (
-                <div className="flex w-full flex-wrap gap-2">
+                <div className="flex w-full flex-col gap-3 lg:flex-row lg:gap-3">
                   {plexLoginEnabled && (
-                    <div className="min-w-[180px] flex-1">
+                    <div className="flex-1">
                       <PlexLoginButton
                         isProcessing={isProcessing}
                         onAuthToken={(authToken: string) =>
@@ -164,7 +164,7 @@ const Login = () => {
                     </div>
                   )}
                   {jellyfinLoginEnabled && (
-                    <div className="min-w-[180px] flex-1">
+                    <div className="flex-1">
                       <JellyfinLoginButton
                         serverType={mediaServerType}
                         onClick={() => setShowJellyfinModal(true)}

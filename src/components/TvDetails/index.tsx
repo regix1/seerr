@@ -604,6 +604,38 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                   </>
                 ))}
           </span>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {data.mediaInfo?.ratingKey && (
+              <a
+                href={data.mediaInfo.mediaUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Badge badgeType="warning">Plex</Badge>
+              </a>
+            )}
+            {data.mediaInfo?.jellyfinMediaId && (
+              <a
+                href={data.mediaInfo.jellyfinMediaUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Badge
+                  badgeType={
+                    settings.currentSettings.mediaServerType ===
+                    MediaServerType.EMBY
+                      ? 'success'
+                      : 'default'
+                  }
+                >
+                  {settings.currentSettings.mediaServerType ===
+                  MediaServerType.EMBY
+                    ? 'Emby'
+                    : 'Jellyfin'}
+                </Badge>
+              </a>
+            )}
+          </div>
         </div>
         <div className="media-actions">
           {showHideButton &&

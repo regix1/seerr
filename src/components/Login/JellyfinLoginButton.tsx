@@ -1,13 +1,11 @@
-import EmbyIcon from '@app/assets/services/emby-icon-only.svg';
-import JellyfinIcon from '@app/assets/services/jellyfin-icon.svg';
+import EmbyWordmark from '@app/assets/services/emby.svg';
+import JellyfinWordmark from '@app/assets/services/jellyfin.svg';
 import Button from '@app/components/Common/Button';
 import defineMessages from '@app/utils/defineMessages';
 import { MediaServerType } from '@server/constants/server';
-import { Fragment } from 'react';
-import { FormattedMessage, useIntl } from 'react-intl';
+import { useIntl } from 'react-intl';
 
 const messages = defineMessages('components.Login', {
-  loginwithapp: 'Login with {appName}',
   signinWithJellyfin: 'Sign in with Jellyfin',
   signinWithEmby: 'Sign in with Emby',
 });
@@ -27,7 +25,7 @@ const JellyfinLoginButton = ({
 }: JellyfinLoginButtonProps) => {
   const intl = useIntl();
   const isEmby = serverType === MediaServerType.EMBY;
-  const Icon = isEmby ? EmbyIcon : JellyfinIcon;
+  const Wordmark = isEmby ? EmbyWordmark : JellyfinWordmark;
   const colorClasses = isEmby
     ? 'border-emby-500 bg-emby-500/30 hover:border-emby-500 hover:bg-emby-500/70'
     : 'border-jellyfin-500 bg-jellyfin-500/30 hover:border-jellyfin-500 hover:bg-jellyfin-500/70';
@@ -44,26 +42,12 @@ const JellyfinLoginButton = ({
       data-testid="jellyfin-login-button"
     >
       {large ? (
-        <FormattedMessage
-          {...messages.loginwithapp}
-          values={{
-            appName: <Icon className="ml-[0.35em] mt-[2px] w-8" />,
-          }}
-        >
-          {(chunks) => (
-            <>
-              {chunks.map((chunk, index) =>
-                typeof chunk === 'string' ? (
-                  <span key={index}>{chunk}</span>
-                ) : (
-                  <Fragment key={index}>{chunk}</Fragment>
-                )
-              )}
-            </>
-          )}
-        </FormattedMessage>
+        <span className="flex items-center justify-center">
+          <Wordmark className="mr-2 h-5 shrink-0" />
+          <span>{ariaLabel}</span>
+        </span>
       ) : (
-        <Icon className="w-8" />
+        <Wordmark className="h-5" />
       )}
     </Button>
   );

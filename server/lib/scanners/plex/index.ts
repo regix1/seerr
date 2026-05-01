@@ -8,6 +8,7 @@ import type {
   TmdbKeyword,
   TmdbTvDetails,
 } from '@server/api/themoviedb/interfaces';
+import { MediaServerType } from '@server/constants/server';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
 import cacheManager from '@server/lib/cache';
@@ -64,6 +65,14 @@ class PlexScanner
 
   public async run(): Promise<void> {
     const settings = getSettings();
+
+    if (
+      !settings.main.plexLoginEnabled &&
+      settings.main.mediaServerType != MediaServerType.PLEX
+    ) {
+      return;
+    }
+
     const sessionId = this.startRun();
     try {
       const userRepository = getRepository(User);

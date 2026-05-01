@@ -455,6 +455,7 @@ class JellyfinScanner
     const settings = getSettings();
 
     if (
+      !settings.main.jellyfinLoginEnabled &&
       settings.main.mediaServerType != MediaServerType.JELLYFIN &&
       settings.main.mediaServerType != MediaServerType.EMBY
     ) {
