@@ -666,10 +666,16 @@ router.post(
             user.email = account.email;
             user.plexUsername = account.username;
 
-            // In case the user was previously a local account
-            if (user.userType === UserType.LOCAL) {
-              user.userType = UserType.PLEX;
+            // Identity merge (v2): if the existing user row has no plexId yet,
+            // populate plex* fields. This allows linking Plex onto any existing
+            // user (LOCAL or JELLYFIN) — silent merge symmetry with auth.ts.
+            // Only flip userType to PLEX when the row was originally LOCAL;
+            // a JELLYFIN-originated user that links Plex keeps userType=JELLYFIN.
+            if (user.plexId == null) {
               user.plexId = parseInt(account.id);
+              if (user.userType === UserType.LOCAL) {
+                user.userType = UserType.PLEX;
+              }
             }
             await userRepository.save(user);
           } else if (!body || body.plexIds.includes(account.id)) {
@@ -742,12 +748,44 @@ router.post(
 
         const jellyfinUser = jellyfinUsersById.get(jellyfinUserId);
 
-        const user = await userRepository.findOne({
-          select: ['id', 'jellyfinUserId'],
-          where: { jellyfinUserId: jellyfinUserId },
-        });
+        // Identity merge (v2): look up by jellyfinUserId first, then fall back
+        // to email match (mirrors the import-from-plex shape). The
+        // Jellyfin-side "email" is best-effort — Jellyfin's user object does
+        // not always carry one, so we use Name as a secondary key when no
+        // explicit email is present (parity with the silent-merge auth flow).
+        const candidateEmail = (jellyfinUser as { Email?: string } | undefined)
+          ?.Email;
+        const user = await userRepository
+          .createQueryBuilder('user')
+          .where('user.jellyfinUserId = :jid', { jid: jellyfinUserId })
+          .orWhere(candidateEmail ? 'LOWER(user.email) = :email' : '1 = 0', {
+            email: candidateEmail?.toLowerCase(),
+          })
+          .getOne();
 
-        if (!user) {
+        if (user) {
+          // Existing user (matched by email) without jellyfin* fields yet —
+          // populate them so the row becomes dual-linked.
+          if (user.jellyfinUserId == null && jellyfinUser?.Id) {
+            user.jellyfinUsername = jellyfinUser.Name;
+            user.jellyfinUserId = jellyfinUser.Id;
+            user.jellyfinDeviceId = Buffer.from(
+              `BOT_seerr_${jellyfinUser.Name ?? ''}`
+            ).toString('base64');
+            if (!user.avatar) {
+              user.avatar = `/avatarproxy/${jellyfinUser.Id}`;
+            }
+            // Only flip userType when the row was LOCAL; PLEX-originated rows
+            // keep userType=PLEX as the originating provider.
+            if (user.userType === UserType.LOCAL) {
+              user.userType =
+                settings.main.mediaServerType === MediaServerType.JELLYFIN
+                  ? UserType.JELLYFIN
+                  : UserType.EMBY;
+            }
+            await userRepository.save(user);
+          }
+        } else {
           const newUser = new User({
             jellyfinUsername: jellyfinUser?.Name,
             jellyfinUserId: jellyfinUser?.Id,

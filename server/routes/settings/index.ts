@@ -34,7 +34,7 @@ import type { DnsEntries, DnsStats } from 'dns-caching';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import fs from 'fs';
-import { escapeRegExp, merge, omit, set, sortBy } from 'lodash';
+import { escapeRegExp, merge, omit, pick, set, sortBy } from 'lodash';
 import { rescheduleJob } from 'node-schedule';
 import path from 'path';
 import semver from 'semver';
@@ -76,7 +76,35 @@ settingsRoutes.get('/main', (req, res, next) => {
 settingsRoutes.post('/main', async (req, res) => {
   const settings = getSettings();
 
-  settings.main = merge(settings.main, req.body);
+  const allowedMainFields: (keyof MainSettings)[] = [
+    'applicationTitle',
+    'applicationUrl',
+    'cacheImages',
+    'defaultPermissions',
+    'defaultQuotas',
+    'hideAvailable',
+    'hideBlocklisted',
+    'localLogin',
+    'mediaServerLogin',
+    'newPlexLogin',
+    'mediaServerType',
+    'plexLoginEnabled',
+    'jellyfinLoginEnabled',
+    'partialRequestsEnabled',
+    'enableSpecialEpisodes',
+    'locale',
+    'discoverRegion',
+    'streamingRegion',
+    'originalLanguage',
+    'youtubeUrl',
+    'blocklistRegion',
+    'blocklistLanguage',
+    'blocklistedTags',
+    'blocklistedTagsLimit',
+  ];
+
+  const sanitizedBody = pick(req.body, allowedMainFields);
+  settings.main = merge(settings.main, sanitizedBody);
   await settings.save();
 
   return res.status(200).json(settings.main);

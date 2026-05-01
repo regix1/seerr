@@ -147,21 +147,35 @@ export const PermissionEdit = ({
           id: 'viewwatchlists',
           name: intl.formatMessage(messages.viewwatchlists, {
             mediaServerName:
-              settings.currentSettings.mediaServerType === MediaServerType.PLEX
-                ? 'Plex'
-                : settings.currentSettings.mediaServerType ===
-                    MediaServerType.JELLYFIN
-                  ? 'Jellyfin'
-                  : 'Emby',
+              settings.currentSettings.plexLoginEnabled &&
+              settings.currentSettings.jellyfinLoginEnabled
+                ? 'Plex / ' +
+                  (settings.currentSettings.mediaServerType ===
+                  MediaServerType.JELLYFIN
+                    ? 'Jellyfin'
+                    : 'Emby')
+                : settings.currentSettings.plexLoginEnabled
+                  ? 'Plex'
+                  : settings.currentSettings.mediaServerType ===
+                      MediaServerType.JELLYFIN
+                    ? 'Jellyfin'
+                    : 'Emby',
           }),
           description: intl.formatMessage(messages.viewwatchlistsDescription, {
             mediaServerName:
-              settings.currentSettings.mediaServerType === MediaServerType.PLEX
-                ? 'Plex'
-                : settings.currentSettings.mediaServerType ===
-                    MediaServerType.JELLYFIN
-                  ? 'Jellyfin'
-                  : 'Emby',
+              settings.currentSettings.plexLoginEnabled &&
+              settings.currentSettings.jellyfinLoginEnabled
+                ? 'Plex / ' +
+                  (settings.currentSettings.mediaServerType ===
+                  MediaServerType.JELLYFIN
+                    ? 'Jellyfin'
+                    : 'Emby')
+                : settings.currentSettings.plexLoginEnabled
+                  ? 'Plex'
+                  : settings.currentSettings.mediaServerType ===
+                      MediaServerType.JELLYFIN
+                    ? 'Jellyfin'
+                    : 'Emby',
           }),
           permission: Permission.WATCHLIST_VIEW,
         },

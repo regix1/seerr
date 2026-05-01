@@ -28,7 +28,7 @@ import Season from '@app/components/TvDetails/Season';
 import useDeepLinks from '@app/hooks/useDeepLinks';
 import useLocale from '@app/hooks/useLocale';
 import useSettings from '@app/hooks/useSettings';
-import { Permission, UserType, useUser } from '@app/hooks/useUser';
+import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
 import { sortCrewPriority } from '@app/utils/creditHelpers';
@@ -626,7 +626,7 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
               </Tooltip>
             )}
           {data?.mediaInfo?.status !== MediaStatus.BLOCKLISTED &&
-            user?.userType !== UserType.PLEX && (
+            !user?.linkedProviders?.includes('plex') && (
               <>
                 {toggleWatchlist ? (
                   <Tooltip

@@ -6,7 +6,7 @@ import ConfirmButton from '@app/components/Common/ConfirmButton';
 import Dropdown from '@app/components/Common/Dropdown';
 import PageTitle from '@app/components/Common/PageTitle';
 import useSettings from '@app/hooks/useSettings';
-import { Permission, UserType, useUser } from '@app/hooks/useUser';
+import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import PlexOAuth from '@app/utils/plex';
@@ -70,23 +70,29 @@ const UserLinkedAccountsSettings = () => {
   const accounts: LinkedAccount[] = useMemo(() => {
     const accounts: LinkedAccount[] = [];
     if (!user) return accounts;
-    if (user.userType === UserType.PLEX && user.plexUsername)
+    // Use column-presence (via linkedProviders or username fallback) so a
+    // dual-linked user sees both providers simultaneously.
+    const hasPlexLinked =
+      user.linkedProviders?.includes('plex') ?? !!user.plexUsername;
+    const hasJellyfinLinked =
+      user.linkedProviders?.includes('jellyfin') ||
+      user.linkedProviders?.includes('emby') ||
+      !!user.jellyfinUsername;
+    if (hasPlexLinked && user.plexUsername)
       accounts.push({
         type: LinkedAccountType.Plex,
         username: user.plexUsername,
       });
-    if (user.userType === UserType.EMBY && user.jellyfinUsername)
+    if (hasJellyfinLinked && user.jellyfinUsername)
       accounts.push({
-        type: LinkedAccountType.Emby,
-        username: user.jellyfinUsername,
-      });
-    if (user.userType === UserType.JELLYFIN && user.jellyfinUsername)
-      accounts.push({
-        type: LinkedAccountType.Jellyfin,
+        type:
+          settings.currentSettings.mediaServerType === MediaServerType.EMBY
+            ? LinkedAccountType.Emby
+            : LinkedAccountType.Jellyfin,
         username: user.jellyfinUsername,
       });
     return accounts;
-  }, [user]);
+  }, [user, settings.currentSettings.mediaServerType]);
 
   const linkPlexAccount = async () => {
     setError(null);
@@ -122,23 +128,25 @@ const UserLinkedAccountsSettings = () => {
         plexOAuth.preparePopup();
         setTimeout(() => linkPlexAccount(), 1500);
       },
+      // Linkable iff Plex login is enabled AND the user has not already linked Plex
       hide:
-        settings.currentSettings.mediaServerType !== MediaServerType.PLEX ||
+        !settings.currentSettings.plexLoginEnabled ||
         accounts.some((a) => a.type === LinkedAccountType.Plex),
     },
     {
-      name: 'Jellyfin',
+      name:
+        settings.currentSettings.mediaServerType === MediaServerType.EMBY
+          ? 'Emby'
+          : 'Jellyfin',
       action: () => setShowJellyfinModal(true),
+      // Linkable iff Jellyfin/Emby login is enabled AND the user has not already linked one
       hide:
-        settings.currentSettings.mediaServerType !== MediaServerType.JELLYFIN ||
-        accounts.some((a) => a.type === LinkedAccountType.Jellyfin),
-    },
-    {
-      name: 'Emby',
-      action: () => setShowJellyfinModal(true),
-      hide:
-        settings.currentSettings.mediaServerType !== MediaServerType.EMBY ||
-        accounts.some((a) => a.type === LinkedAccountType.Emby),
+        !settings.currentSettings.jellyfinLoginEnabled ||
+        accounts.some(
+          (a) =>
+            a.type === LinkedAccountType.Jellyfin ||
+            a.type === LinkedAccountType.Emby
+        ),
     },
   ].filter((l) => !l.hide);
 

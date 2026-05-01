@@ -31,6 +31,12 @@ const KeyMap: Record<string, string | KeyMapFunction> = {
   media_type: 'media.mediaType',
   media_jellyfinMediaId: (payload) =>
     payload.media?.jellyfinMediaId ?? payload.media?.jellyfinMediaId4k ?? '',
+  media_plexRatingKey: (payload) => payload.media?.ratingKey ?? '',
+  media_plexRatingKey4k: (payload) => payload.media?.ratingKey4k ?? '',
+  media_mediaUrl: (payload) =>
+    payload.media?.mediaUrl ?? payload.media?.mediaUrl4k ?? '',
+  media_jellyfinMediaUrl: (payload) =>
+    payload.media?.jellyfinMediaUrl ?? payload.media?.jellyfinMediaUrl4k ?? '',
   media_status: (payload) =>
     payload.media ? MediaStatus[payload.media.status] : '',
   media_status4k: (payload) =>

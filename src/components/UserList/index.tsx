@@ -13,7 +13,7 @@ import PlexImportModal from '@app/components/UserList/PlexImportModal';
 import useSettings from '@app/hooks/useSettings';
 import { useUpdateQueryParams } from '@app/hooks/useUpdateQueryParams';
 import type { User } from '@app/hooks/useUser';
-import { Permission, UserType, useUser } from '@app/hooks/useUser';
+import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import { Transition } from '@headlessui/react';
@@ -863,27 +863,33 @@ const UserList = () => {
                 )}
               </Table.TD>
               <Table.TD>
-                {user.userType === UserType.PLEX ? (
-                  <Badge badgeType="warning">
-                    {intl.formatMessage(messages.plexuser)}
-                  </Badge>
-                ) : user.userType === UserType.LOCAL ? (
-                  <Badge badgeType="default">
-                    {intl.formatMessage(messages.localuser)}
-                  </Badge>
-                ) : user.userType === UserType.EMBY ? (
-                  <Badge badgeType="success">
-                    {intl.formatMessage(messages.mediaServerUser, {
-                      mediaServerName: 'Emby',
-                    })}
-                  </Badge>
-                ) : user.userType === UserType.JELLYFIN ? (
-                  <Badge badgeType="default">
-                    {intl.formatMessage(messages.mediaServerUser, {
-                      mediaServerName: 'Jellyfin',
-                    })}
-                  </Badge>
-                ) : null}
+                <div className="flex items-center gap-1">
+                  {user.linkedProviders?.includes('plex') && (
+                    <Badge badgeType="warning">
+                      {intl.formatMessage(messages.plexuser)}
+                    </Badge>
+                  )}
+                  {user.linkedProviders?.includes('emby') && (
+                    <Badge badgeType="success">
+                      {intl.formatMessage(messages.mediaServerUser, {
+                        mediaServerName: 'Emby',
+                      })}
+                    </Badge>
+                  )}
+                  {user.linkedProviders?.includes('jellyfin') && (
+                    <Badge badgeType="default">
+                      {intl.formatMessage(messages.mediaServerUser, {
+                        mediaServerName: 'Jellyfin',
+                      })}
+                    </Badge>
+                  )}
+                  {(!user.linkedProviders ||
+                    user.linkedProviders.length === 0) && (
+                    <Badge badgeType="default">
+                      {intl.formatMessage(messages.localuser)}
+                    </Badge>
+                  )}
+                </div>
               </Table.TD>
               <Table.TD>
                 {user.id === 1

@@ -1,4 +1,5 @@
 import { MediaRequestStatus, MediaType } from '@server/constants/media';
+import { MediaServerType } from '@server/constants/server';
 import { UserType } from '@server/constants/user';
 import { getRepository } from '@server/datasource';
 import { Watchlist } from '@server/entity/Watchlist';
@@ -158,6 +159,8 @@ export class User {
 
   public warnings: string[] = [];
 
+  public linkedProviders: ('plex' | 'jellyfin' | 'emby')[] = [];
+
   constructor(init?: Partial<User>) {
     Object.assign(this, init);
   }
@@ -268,6 +271,19 @@ export class User {
   public setDisplayName(): void {
     this.displayName =
       this.username || this.plexUsername || this.jellyfinUsername || this.email;
+
+    const providers: ('plex' | 'jellyfin' | 'emby')[] = [];
+    if (this.plexId != null && this.plexUsername) {
+      providers.push('plex');
+    }
+    if (this.jellyfinUserId != null && this.jellyfinUsername) {
+      const type =
+        getSettings().main.mediaServerType === MediaServerType.EMBY
+          ? 'emby'
+          : 'jellyfin';
+      providers.push(type);
+    }
+    this.linkedProviders = providers;
   }
 
   public async getQuota(): Promise<QuotaResponse> {

@@ -276,7 +276,7 @@ userSettingsRoutes.post<{ authToken: string }>(
       return res.status(404).json({ code: ApiErrorCode.Unauthorized });
     }
     // Make sure Plex login is enabled
-    if (settings.main.mediaServerType !== MediaServerType.PLEX) {
+    if (!settings.main.plexLoginEnabled) {
       return res.status(500).json({ message: 'Plex login is disabled' });
     }
 
@@ -320,7 +320,7 @@ userSettingsRoutes.delete<{ id: string }>(
     const userRepository = getRepository(User);
 
     // Make sure Plex login is enabled
-    if (settings.main.mediaServerType !== MediaServerType.PLEX) {
+    if (!settings.main.plexLoginEnabled) {
       return res.status(500).json({ message: 'Plex login is disabled' });
     }
 
@@ -374,13 +374,8 @@ userSettingsRoutes.post<{ username: string; password: string }>(
       return res.status(401).json({ code: ApiErrorCode.Unauthorized });
     }
     // Make sure jellyfin login is enabled
-    if (
-      settings.main.mediaServerType !== MediaServerType.JELLYFIN &&
-      settings.main.mediaServerType !== MediaServerType.EMBY
-    ) {
-      return res
-        .status(500)
-        .json({ message: 'Jellyfin/Emby login is disabled' });
+    if (!settings.main.jellyfinLoginEnabled) {
+      return res.status(500).json({ message: 'Jellyfin login is disabled' });
     }
 
     // Do not allow linking of an already linked account
@@ -469,13 +464,8 @@ userSettingsRoutes.delete<{ id: string }>(
     const userRepository = getRepository(User);
 
     // Make sure jellyfin login is enabled
-    if (
-      settings.main.mediaServerType !== MediaServerType.JELLYFIN &&
-      settings.main.mediaServerType !== MediaServerType.EMBY
-    ) {
-      return res
-        .status(500)
-        .json({ message: 'Jellyfin/Emby login is disabled' });
+    if (!settings.main.jellyfinLoginEnabled) {
+      return res.status(500).json({ message: 'Jellyfin login is disabled' });
     }
 
     try {

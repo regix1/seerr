@@ -76,6 +76,16 @@ const messages = defineMessages('components.Settings.SettingsMain', {
     'Base URL for YouTube videos if a self-hosted YouTube instance is used.',
   validationUrl: 'You must provide a valid URL',
   validationUrlTrailingSlash: 'URL must not end in a trailing slash',
+  loginMethodsHeading: 'Login Methods',
+  loginMethodsHeadingTip:
+    'Configure which authentication methods are available on the login page.',
+  localLoginLabel: 'Enable Local Login',
+  localLoginTip: 'Allow users to sign in with a local username and password.',
+  plexLoginEnabledLabel: 'Enable Plex Login',
+  plexLoginEnabledTip: 'Allow users to sign in with their Plex account.',
+  jellyfinLoginEnabledLabel: 'Enable Jellyfin Login',
+  jellyfinLoginEnabledTip:
+    'Allow users to sign in with their Jellyfin account.',
 });
 
 const SettingsMain = () => {
@@ -183,6 +193,9 @@ const SettingsMain = () => {
             enableSpecialEpisodes: data?.enableSpecialEpisodes,
             cacheImages: data?.cacheImages,
             youtubeUrl: data?.youtubeUrl,
+            localLogin: data?.localLogin,
+            plexLoginEnabled: data?.plexLoginEnabled,
+            jellyfinLoginEnabled: data?.jellyfinLoginEnabled,
           }}
           enableReinitialize
           validationSchema={MainSettingsSchema}
@@ -205,6 +218,9 @@ const SettingsMain = () => {
                 enableSpecialEpisodes: values.enableSpecialEpisodes,
                 cacheImages: values.cacheImages,
                 youtubeUrl: values.youtubeUrl,
+                localLogin: values.localLogin,
+                plexLoginEnabled: values.plexLoginEnabled,
+                jellyfinLoginEnabled: values.jellyfinLoginEnabled,
               });
               mutate('/api/v1/settings/public');
               mutate('/api/v1/status');
@@ -605,6 +621,83 @@ const SettingsMain = () => {
                       typeof errors.youtubeUrl === 'string' && (
                         <div className="error">{errors.youtubeUrl}</div>
                       )}
+                  </div>
+                </div>
+                <div className="mb-6 mt-10">
+                  <h3 className="heading">
+                    {intl.formatMessage(messages.loginMethodsHeading)}
+                  </h3>
+                  <p className="description">
+                    {intl.formatMessage(messages.loginMethodsHeadingTip)}
+                  </p>
+                </div>
+                <div className="form-row">
+                  <label htmlFor="localLogin" className="checkbox-label">
+                    <span className="mr-2">
+                      {intl.formatMessage(messages.localLoginLabel)}
+                    </span>
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.localLoginTip)}
+                    </span>
+                  </label>
+                  <div className="form-input-area">
+                    <Field
+                      type="checkbox"
+                      id="localLogin"
+                      name="localLogin"
+                      onChange={() => {
+                        setFieldValue('localLogin', !values.localLogin);
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label htmlFor="plexLoginEnabled" className="checkbox-label">
+                    <span className="mr-2">
+                      {intl.formatMessage(messages.plexLoginEnabledLabel)}
+                    </span>
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.plexLoginEnabledTip)}
+                    </span>
+                  </label>
+                  <div className="form-input-area">
+                    <Field
+                      type="checkbox"
+                      id="plexLoginEnabled"
+                      name="plexLoginEnabled"
+                      onChange={() => {
+                        setFieldValue(
+                          'plexLoginEnabled',
+                          !values.plexLoginEnabled
+                        );
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label
+                    htmlFor="jellyfinLoginEnabled"
+                    className="checkbox-label"
+                  >
+                    <span className="mr-2">
+                      {intl.formatMessage(messages.jellyfinLoginEnabledLabel)}
+                    </span>
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.jellyfinLoginEnabledTip)}
+                    </span>
+                  </label>
+                  <div className="form-input-area">
+                    <Field
+                      type="checkbox"
+                      id="jellyfinLoginEnabled"
+                      name="jellyfinLoginEnabled"
+                      onChange={() => {
+                        setFieldValue(
+                          'jellyfinLoginEnabled',
+                          !values.jellyfinLoginEnabled
+                        );
+                      }}
+                    />
                   </div>
                 </div>
                 <div className="actions">

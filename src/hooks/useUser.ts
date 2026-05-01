@@ -23,6 +23,7 @@ export interface User {
   createdAt: Date;
   updatedAt: Date;
   requestCount: number;
+  linkedProviders?: string[];
   settings?: UserSettings;
 }
 

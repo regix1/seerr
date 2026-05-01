@@ -67,6 +67,7 @@ authRoutes.post('/plex', async (req, res, next) => {
     const account = await plextv.getUser();
 
     // Next let's see if the user already exists
+    // User-accepted: silent email-match merge enables one seerr account to hold both Plex and Jellyfin identities. Shared-email risk is accepted.
     let user = await userRepository
       .createQueryBuilder('user')
       .where('user.plexId = :id', { id: account.id })
@@ -135,6 +136,18 @@ authRoutes.post('/plex', async (req, res, next) => {
             );
           }
 
+          // Block account takeover of bootstrap admin via email collision
+          if (
+            user.id === 1 &&
+            user.plexId != null &&
+            user.plexId !== account.id
+          ) {
+            return next({
+              status: 403,
+              message: 'Cannot replace primary admin Plex account',
+            });
+          }
+
           user.plexToken = body.authToken;
           user.plexId = account.id;
           user.avatar = account.thumb;
@@ -143,6 +156,7 @@ authRoutes.post('/plex', async (req, res, next) => {
           user.userType = UserType.PLEX;
 
           await userRepository.save(user);
+          user.setDisplayName();
         } else if (!settings.main.newPlexLogin) {
           logger.warn(
             'Failed sign-in attempt by unimported Plex user with access to the media server',
@@ -298,9 +312,48 @@ authRoutes.post('/jellyfin', async (req, res, next) => {
     );
 
     // Next let's see if the user already exists
+    // User-accepted: silent email-match merge enables one seerr account to hold both Plex and Jellyfin identities. Shared-email risk is accepted.
     user = await userRepository.findOne({
       where: { jellyfinUserId: account.User.Id },
     });
+
+    // Email-fallback merge: if no jellyfinUserId match, look up by email
+    if (!user && body.email) {
+      const emailMatchedUser = await userRepository.findOne({
+        where: { email: body.email.toLowerCase() },
+      });
+      if (emailMatchedUser) {
+        if (!emailMatchedUser.jellyfinUserId) {
+          // Silent merge: populate jellyfin* fields on the existing user row
+          logger.info(
+            'Auto-merged Jellyfin login into existing user via email match',
+            { userId: emailMatchedUser.id, email: emailMatchedUser.email }
+          );
+          emailMatchedUser.jellyfinUserId = account.User.Id;
+          emailMatchedUser.jellyfinUsername = account.User.Name;
+          emailMatchedUser.jellyfinDeviceId = deviceId;
+          emailMatchedUser.jellyfinAuthToken = account.AccessToken;
+          await userRepository.save(emailMatchedUser);
+          emailMatchedUser.setDisplayName();
+          user = emailMatchedUser;
+        } else if (emailMatchedUser.jellyfinUserId !== account.User.Id) {
+          // Conflict: this email is already linked to a different Jellyfin account
+          logger.warn(
+            'Jellyfin login rejected: email matches a different Jellyfin account already linked',
+            {
+              email: emailMatchedUser.email,
+              existingJellyfinUserId: emailMatchedUser.jellyfinUserId,
+              incomingJellyfinUserId: account.User.Id,
+            }
+          );
+          return res.status(409).json({
+            message:
+              'Email matches a different Jellyfin account already linked.',
+          });
+        }
+        // else: emailMatchedUser.jellyfinUserId === account.User.Id — same user, fall through normally
+      }
+    }
 
     const missingAdminUser = !user && !(await userRepository.count());
     if (
@@ -352,6 +405,7 @@ authRoutes.post('/jellyfin', async (req, res, next) => {
         user.avatar = getUserAvatarUrl(user);
 
         await userRepository.save(user);
+        user.setDisplayName();
       } else {
         logger.info(
           'Sign-in attempt from Jellyfin user with access to the media server; editing admin user for Seerr',
@@ -383,6 +437,7 @@ authRoutes.post('/jellyfin', async (req, res, next) => {
             : UserType.EMBY;
 
         await userRepository.save(user);
+        user.setDisplayName();
       }
 
       // Create an API key on Jellyfin from this admin user
@@ -431,6 +486,7 @@ authRoutes.post('/jellyfin', async (req, res, next) => {
       }
 
       await userRepository.save(user);
+      user.setDisplayName();
     } else if (!settings.main.newPlexLogin) {
       logger.warn(
         'Failed sign-in attempt by unimported Jellyfin user with access to the media server',

@@ -57,9 +57,7 @@ const JellyfinLogin: React.FC<JellyfinLoginProps> = ({
     ),
     password: Yup.string(),
   });
-  const baseUrl = settings.currentSettings.jellyfinExternalHost
-    ? settings.currentSettings.jellyfinExternalHost
-    : settings.currentSettings.jellyfinHost;
+  const baseUrl = settings.currentSettings.jellyfinExternalHost;
   const jellyfinForgotPasswordUrl =
     settings.currentSettings.jellyfinForgotPasswordUrl;
 

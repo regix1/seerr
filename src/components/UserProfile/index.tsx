@@ -6,7 +6,7 @@ import RequestCard from '@app/components/RequestCard';
 import Slider from '@app/components/Slider';
 import TmdbTitleCard from '@app/components/TitleCard/TmdbTitleCard';
 import ProfileHeader from '@app/components/UserProfile/ProfileHeader';
-import { Permission, UserType, useUser } from '@app/hooks/useUser';
+import { Permission, useUser } from '@app/hooks/useUser';
 import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
 import { ArrowRightCircleIcon } from '@heroicons/react/24/outline';
@@ -75,7 +75,7 @@ const UserProfile = () => {
   );
   const { data: watchData, error: watchDataError } =
     useSWR<UserWatchDataResponse>(
-      user?.userType === UserType.PLEX &&
+      user?.linkedProviders?.includes('plex') &&
         (user.id === currentUser?.id || currentHasPermission(Permission.ADMIN))
         ? `/api/v1/user/${user.id}/watch_data`
         : null
@@ -120,7 +120,7 @@ const UserProfile = () => {
   }
 
   const watchlistSliderTitle = intl.formatMessage(
-    user.userType === UserType.PLEX
+    user?.linkedProviders?.includes('plex')
       ? messages.plexwatchlist
       : messages.localWatchlist,
     { username: user.displayName }
@@ -375,7 +375,7 @@ const UserProfile = () => {
             />
           </>
         )}
-      {user.userType === UserType.PLEX &&
+      {user?.linkedProviders?.includes('plex') &&
         (user.id === currentUser?.id ||
           currentHasPermission(Permission.ADMIN)) &&
         (!watchData || !!watchData.recentlyWatched?.length) &&

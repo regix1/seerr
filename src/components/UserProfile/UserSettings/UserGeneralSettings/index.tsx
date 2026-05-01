@@ -251,28 +251,32 @@ const UserGeneralSettings = () => {
                   {intl.formatMessage(messages.accounttype)}
                 </label>
                 <div className="mb-1 text-sm font-medium leading-5 text-gray-400 sm:mt-2">
-                  <div className="flex max-w-lg items-center">
-                    {user?.userType === UserType.PLEX ? (
+                  <div className="flex max-w-lg items-center gap-1">
+                    {user?.linkedProviders?.includes('plex') && (
                       <Badge badgeType="warning">
                         {intl.formatMessage(messages.plexuser)}
                       </Badge>
-                    ) : user?.userType === UserType.LOCAL ? (
-                      <Badge badgeType="default">
-                        {intl.formatMessage(messages.localuser)}
-                      </Badge>
-                    ) : user?.userType === UserType.EMBY ? (
+                    )}
+                    {user?.linkedProviders?.includes('emby') && (
                       <Badge badgeType="success">
                         {intl.formatMessage(messages.mediaServerUser, {
                           mediaServerName: 'Emby',
                         })}
                       </Badge>
-                    ) : user?.userType === UserType.JELLYFIN ? (
+                    )}
+                    {user?.linkedProviders?.includes('jellyfin') && (
                       <Badge badgeType="default">
                         {intl.formatMessage(messages.mediaServerUser, {
                           mediaServerName: 'Jellyfin',
                         })}
                       </Badge>
-                    ) : null}
+                    )}
+                    {(!user?.linkedProviders ||
+                      user.linkedProviders.length === 0) && (
+                      <Badge badgeType="default">
+                        {intl.formatMessage(messages.localuser)}
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </div>
@@ -546,7 +550,7 @@ const UserGeneralSettings = () => {
                 [Permission.AUTO_REQUEST, Permission.AUTO_REQUEST_MOVIE],
                 { type: 'or' }
               ) &&
-                user?.userType === UserType.PLEX && (
+                user?.linkedProviders?.includes('plex') && (
                   <div className="form-row">
                     <label
                       htmlFor="watchlistSyncMovies"
@@ -594,7 +598,7 @@ const UserGeneralSettings = () => {
                 [Permission.AUTO_REQUEST, Permission.AUTO_REQUEST_TV],
                 { type: 'or' }
               ) &&
-                user?.userType === UserType.PLEX && (
+                user?.linkedProviders?.includes('plex') && (
                   <div className="form-row">
                     <label htmlFor="watchlistSyncTv" className="checkbox-label">
                       <span>
