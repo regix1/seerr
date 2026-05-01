@@ -5,7 +5,21 @@ import type { User } from '@app/hooks/useUser';
 import { Permission } from '@app/hooks/useUser';
 import defineMessages from '@app/utils/defineMessages';
 import { MediaServerType } from '@server/constants/server';
+import type { PublicSettingsResponse } from '@server/interfaces/api/settingsInterfaces';
 import { useIntl } from 'react-intl';
+
+const getWatchlistMediaName = (
+  currentSettings: PublicSettingsResponse
+): string => {
+  const { plexLoginEnabled, jellyfinLoginEnabled, mediaServerType } =
+    currentSettings;
+  const jfLabel =
+    mediaServerType === MediaServerType.JELLYFIN ? 'Jellyfin' : 'Emby';
+  if (plexLoginEnabled && jellyfinLoginEnabled) return `Plex / ${jfLabel}`;
+  if (plexLoginEnabled) return 'Plex';
+  if (jellyfinLoginEnabled) return jfLabel;
+  return 'Plex'; // fallback
+};
 
 export const messages = defineMessages('components.PermissionEdit', {
   admin: 'Admin',
@@ -146,36 +160,10 @@ export const PermissionEdit = ({
         {
           id: 'viewwatchlists',
           name: intl.formatMessage(messages.viewwatchlists, {
-            mediaServerName:
-              settings.currentSettings.plexLoginEnabled &&
-              settings.currentSettings.jellyfinLoginEnabled
-                ? 'Plex / ' +
-                  (settings.currentSettings.mediaServerType ===
-                  MediaServerType.JELLYFIN
-                    ? 'Jellyfin'
-                    : 'Emby')
-                : settings.currentSettings.plexLoginEnabled
-                  ? 'Plex'
-                  : settings.currentSettings.mediaServerType ===
-                      MediaServerType.JELLYFIN
-                    ? 'Jellyfin'
-                    : 'Emby',
+            mediaServerName: getWatchlistMediaName(settings.currentSettings),
           }),
           description: intl.formatMessage(messages.viewwatchlistsDescription, {
-            mediaServerName:
-              settings.currentSettings.plexLoginEnabled &&
-              settings.currentSettings.jellyfinLoginEnabled
-                ? 'Plex / ' +
-                  (settings.currentSettings.mediaServerType ===
-                  MediaServerType.JELLYFIN
-                    ? 'Jellyfin'
-                    : 'Emby')
-                : settings.currentSettings.plexLoginEnabled
-                  ? 'Plex'
-                  : settings.currentSettings.mediaServerType ===
-                      MediaServerType.JELLYFIN
-                    ? 'Jellyfin'
-                    : 'Emby',
+            mediaServerName: getWatchlistMediaName(settings.currentSettings),
           }),
           permission: Permission.WATCHLIST_VIEW,
         },

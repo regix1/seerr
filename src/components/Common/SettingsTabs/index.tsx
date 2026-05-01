@@ -143,7 +143,10 @@ const SettingsTabs = ({
         </div>
       ) : (
         <div className="hide-scrollbar hidden overflow-x-scroll border-b border-gray-600 sm:block">
-          <nav className="flex" data-testid="settings-nav-desktop">
+          <nav
+            className="flex flex-wrap gap-y-2"
+            data-testid="settings-nav-desktop"
+          >
             {settingsRoutes
               .filter(
                 (route) =>

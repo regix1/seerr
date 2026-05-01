@@ -11,6 +11,13 @@ module.exports = {
   ],
   theme: {
     extend: {
+      colors: {
+        plex: {
+          500: '#cc7b19',
+          600: '#b96e16',
+          700: '#a66213',
+        },
+      },
       transitionProperty: {
         'max-height': 'max-height',
         width: 'width',
@@ -86,8 +93,11 @@ module.exports = {
     },
   },
   plugins: [
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     require('@tailwindcss/forms'),
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     require('@tailwindcss/typography'),
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     require('@tailwindcss/aspect-ratio'),
   ],
 };

@@ -9,17 +9,20 @@ import CopyButton from '@app/components/Settings/CopyButton';
 import SettingsBadge from '@app/components/Settings/SettingsBadge';
 import { availableLanguages } from '@app/context/LanguageContext';
 import useLocale from '@app/hooks/useLocale';
+import useSettings from '@app/hooks/useSettings';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import { isValidURL } from '@app/utils/urlValidationHelper';
 import { ArrowDownOnSquareIcon } from '@heroicons/react/24/outline';
 import { ArrowPathIcon } from '@heroicons/react/24/solid';
+import { MediaServerType } from '@server/constants/server';
 import type { UserSettingsGeneralResponse } from '@server/interfaces/api/userSettingsInterfaces';
 import type { MainSettings } from '@server/lib/settings';
 import type { AvailableLocale } from '@server/types/languages';
 import axios from 'axios';
 import { Field, Form, Formik } from 'formik';
+import Link from 'next/link';
 import { useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 import useSWR, { mutate } from 'swr';
@@ -86,11 +89,14 @@ const messages = defineMessages('components.Settings.SettingsMain', {
   jellyfinLoginEnabledLabel: 'Enable Jellyfin Login',
   jellyfinLoginEnabledTip:
     'Allow users to sign in with their Jellyfin account.',
+  configurePlexServer: 'Configure Plex server',
+  configureJellyfinServer: 'Configure Jellyfin/Emby server',
 });
 
 const SettingsMain = () => {
   const { addToast } = useToasts();
   const { user: currentUser, hasPermission: userHasPermission } = useUser();
+  const { currentSettings } = useSettings();
   const intl = useIntl();
   const { setLocale } = useLocale();
   const {
@@ -672,6 +678,16 @@ const SettingsMain = () => {
                         );
                       }}
                     />
+                    {values.plexLoginEnabled &&
+                      currentSettings.mediaServerType !==
+                        MediaServerType.PLEX && (
+                        <Link
+                          href="/settings/plex"
+                          className="mt-2 block text-sm text-indigo-500 hover:text-indigo-400"
+                        >
+                          {intl.formatMessage(messages.configurePlexServer)} →
+                        </Link>
+                      )}
                   </div>
                 </div>
                 <div className="form-row">
@@ -698,6 +714,19 @@ const SettingsMain = () => {
                         );
                       }}
                     />
+                    {values.jellyfinLoginEnabled &&
+                      currentSettings.mediaServerType !==
+                        MediaServerType.JELLYFIN &&
+                      currentSettings.mediaServerType !==
+                        MediaServerType.EMBY && (
+                        <Link
+                          href="/settings/jellyfin"
+                          className="mt-2 block text-sm text-indigo-500 hover:text-indigo-400"
+                        >
+                          {intl.formatMessage(messages.configureJellyfinServer)}{' '}
+                          →
+                        </Link>
+                      )}
                   </div>
                 </div>
                 <div className="actions">

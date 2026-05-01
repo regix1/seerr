@@ -302,10 +302,14 @@ userSettingsRoutes.post<{ authToken: string }>(
     }
 
     // valid plex user found, link to current user
-    user.userType = UserType.PLEX;
     user.plexId = account.id;
     user.plexUsername = account.username;
     user.plexToken = account.authToken;
+    // Only flip userType to PLEX when the row was originally LOCAL;
+    // a JELLYFIN/EMBY-originated user that links Plex keeps userType unchanged.
+    if (user.userType === UserType.LOCAL) {
+      user.userType = UserType.PLEX;
+    }
     await userRepository.save(user);
 
     return res.status(204).send();
@@ -427,14 +431,18 @@ userSettingsRoutes.post<{ username: string; password: string }>(
       const user = req.user;
 
       // valid jellyfin user found, link to current user
-      user.userType =
-        settings.main.mediaServerType === MediaServerType.EMBY
-          ? UserType.EMBY
-          : UserType.JELLYFIN;
       user.jellyfinUserId = account.User.Id;
       user.jellyfinUsername = account.User.Name;
       user.jellyfinAuthToken = account.AccessToken;
       user.jellyfinDeviceId = deviceId;
+      // Only flip userType when the row was LOCAL; PLEX-originated rows
+      // keep userType=PLEX as the originating provider.
+      if (user.userType === UserType.LOCAL) {
+        user.userType =
+          settings.main.mediaServerType === MediaServerType.EMBY
+            ? UserType.EMBY
+            : UserType.JELLYFIN;
+      }
       await userRepository.save(user);
 
       return res.status(204).send();

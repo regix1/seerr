@@ -73,6 +73,22 @@ const messages = defineMessages('components.IssueDetails', {
   commentplaceholder: 'Add a comment…',
 });
 
+const getPlayButtonLabel = (
+  intl: ReturnType<typeof useIntl>,
+  mediaServerType: number,
+  serverFlavor: 'plex' | 'jellyfin',
+  is4k = false
+): string => {
+  const messageKey = is4k ? messages.play4konplex : messages.playonplex;
+  if (serverFlavor === 'plex') {
+    return intl.formatMessage(messageKey, { mediaServerName: 'Plex' });
+  }
+  // jellyfin flavor — resolve Jellyfin vs Emby
+  const mediaServerName =
+    mediaServerType === MediaServerType.EMBY ? 'Emby' : 'Jellyfin';
+  return intl.formatMessage(messageKey, { mediaServerName });
+};
+
 const isMovie = (movie: MovieDetails | TvDetails): movie is MovieDetails => {
   return (movie as MovieDetails).title !== undefined;
 };
@@ -385,9 +401,11 @@ const IssueDetails = () => {
                 >
                   <PlayIcon />
                   <span>
-                    {intl.formatMessage(messages.playonplex, {
-                      mediaServerName: 'Plex',
-                    })}
+                    {getPlayButtonLabel(
+                      intl,
+                      settings.currentSettings.mediaServerType,
+                      'plex'
+                    )}
                   </span>
                 </Button>
               )}
@@ -402,13 +420,11 @@ const IssueDetails = () => {
                 >
                   <PlayIcon />
                   <span>
-                    {intl.formatMessage(messages.playonplex, {
-                      mediaServerName:
-                        settings.currentSettings.mediaServerType ===
-                        MediaServerType.EMBY
-                          ? 'Emby'
-                          : 'Jellyfin',
-                    })}
+                    {getPlayButtonLabel(
+                      intl,
+                      settings.currentSettings.mediaServerType,
+                      'jellyfin'
+                    )}
                   </span>
                 </Button>
               )}
@@ -444,9 +460,12 @@ const IssueDetails = () => {
                 >
                   <PlayIcon />
                   <span>
-                    {intl.formatMessage(messages.play4konplex, {
-                      mediaServerName: 'Plex',
-                    })}
+                    {getPlayButtonLabel(
+                      intl,
+                      settings.currentSettings.mediaServerType,
+                      'plex',
+                      true
+                    )}
                   </span>
                 </Button>
               )}
@@ -461,13 +480,12 @@ const IssueDetails = () => {
                 >
                   <PlayIcon />
                   <span>
-                    {intl.formatMessage(messages.play4konplex, {
-                      mediaServerName:
-                        settings.currentSettings.mediaServerType ===
-                        MediaServerType.EMBY
-                          ? 'Emby'
-                          : 'Jellyfin',
-                    })}
+                    {getPlayButtonLabel(
+                      intl,
+                      settings.currentSettings.mediaServerType,
+                      'jellyfin',
+                      true
+                    )}
                   </span>
                 </Button>
               )}
@@ -673,9 +691,11 @@ const IssueDetails = () => {
               >
                 <PlayIcon />
                 <span>
-                  {intl.formatMessage(messages.playonplex, {
-                    mediaServerName: 'Plex',
-                  })}
+                  {getPlayButtonLabel(
+                    intl,
+                    settings.currentSettings.mediaServerType,
+                    'plex'
+                  )}
                 </span>
               </Button>
             )}
@@ -690,13 +710,11 @@ const IssueDetails = () => {
               >
                 <PlayIcon />
                 <span>
-                  {intl.formatMessage(messages.playonplex, {
-                    mediaServerName:
-                      settings.currentSettings.mediaServerType ===
-                      MediaServerType.EMBY
-                        ? 'Emby'
-                        : 'Jellyfin',
-                  })}
+                  {getPlayButtonLabel(
+                    intl,
+                    settings.currentSettings.mediaServerType,
+                    'jellyfin'
+                  )}
                 </span>
               </Button>
             )}
@@ -731,9 +749,12 @@ const IssueDetails = () => {
               >
                 <PlayIcon />
                 <span>
-                  {intl.formatMessage(messages.play4konplex, {
-                    mediaServerName: 'Plex',
-                  })}
+                  {getPlayButtonLabel(
+                    intl,
+                    settings.currentSettings.mediaServerType,
+                    'plex',
+                    true
+                  )}
                 </span>
               </Button>
             )}
@@ -748,13 +769,12 @@ const IssueDetails = () => {
               >
                 <PlayIcon />
                 <span>
-                  {intl.formatMessage(messages.play4konplex, {
-                    mediaServerName:
-                      settings.currentSettings.mediaServerType ===
-                      MediaServerType.EMBY
-                        ? 'Emby'
-                        : 'Jellyfin',
-                  })}
+                  {getPlayButtonLabel(
+                    intl,
+                    settings.currentSettings.mediaServerType,
+                    'jellyfin',
+                    true
+                  )}
                 </span>
               </Button>
             )}

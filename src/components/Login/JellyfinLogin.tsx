@@ -172,6 +172,8 @@ const JellyfinLogin: React.FC<JellyfinLoginProps> = ({
                                     : ''
                                 }forgotpassword.html`
                           }
+                          target="_blank"
+                          rel="noreferrer"
                           className="pt-2 text-sm text-indigo-500 hover:text-indigo-400"
                         >
                           {intl.formatMessage(messages.forgotpassword)}

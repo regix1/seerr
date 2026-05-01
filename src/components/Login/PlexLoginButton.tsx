@@ -4,10 +4,11 @@ import { SmallLoadingSpinner } from '@app/components/Common/LoadingSpinner';
 import usePlexLogin from '@app/hooks/usePlexLogin';
 import defineMessages from '@app/utils/defineMessages';
 import { Fragment } from 'react';
-import { FormattedMessage } from 'react-intl';
+import { FormattedMessage, useIntl } from 'react-intl';
 
 const messages = defineMessages('components.Login', {
   loginwithapp: 'Login with {appName}',
+  loginWithPlex: 'Sign in with Plex',
 });
 
 interface PlexLoginButtonProps {
@@ -23,13 +24,15 @@ const PlexLoginButton = ({
   isProcessing,
   large,
 }: PlexLoginButtonProps) => {
+  const intl = useIntl();
   const { loading, login } = usePlexLogin({ onAuthToken, onError });
 
   return (
     <Button
-      className="relative flex-1 border-[#cc7b19] bg-[rgba(204,123,25,0.3)] hover:border-[#cc7b19] hover:bg-[rgba(204,123,25,0.7)] disabled:opacity-50"
+      className="relative flex-1 border-plex-500 bg-plex-500/30 hover:border-plex-500 hover:bg-plex-500/70 disabled:opacity-50"
       onClick={login}
       disabled={loading || isProcessing}
+      aria-label={intl.formatMessage(messages.loginWithPlex)}
       data-testid="plex-login-button"
     >
       {loading && (

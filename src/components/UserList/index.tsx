@@ -863,7 +863,7 @@ const UserList = () => {
                 )}
               </Table.TD>
               <Table.TD>
-                <div className="flex items-center gap-1">
+                <div className="flex flex-wrap items-center gap-1">
                   {user.linkedProviders?.includes('plex') && (
                     <Badge badgeType="warning">
                       {intl.formatMessage(messages.plexuser)}

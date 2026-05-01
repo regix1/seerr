@@ -1,3 +1,5 @@
+import EmbyIcon from '@app/assets/services/emby-icon-only.svg';
+import JellyfinIcon from '@app/assets/services/jellyfin-icon.svg';
 import ImageFader from '@app/components/Common/ImageFader';
 import PageTitle from '@app/components/Common/PageTitle';
 import LanguagePicker from '@app/components/Layout/LanguagePicker';
@@ -95,7 +97,7 @@ const Login = () => {
   const loginFormVisible = hasMediaServerLogin || localLogin;
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-gray-900 py-14">
+    <div className="relative flex min-h-screen flex-col bg-gray-900 py-8 sm:py-14">
       <PageTitle title={intl.formatMessage(messages.signin)} />
       <ImageFader
         backgroundImages={
@@ -163,19 +165,34 @@ const Login = () => {
                     />
                   </div>
                 ) : (
-                  <JellyfinLogin
-                    serverType={mediaServerType}
-                    revalidate={revalidate}
-                  />
+                  <>
+                    {mediaServerType === MediaServerType.JELLYFIN ? (
+                      <JellyfinIcon className="mx-auto mb-4 h-8" />
+                    ) : (
+                      <EmbyIcon className="mx-auto mb-4 h-8" />
+                    )}
+                    <JellyfinLogin
+                      serverType={mediaServerType}
+                      revalidate={revalidate}
+                    />
+                  </>
                 ))}
 
-              {/* Plex login button — full width, below the Jellyfin green box */}
+              {/* Plex login button — full width, below the Jellyfin green box.
+                  Wrapped in flex container so PlexLoginButton's flex-1 expands
+                  to full width, and adds vertical spacing when JF form precedes. */}
               {plexLoginEnabled && (
-                <PlexLoginButton
-                  isProcessing={isProcessing}
-                  onAuthToken={(authToken) => setAuthToken(authToken)}
-                  large
-                />
+                <div
+                  className={`flex w-full ${
+                    jellyfinLoginEnabled ? 'mt-3' : ''
+                  }`}
+                >
+                  <PlexLoginButton
+                    isProcessing={isProcessing}
+                    onAuthToken={(authToken) => setAuthToken(authToken)}
+                    large
+                  />
+                </div>
               )}
 
               {/* "Or sign in with" divider — only when local login is enabled

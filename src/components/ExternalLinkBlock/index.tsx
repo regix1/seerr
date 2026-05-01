@@ -37,7 +37,7 @@ const ExternalLinkBlock = ({
   const { locale } = useLocale();
 
   return (
-    <div className="flex w-full items-center justify-center space-x-5">
+    <div className="flex w-full flex-wrap items-center justify-center gap-x-5 gap-y-3">
       {mediaUrl && (
         <a
           href={mediaUrl}

@@ -78,11 +78,23 @@ const UserLinkedAccountsSettings = () => {
       user.linkedProviders?.includes('jellyfin') ||
       user.linkedProviders?.includes('emby') ||
       !!user.jellyfinUsername;
+    if (hasPlexLinked && !user.plexUsername) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[UserLinkedAccountsSettings] User ${user.id} has plexId set but missing plexUsername — skipping linked-account entry.`
+      );
+    }
     if (hasPlexLinked && user.plexUsername)
       accounts.push({
         type: LinkedAccountType.Plex,
         username: user.plexUsername,
       });
+    if (hasJellyfinLinked && !user.jellyfinUsername) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[UserLinkedAccountsSettings] User ${user.id} has jellyfinUserId set but missing jellyfinUsername — skipping linked-account entry.`
+      );
+    }
     if (hasJellyfinLinked && user.jellyfinUsername)
       accounts.push({
         type:
@@ -224,7 +236,7 @@ const UserLinkedAccountsSettings = () => {
               key={i}
               className="flex items-center gap-4 overflow-hidden rounded-lg bg-gray-800/50 px-4 py-5 shadow ring-1 ring-gray-700 sm:p-6"
             >
-              <div className="w-12">
+              <div className="w-12 flex-shrink-0">
                 {acct.type === LinkedAccountType.Plex ? (
                   <div className="flex aspect-square h-full items-center justify-center rounded-full bg-neutral-800">
                     <PlexLogo className="w-9" />
@@ -235,15 +247,14 @@ const UserLinkedAccountsSettings = () => {
                   <JellyfinLogo />
                 )}
               </div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-bold text-gray-300">
                   {acct.type}
                 </div>
-                <div className="text-xl font-semibold text-white">
+                <div className="truncate text-xl font-semibold text-white">
                   {acct.username}
                 </div>
               </div>
-              <div className="flex-grow" />
               {enableMediaServerUnlink && (
                 <ConfirmButton
                   onClick={() => {

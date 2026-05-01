@@ -251,7 +251,7 @@ const UserGeneralSettings = () => {
                   {intl.formatMessage(messages.accounttype)}
                 </label>
                 <div className="mb-1 text-sm font-medium leading-5 text-gray-400 sm:mt-2">
-                  <div className="flex max-w-lg items-center gap-1">
+                  <div className="flex max-w-lg flex-wrap items-center gap-1">
                     {user?.linkedProviders?.includes('plex') && (
                       <Badge badgeType="warning">
                         {intl.formatMessage(messages.plexuser)}
