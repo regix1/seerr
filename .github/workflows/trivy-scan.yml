@@ -22,7 +22,7 @@ concurrency:
 jobs:
   trivy:
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
-    name: Scan latest container image
+    name: Scan container image
     runs-on: ubuntu-24.04
 
     permissions:
@@ -47,10 +47,34 @@ jobs:
           restore-keys: |
             trivy-${{ runner.os }}-
 
+      - name: Commit timestamp
+        id: ts
+        run: echo "TIMESTAMP=$(git log -1 --pretty=%ct)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Build image for scan (linux/amd64)
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: ghcr.io/${{ github.repository }}:trivy-scan
+          build-args: |
+            COMMIT_TAG=${{ github.sha }}
+            BUILD_VERSION=trivy-scan
+            SOURCE_DATE_EPOCH=${{ steps.ts.outputs.TIMESTAMP }}
+          cache-from: type=gha,scope=linux/amd64
+          cache-to: type=gha,mode=max,scope=linux/amd64
+          provenance: false
+
       - name: Run Trivy image scan
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
-          image-ref: ghcr.io/${{ github.repository }}:latest
+          image-ref: ghcr.io/${{ github.repository }}:trivy-scan
           format: sarif
           output: trivy.sarif
           ignore-unfixed: true
