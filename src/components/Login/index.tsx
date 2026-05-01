@@ -1,9 +1,9 @@
-import EmbyIcon from '@app/assets/services/emby-icon-only.svg';
-import JellyfinIcon from '@app/assets/services/jellyfin-icon.svg';
 import ImageFader from '@app/components/Common/ImageFader';
+import Modal from '@app/components/Common/Modal';
 import PageTitle from '@app/components/Common/PageTitle';
 import LanguagePicker from '@app/components/Layout/LanguagePicker';
 import JellyfinLogin from '@app/components/Login/JellyfinLogin';
+import JellyfinLoginButton from '@app/components/Login/JellyfinLoginButton';
 import LocalLogin from '@app/components/Login/LocalLogin';
 import PlexLoginButton from '@app/components/Login/PlexLoginButton';
 import useSettings from '@app/hooks/useSettings';
@@ -15,7 +15,7 @@ import { MediaServerType } from '@server/constants/server';
 import axios from 'axios';
 import { useRouter } from 'next/dist/client/router';
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
 
@@ -26,6 +26,8 @@ const messages = defineMessages('components.Login', {
   signinwithjellyfin: 'Use your {mediaServerName} account',
   signinwithoverseerr: 'Use your {applicationTitle} account',
   orsigninwith: 'Or sign in with',
+  signinWithJellyfin: 'Sign in with Jellyfin',
+  signinWithEmby: 'Sign in with Emby',
 });
 
 const Login = () => {
@@ -37,6 +39,7 @@ const Login = () => {
   const [error, setError] = useState('');
   const [isProcessing, setProcessing] = useState(false);
   const [authToken, setAuthToken] = useState<string | undefined>(undefined);
+  const [showJellyfinModal, setShowJellyfinModal] = useState(false);
 
   // Effect that is triggered when the `authToken` comes back from the Plex OAuth
   // We take the token and attempt to sign in. If we get a success message, we will
@@ -81,14 +84,6 @@ const Login = () => {
     localLogin,
     mediaServerType,
   } = settings.currentSettings;
-
-  // Dual mode: both providers are active — colored box differentiates Jellyfin from Plex.
-  // Color matches the active media server's brand (Jellyfin purple #AA5CC3 vs Emby green).
-  const isDualMode = plexLoginEnabled && jellyfinLoginEnabled;
-  const jfBoxClasses =
-    mediaServerType === MediaServerType.JELLYFIN
-      ? 'mb-4 rounded-md border border-[#AA5CC3]/60 bg-[#AA5CC3]/10 p-4'
-      : 'mb-4 rounded-md border border-green-500/60 bg-green-500/10 p-4';
 
   // At least one media-server login is available
   const hasMediaServerLogin = plexLoginEnabled || jellyfinLoginEnabled;
@@ -153,47 +148,63 @@ const Login = () => {
                 </h2>
               )}
 
-              {/* Jellyfin / Emby form
-                  - Dual mode: wrapped in green container (visual differentiator)
-                  - Single-provider mode: rendered plain inside the existing card */}
-              {jellyfinLoginEnabled &&
-                (isDualMode ? (
-                  <div className={jfBoxClasses}>
-                    <JellyfinLogin
-                      serverType={mediaServerType}
-                      revalidate={revalidate}
-                    />
-                  </div>
-                ) : (
-                  <>
-                    {mediaServerType === MediaServerType.JELLYFIN ? (
-                      <JellyfinIcon className="mx-auto mb-4 h-8" />
-                    ) : (
-                      <EmbyIcon className="mx-auto mb-4 h-8" />
-                    )}
-                    <JellyfinLogin
-                      serverType={mediaServerType}
-                      revalidate={revalidate}
-                    />
-                  </>
-                ))}
-
-              {/* Plex login button — full width, below the Jellyfin green box.
-                  Wrapped in flex container so PlexLoginButton's flex-1 expands
-                  to full width, and adds vertical spacing when JF form precedes. */}
-              {plexLoginEnabled && (
-                <div
-                  className={`flex w-full ${
-                    jellyfinLoginEnabled ? 'mt-3' : ''
-                  }`}
-                >
-                  <PlexLoginButton
-                    isProcessing={isProcessing}
-                    onAuthToken={(authToken) => setAuthToken(authToken)}
-                    large
-                  />
+              {/* Brand login buttons — horizontal row, wraps on narrow viewports.
+                  Order: Plex → Jellyfin/Emby */}
+              {hasMediaServerLogin && (
+                <div className="flex w-full flex-wrap gap-2">
+                  {plexLoginEnabled && (
+                    <div className="min-w-[180px] flex-1">
+                      <PlexLoginButton
+                        isProcessing={isProcessing}
+                        onAuthToken={(authToken: string) =>
+                          setAuthToken(authToken)
+                        }
+                        large
+                      />
+                    </div>
+                  )}
+                  {jellyfinLoginEnabled && (
+                    <div className="min-w-[180px] flex-1">
+                      <JellyfinLoginButton
+                        serverType={mediaServerType}
+                        onClick={() => setShowJellyfinModal(true)}
+                        disabled={isProcessing}
+                        large
+                      />
+                    </div>
+                  )}
                 </div>
               )}
+
+              {/* Jellyfin / Emby login modal */}
+              <Transition
+                as={Fragment}
+                show={showJellyfinModal}
+                enter="transition-opacity duration-300"
+                enterFrom="opacity-0"
+                enterTo="opacity-100"
+                leave="transition-opacity duration-300"
+                leaveFrom="opacity-100"
+                leaveTo="opacity-0"
+              >
+                <Modal
+                  title={intl.formatMessage(
+                    mediaServerType === MediaServerType.EMBY
+                      ? messages.signinWithEmby
+                      : messages.signinWithJellyfin
+                  )}
+                  onCancel={() => setShowJellyfinModal(false)}
+                  backgroundClickable
+                  dialogClass="max-w-sm"
+                >
+                  <JellyfinLogin
+                    serverType={mediaServerType}
+                    revalidate={revalidate}
+                    inModal
+                    onSuccess={() => setShowJellyfinModal(false)}
+                  />
+                </Modal>
+              </Transition>
 
               {/* "Or sign in with" divider — only when local login is enabled
                   AND at least one media-server form is already rendered above */}

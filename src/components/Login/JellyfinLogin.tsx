@@ -32,11 +32,15 @@ const messages = defineMessages('components.Login', {
 interface JellyfinLoginProps {
   revalidate: () => void;
   serverType?: MediaServerType;
+  inModal?: boolean;
+  onSuccess?: () => void;
 }
 
 const JellyfinLogin: React.FC<JellyfinLoginProps> = ({
   revalidate,
   serverType,
+  inModal,
+  onSuccess,
 }) => {
   const toasts = useToasts();
   const intl = useIntl();
@@ -71,12 +75,14 @@ const JellyfinLogin: React.FC<JellyfinLoginProps> = ({
         validationSchema={LoginSchema}
         validateOnBlur={false}
         onSubmit={async (values) => {
+          let succeeded = false;
           try {
             await axios.post('/api/v1/auth/jellyfin', {
               username: values.username,
               password: values.password,
               email: values.username,
             });
+            succeeded = true;
           } catch (e) {
             let errorMessage = messages.loginerror;
             switch (e?.response?.data?.message) {
@@ -102,6 +108,9 @@ const JellyfinLogin: React.FC<JellyfinLoginProps> = ({
             );
           } finally {
             revalidate();
+            if (succeeded) {
+              onSuccess?.();
+            }
           }
         }}
       >
@@ -110,11 +119,13 @@ const JellyfinLogin: React.FC<JellyfinLoginProps> = ({
             <>
               <Form data-form-type="login">
                 <div>
-                  <h2 className="-mt-1 mb-6 text-center text-lg font-bold text-neutral-200">
-                    {intl.formatMessage(messages.loginwithapp, {
-                      appName: mediaServerFormatValues.mediaServerName,
-                    })}
-                  </h2>
+                  {!inModal && (
+                    <h2 className="-mt-1 mb-6 text-center text-lg font-bold text-neutral-200">
+                      {intl.formatMessage(messages.loginwithapp, {
+                        appName: mediaServerFormatValues.mediaServerName,
+                      })}
+                    </h2>
+                  )}
 
                   <div className="mb-4 mt-1">
                     <div className="form-input-field">

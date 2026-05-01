@@ -276,6 +276,8 @@
   "components.Login.saving": "Adding…",
   "components.Login.servertype": "Server Type",
   "components.Login.signin": "Sign In",
+  "components.Login.signinWithEmby": "Sign in with Emby",
+  "components.Login.signinWithJellyfin": "Sign in with Jellyfin",
   "components.Login.signingin": "Signing In…",
   "components.Login.signinheader": "Sign in to continue",
   "components.Login.signinwithjellyfin": "Use your {mediaServerName} account",

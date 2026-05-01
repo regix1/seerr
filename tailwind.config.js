@@ -17,6 +17,16 @@ module.exports = {
           600: '#b96e16',
           700: '#a66213',
         },
+        jellyfin: {
+          500: '#AA5CC3',
+          600: '#9347AB',
+          700: '#7E3D93',
+        },
+        emby: {
+          500: '#52B54B',
+          600: '#46a040',
+          700: '#3a8a35',
+        },
       },
       transitionProperty: {
         'max-height': 'max-height',

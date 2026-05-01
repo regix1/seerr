@@ -230,6 +230,8 @@ const SettingsMain = () => {
               });
               mutate('/api/v1/settings/public');
               mutate('/api/v1/status');
+              mutate('/api/v1/auth/me');
+              mutate('/api/v1/user');
 
               if (setLocale) {
                 setLocale(
