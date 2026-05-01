@@ -145,7 +145,8 @@ const UserList = () => {
   };
 
   const [isDeleting, setDeleting] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
+  const [showPlexImportModal, setShowPlexImportModal] = useState(false);
+  const [showJellyfinImportModal, setShowJellyfinImportModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
     user?: User;
@@ -582,36 +583,49 @@ const UserList = () => {
         />
       </Transition>
 
-      <Transition
-        as="div"
-        enter="transition-opacity duration-300"
-        enterFrom="opacity-0"
-        enterTo="opacity-100"
-        leave="transition-opacity duration-300"
-        leaveFrom="opacity-100"
-        leaveTo="opacity-0"
-        show={showImportModal}
-      >
-        {settings.currentSettings.mediaServerType === MediaServerType.PLEX ? (
+      {settings.currentSettings.plexLoginEnabled && (
+        <Transition
+          as="div"
+          enter="transition-opacity duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="transition-opacity duration-300"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+          show={showPlexImportModal}
+        >
           <PlexImportModal
-            onCancel={() => setShowImportModal(false)}
+            onCancel={() => setShowPlexImportModal(false)}
             onComplete={() => {
-              setShowImportModal(false);
+              setShowPlexImportModal(false);
               revalidate();
             }}
           />
-        ) : (
+        </Transition>
+      )}
+
+      {settings.currentSettings.jellyfinLoginEnabled && (
+        <Transition
+          as="div"
+          enter="transition-opacity duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="transition-opacity duration-300"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+          show={showJellyfinImportModal}
+        >
           <JellyfinImportModal
-            onCancel={() => setShowImportModal(false)}
+            onCancel={() => setShowJellyfinImportModal(false)}
             onComplete={() => {
-              setShowImportModal(false);
+              setShowJellyfinImportModal(false);
               revalidate();
             }}
           >
             {data.pageInfo.results}
           </JellyfinImportModal>
-        )}
-      </Transition>
+        </Transition>
+      )}
 
       <div className="flex flex-col justify-between lg:flex-row lg:items-end">
         <Header>{intl.formatMessage(messages.userlist)}</Header>
@@ -625,28 +639,39 @@ const UserList = () => {
               <UserPlusIcon />
               <span>{intl.formatMessage(messages.createlocaluser)}</span>
             </Button>
-            <Button
-              className="flex-grow lg:mr-2"
-              buttonType="primary"
-              onClick={() => setShowImportModal(true)}
-            >
-              <InboxArrowDownIcon />
-              <span>
-                {settings.currentSettings.mediaServerType ===
-                MediaServerType.EMBY
-                  ? intl.formatMessage(messages.importfrommediaserver, {
-                      mediaServerName: 'Emby',
-                    })
-                  : settings.currentSettings.mediaServerType ===
-                      MediaServerType.PLEX
+            {settings.currentSettings.plexLoginEnabled && (
+              <Button
+                className="flex-grow lg:mr-2"
+                buttonType="primary"
+                onClick={() => setShowPlexImportModal(true)}
+              >
+                <InboxArrowDownIcon />
+                <span>
+                  {intl.formatMessage(messages.importfrommediaserver, {
+                    mediaServerName: 'Plex',
+                  })}
+                </span>
+              </Button>
+            )}
+            {settings.currentSettings.jellyfinLoginEnabled && (
+              <Button
+                className="flex-grow lg:mr-2"
+                buttonType="primary"
+                onClick={() => setShowJellyfinImportModal(true)}
+              >
+                <InboxArrowDownIcon />
+                <span>
+                  {settings.currentSettings.mediaServerType ===
+                  MediaServerType.EMBY
                     ? intl.formatMessage(messages.importfrommediaserver, {
-                        mediaServerName: 'Plex',
+                        mediaServerName: 'Emby',
                       })
                     : intl.formatMessage(messages.importfrommediaserver, {
                         mediaServerName: 'Jellyfin',
                       })}
-              </span>
-            </Button>
+                </span>
+              </Button>
+            )}
           </div>
 
           <div className="mb-2 flex flex-grow lg:mb-0 lg:flex-grow-0">

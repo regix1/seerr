@@ -1,5 +1,3 @@
-import useSettings from '@app/hooks/useSettings';
-import { MediaServerType } from '@server/constants/server';
 import { useEffect, useState } from 'react';
 
 interface useDeepLinksProps {
@@ -17,27 +15,24 @@ const useDeepLinks = ({
 }: useDeepLinksProps) => {
   const [returnedMediaUrl, setReturnedMediaUrl] = useState(mediaUrl);
   const [returnedMediaUrl4k, setReturnedMediaUrl4k] = useState(mediaUrl4k);
-  const settings = useSettings();
 
   useEffect(() => {
-    if (
-      settings.currentSettings.mediaServerType === MediaServerType.PLEX &&
-      (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
-        (navigator.userAgent.includes('Mac') && navigator.maxTouchPoints > 1))
-    ) {
+    const isIOS =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.userAgent.includes('Mac') && navigator.maxTouchPoints > 1);
+
+    if (isIOS && mediaUrl?.includes('plex.tv')) {
       setReturnedMediaUrl(iOSPlexUrl);
-      setReturnedMediaUrl4k(iOSPlexUrl4k);
     } else {
       setReturnedMediaUrl(mediaUrl);
+    }
+
+    if (isIOS && mediaUrl4k?.includes('plex.tv')) {
+      setReturnedMediaUrl4k(iOSPlexUrl4k);
+    } else {
       setReturnedMediaUrl4k(mediaUrl4k);
     }
-  }, [
-    iOSPlexUrl,
-    iOSPlexUrl4k,
-    mediaUrl,
-    mediaUrl4k,
-    settings.currentSettings.mediaServerType,
-  ]);
+  }, [iOSPlexUrl, iOSPlexUrl4k, mediaUrl, mediaUrl4k]);
 
   return { mediaUrl: returnedMediaUrl, mediaUrl4k: returnedMediaUrl4k };
 };

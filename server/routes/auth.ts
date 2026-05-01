@@ -58,11 +58,7 @@ authRoutes.post('/plex', async (req, res, next) => {
     });
   }
 
-  if (
-    settings.main.mediaServerType != MediaServerType.NOT_CONFIGURED &&
-    (settings.main.mediaServerLogin === false ||
-      settings.main.mediaServerType != MediaServerType.PLEX)
-  ) {
+  if (!settings.main.plexLoginEnabled) {
     return res.status(500).json({ error: 'Plex login is disabled' });
   }
   try {
@@ -90,7 +86,10 @@ authRoutes.post('/plex', async (req, res, next) => {
         userType: UserType.PLEX,
       });
 
-      settings.main.mediaServerType = MediaServerType.PLEX;
+      if (settings.main.mediaServerType === MediaServerType.NOT_CONFIGURED) {
+        settings.main.mediaServerType = MediaServerType.PLEX;
+      }
+      settings.main.plexLoginEnabled = true;
       await settings.save();
       startJobs();
 
@@ -237,15 +236,7 @@ authRoutes.post('/jellyfin', async (req, res, next) => {
     serverType?: number;
   };
 
-  //Make sure jellyfin login is enabled, but only if jellyfin && Emby is not already configured
-  if (
-    // media server not configured, allow login for setup
-    settings.main.mediaServerType != MediaServerType.NOT_CONFIGURED &&
-    (settings.main.mediaServerLogin === false ||
-      // media server is neither jellyfin or emby
-      (settings.main.mediaServerType !== MediaServerType.JELLYFIN &&
-        settings.main.mediaServerType !== MediaServerType.EMBY))
-  ) {
+  if (!settings.main.jellyfinLoginEnabled) {
     return res.status(500).json({ error: 'Jellyfin login is disabled' });
   }
 
@@ -327,7 +318,10 @@ authRoutes.post('/jellyfin', async (req, res, next) => {
       ) {
         throw new ApiError(500, ApiErrorCode.NoAdminUser);
       }
-      settings.main.mediaServerType = body.serverType;
+      if (settings.main.mediaServerType === MediaServerType.NOT_CONFIGURED) {
+        settings.main.mediaServerType = body.serverType;
+      }
+      settings.main.jellyfinLoginEnabled = true;
 
       if (missingAdminUser) {
         logger.info(

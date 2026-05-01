@@ -247,6 +247,8 @@ CoreApp.getInitialProps = async (initialProps) => {
     streamingRegion: '',
     originalLanguage: '',
     mediaServerType: MediaServerType.NOT_CONFIGURED,
+    plexLoginEnabled: false,
+    jellyfinLoginEnabled: false,
     partialRequestsEnabled: true,
     enableSpecialEpisodes: false,
     cacheImages: false,

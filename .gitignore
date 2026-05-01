@@ -54,6 +54,7 @@ dist
 config/db/db.sqlite3-journal
 
 # VS Code
+.vscode/
 .vscode/launch.json
 
 # Cypress
@@ -97,3 +98,6 @@ plan.md
 *CLAUDE*
 AGENTS.md
 agents.md
+_gitseerr.firecrawl*
+*.firecrawl*.json
+vectors.db

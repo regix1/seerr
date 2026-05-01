@@ -32,9 +32,10 @@ export const scheduledJobs: ScheduledJob[] = [];
 
 export const startJobs = (): void => {
   const jobs = getSettings().jobs;
-  const mediaServerType = getSettings().main.mediaServerType;
+  const { mediaServerType, plexLoginEnabled, jellyfinLoginEnabled } =
+    getSettings().main;
 
-  if (mediaServerType === MediaServerType.PLEX) {
+  if (plexLoginEnabled || mediaServerType === MediaServerType.PLEX) {
     // Run recently added plex scan every 5 minutes
     scheduledJobs.push({
       id: 'plex-recently-added-scan',
@@ -105,7 +106,10 @@ export const startJobs = (): void => {
         });
       }),
     });
-  } else if (
+  }
+
+  if (
+    jellyfinLoginEnabled ||
     mediaServerType === MediaServerType.JELLYFIN ||
     mediaServerType === MediaServerType.EMBY
   ) {

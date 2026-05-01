@@ -99,6 +99,9 @@ const IssueDetails = () => {
     iOSPlexUrl4k: data?.mediaInfo?.iOSPlexUrl4k,
   });
 
+  const jellyfinMediaUrl = data?.mediaInfo?.jellyfinMediaUrl;
+  const jellyfinMediaUrl4k = data?.mediaInfo?.jellyfinMediaUrl4k;
+
   const CommentSchema = Yup.object().shape({
     message: Yup.string().required(),
   });
@@ -382,19 +385,30 @@ const IssueDetails = () => {
                 >
                   <PlayIcon />
                   <span>
-                    {settings.currentSettings.mediaServerType ===
-                    MediaServerType.EMBY
-                      ? intl.formatMessage(messages.playonplex, {
-                          mediaServerName: 'Emby',
-                        })
-                      : settings.currentSettings.mediaServerType ===
-                          MediaServerType.PLEX
-                        ? intl.formatMessage(messages.playonplex, {
-                            mediaServerName: 'Plex',
-                          })
-                        : intl.formatMessage(messages.playonplex, {
-                            mediaServerName: 'Jellyfin',
-                          })}
+                    {intl.formatMessage(messages.playonplex, {
+                      mediaServerName: 'Plex',
+                    })}
+                  </span>
+                </Button>
+              )}
+              {jellyfinMediaUrl && (
+                <Button
+                  as="a"
+                  href={jellyfinMediaUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full"
+                  buttonType="ghost"
+                >
+                  <PlayIcon />
+                  <span>
+                    {intl.formatMessage(messages.playonplex, {
+                      mediaServerName:
+                        settings.currentSettings.mediaServerType ===
+                        MediaServerType.EMBY
+                          ? 'Emby'
+                          : 'Jellyfin',
+                    })}
                   </span>
                 </Button>
               )}
@@ -430,19 +444,30 @@ const IssueDetails = () => {
                 >
                   <PlayIcon />
                   <span>
-                    {settings.currentSettings.mediaServerType ===
-                    MediaServerType.EMBY
-                      ? intl.formatMessage(messages.play4konplex, {
-                          mediaServerName: 'Emby',
-                        })
-                      : settings.currentSettings.mediaServerType ===
-                          MediaServerType.PLEX
-                        ? intl.formatMessage(messages.play4konplex, {
-                            mediaServerName: 'Plex',
-                          })
-                        : intl.formatMessage(messages.play4konplex, {
-                            mediaServerName: 'Jellyfin',
-                          })}
+                    {intl.formatMessage(messages.play4konplex, {
+                      mediaServerName: 'Plex',
+                    })}
+                  </span>
+                </Button>
+              )}
+              {jellyfinMediaUrl4k && (
+                <Button
+                  as="a"
+                  href={jellyfinMediaUrl4k}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full"
+                  buttonType="ghost"
+                >
+                  <PlayIcon />
+                  <span>
+                    {intl.formatMessage(messages.play4konplex, {
+                      mediaServerName:
+                        settings.currentSettings.mediaServerType ===
+                        MediaServerType.EMBY
+                          ? 'Emby'
+                          : 'Jellyfin',
+                    })}
                   </span>
                 </Button>
               )}
@@ -648,19 +673,30 @@ const IssueDetails = () => {
               >
                 <PlayIcon />
                 <span>
-                  {settings.currentSettings.mediaServerType ===
-                  MediaServerType.EMBY
-                    ? intl.formatMessage(messages.playonplex, {
-                        mediaServerName: 'Emby',
-                      })
-                    : settings.currentSettings.mediaServerType ===
-                        MediaServerType.PLEX
-                      ? intl.formatMessage(messages.playonplex, {
-                          mediaServerName: 'Plex',
-                        })
-                      : intl.formatMessage(messages.playonplex, {
-                          mediaServerName: 'Jellyfin',
-                        })}
+                  {intl.formatMessage(messages.playonplex, {
+                    mediaServerName: 'Plex',
+                  })}
+                </span>
+              </Button>
+            )}
+            {jellyfinMediaUrl && (
+              <Button
+                as="a"
+                href={jellyfinMediaUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full"
+                buttonType="ghost"
+              >
+                <PlayIcon />
+                <span>
+                  {intl.formatMessage(messages.playonplex, {
+                    mediaServerName:
+                      settings.currentSettings.mediaServerType ===
+                      MediaServerType.EMBY
+                        ? 'Emby'
+                        : 'Jellyfin',
+                  })}
                 </span>
               </Button>
             )}
@@ -695,19 +731,30 @@ const IssueDetails = () => {
               >
                 <PlayIcon />
                 <span>
-                  {settings.currentSettings.mediaServerType ===
-                  MediaServerType.EMBY
-                    ? intl.formatMessage(messages.play4konplex, {
-                        mediaServerName: 'Emby',
-                      })
-                    : settings.currentSettings.mediaServerType ===
-                        MediaServerType.PLEX
-                      ? intl.formatMessage(messages.play4konplex, {
-                          mediaServerName: 'Plex',
-                        })
-                      : intl.formatMessage(messages.play4konplex, {
-                          mediaServerName: 'Jellyfin',
-                        })}
+                  {intl.formatMessage(messages.play4konplex, {
+                    mediaServerName: 'Plex',
+                  })}
+                </span>
+              </Button>
+            )}
+            {jellyfinMediaUrl4k && (
+              <Button
+                as="a"
+                href={jellyfinMediaUrl4k}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full"
+                buttonType="ghost"
+              >
+                <PlayIcon />
+                <span>
+                  {intl.formatMessage(messages.play4konplex, {
+                    mediaServerName:
+                      settings.currentSettings.mediaServerType ===
+                      MediaServerType.EMBY
+                        ? 'Emby'
+                        : 'Jellyfin',
+                  })}
                 </span>
               </Button>
             )}

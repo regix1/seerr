@@ -39,17 +39,26 @@ const SettingsLayout = ({ children }: SettingsLayoutProps) => {
       route: '/settings/users',
       regex: /^\/settings\/users/,
     },
-    settings.currentSettings.mediaServerType === MediaServerType.PLEX
-      ? {
-          text: intl.formatMessage(messages.menuPlexSettings),
-          route: '/settings/plex',
-          regex: /^\/settings\/plex/,
-        }
-      : {
-          text: getAvailableMediaServerName(),
-          route: '/settings/jellyfin',
-          regex: /^\/settings\/jellyfin/,
-        },
+    {
+      text: intl.formatMessage(messages.menuPlexSettings),
+      route: '/settings/plex',
+      regex: /^\/settings\/plex/,
+      hidden: !(
+        settings.currentSettings.plexLoginEnabled ||
+        settings.currentSettings.mediaServerType === MediaServerType.PLEX
+      ),
+    },
+    {
+      text: getAvailableMediaServerName(),
+      route: '/settings/jellyfin',
+      regex: /^\/settings\/jellyfin/,
+      hidden: !(
+        settings.currentSettings.jellyfinLoginEnabled ||
+        [MediaServerType.JELLYFIN, MediaServerType.EMBY].includes(
+          settings.currentSettings.mediaServerType
+        )
+      ),
+    },
     {
       text: intl.formatMessage(messages.menuServices),
       route: '/settings/services',

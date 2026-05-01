@@ -32,6 +32,8 @@ const defaultSettings = {
   newPlexLogin: true,
   youtubeUrl: '',
   plexClientIdentifier: '',
+  plexLoginEnabled: false,
+  jellyfinLoginEnabled: false,
 };
 
 export const SettingsContext = React.createContext<SettingsContextProps>({

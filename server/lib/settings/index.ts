@@ -152,6 +152,8 @@ export interface MainSettings {
   blocklistedTags: string;
   blocklistedTagsLimit: number;
   mediaServerType: number;
+  plexLoginEnabled?: boolean;
+  jellyfinLoginEnabled?: boolean;
   partialRequestsEnabled: boolean;
   enableSpecialEpisodes: boolean;
   locale: string;
@@ -215,6 +217,8 @@ interface FullPublicSettings extends PublicSettings {
   newPlexLogin: boolean;
   youtubeUrl: string;
   plexClientIdentifier: string;
+  plexLoginEnabled: boolean;
+  jellyfinLoginEnabled: boolean;
 }
 
 export interface NotificationAgentConfig {
@@ -423,6 +427,8 @@ class Settings {
         blocklistedTags: '',
         blocklistedTagsLimit: 50,
         mediaServerType: MediaServerType.NOT_CONFIGURED,
+        plexLoginEnabled: true,
+        jellyfinLoginEnabled: true,
         partialRequestsEnabled: true,
         enableSpecialEpisodes: false,
         locale: 'en',
@@ -732,6 +738,8 @@ class Settings {
       newPlexLogin: this.data.main.newPlexLogin,
       youtubeUrl: this.data.main.youtubeUrl,
       plexClientIdentifier: this.data.clientId,
+      plexLoginEnabled: this.data.main.plexLoginEnabled ?? true,
+      jellyfinLoginEnabled: this.data.main.jellyfinLoginEnabled ?? true,
     };
   }
 

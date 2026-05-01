@@ -1133,6 +1133,10 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
                 mediaUrl={
                   data.mediaInfo?.mediaUrl ?? data.mediaInfo?.mediaUrl4k
                 }
+                jellyfinMediaUrl={
+                  data.mediaInfo?.jellyfinMediaUrl ??
+                  data.mediaInfo?.jellyfinMediaUrl4k
+                }
               />
             </div>
           </div>

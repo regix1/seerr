@@ -1351,6 +1351,10 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                 imdbId={data.externalIds.imdbId}
                 rtUrl={ratingData?.url}
                 mediaUrl={plexUrl ?? plexUrl4k}
+                jellyfinMediaUrl={
+                  data.mediaInfo?.jellyfinMediaUrl ??
+                  data.mediaInfo?.jellyfinMediaUrl4k
+                }
               />
             </div>
           </div>

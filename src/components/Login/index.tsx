@@ -1,7 +1,3 @@
-import EmbyLogo from '@app/assets/services/emby-icon-only.svg';
-import JellyfinLogo from '@app/assets/services/jellyfin-icon.svg';
-import PlexLogo from '@app/assets/services/plex.svg';
-import Button from '@app/components/Common/Button';
 import ImageFader from '@app/components/Common/ImageFader';
 import PageTitle from '@app/components/Common/PageTitle';
 import LanguagePicker from '@app/components/Layout/LanguagePicker';
@@ -17,9 +13,8 @@ import { MediaServerType } from '@server/constants/server';
 import axios from 'axios';
 import { useRouter } from 'next/dist/client/router';
 import Image from 'next/image';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
-import { CSSTransition, SwitchTransition } from 'react-transition-group';
 import useSWR from 'swr';
 
 const messages = defineMessages('components.Login', {
@@ -40,9 +35,6 @@ const Login = () => {
   const [error, setError] = useState('');
   const [isProcessing, setProcessing] = useState(false);
   const [authToken, setAuthToken] = useState<string | undefined>(undefined);
-  const [mediaServerLogin, setMediaServerLogin] = useState(
-    settings.currentSettings.mediaServerLogin
-  );
 
   // Effect that is triggered when the `authToken` comes back from the Plex OAuth
   // We take the token and attempt to sign in. If we get a success message, we will
@@ -81,73 +73,26 @@ const Login = () => {
     revalidateOnFocus: false,
   });
 
-  const mediaServerName =
-    settings.currentSettings.mediaServerType === MediaServerType.PLEX
-      ? 'Plex'
-      : settings.currentSettings.mediaServerType === MediaServerType.JELLYFIN
-        ? 'Jellyfin'
-        : settings.currentSettings.mediaServerType === MediaServerType.EMBY
-          ? 'Emby'
-          : undefined;
+  const {
+    plexLoginEnabled,
+    jellyfinLoginEnabled,
+    localLogin,
+    mediaServerType,
+  } = settings.currentSettings;
 
-  const MediaServerLogo =
-    settings.currentSettings.mediaServerType === MediaServerType.PLEX
-      ? PlexLogo
-      : settings.currentSettings.mediaServerType === MediaServerType.JELLYFIN
-        ? JellyfinLogo
-        : settings.currentSettings.mediaServerType === MediaServerType.EMBY
-          ? EmbyLogo
-          : undefined;
+  // Dual mode: both providers are active — colored box differentiates Jellyfin from Plex.
+  // Color matches the active media server's brand (Jellyfin purple #AA5CC3 vs Emby green).
+  const isDualMode = plexLoginEnabled && jellyfinLoginEnabled;
+  const jfBoxClasses =
+    mediaServerType === MediaServerType.JELLYFIN
+      ? 'mb-4 rounded-md border border-[#AA5CC3]/60 bg-[#AA5CC3]/10 p-4'
+      : 'mb-4 rounded-md border border-green-500/60 bg-green-500/10 p-4';
 
-  const isJellyfin =
-    settings.currentSettings.mediaServerType === MediaServerType.JELLYFIN ||
-    settings.currentSettings.mediaServerType === MediaServerType.EMBY;
-  const mediaServerLoginRef = useRef<HTMLDivElement>(null);
-  const localLoginRef = useRef<HTMLDivElement>(null);
-  const loginRef = mediaServerLogin ? mediaServerLoginRef : localLoginRef;
+  // At least one media-server login is available
+  const hasMediaServerLogin = plexLoginEnabled || jellyfinLoginEnabled;
 
-  const loginFormVisible =
-    (isJellyfin && settings.currentSettings.mediaServerLogin) ||
-    settings.currentSettings.localLogin;
-  const additionalLoginOptions = [
-    settings.currentSettings.mediaServerLogin &&
-      (settings.currentSettings.mediaServerType === MediaServerType.PLEX ? (
-        <PlexLoginButton
-          key="plex"
-          isProcessing={isProcessing}
-          onAuthToken={(authToken) => setAuthToken(authToken)}
-          large={!isJellyfin && !settings.currentSettings.localLogin}
-        />
-      ) : (
-        settings.currentSettings.localLogin &&
-        (mediaServerLogin ? (
-          <Button
-            key="seerr"
-            data-testid="seerr-login-button"
-            className="flex-1 bg-transparent"
-            onClick={() => setMediaServerLogin(false)}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/os_icon.svg"
-              alt={settings.currentSettings.applicationTitle}
-              className="mr-2 h-5"
-            />
-            <span>{settings.currentSettings.applicationTitle}</span>
-          </Button>
-        ) : (
-          <Button
-            key="mediaserver"
-            data-testid="mediaserver-login-button"
-            className="flex-1 bg-transparent"
-            onClick={() => setMediaServerLogin(true)}
-          >
-            <MediaServerLogo />
-            <span>{mediaServerName}</span>
-          </Button>
-        ))
-      )),
-  ].filter((o): o is JSX.Element => !!o);
+  // Show the "Or sign in with" divider when a form is rendered above local login
+  const loginFormVisible = hasMediaServerLogin || localLogin;
 
   return (
     <div className="relative flex min-h-screen flex-col bg-gray-900 py-14">
@@ -173,6 +118,7 @@ const Login = () => {
           style={{ backdropFilter: 'blur(5px)' }}
         >
           <>
+            {/* Error banner — always pinned at top */}
             <Transition
               as="div"
               show={!!error}
@@ -196,63 +142,56 @@ const Login = () => {
                 </div>
               </div>
             </Transition>
-            <div className="px-10 py-8">
-              <SwitchTransition mode="out-in">
-                <CSSTransition
-                  key={mediaServerLogin ? 'ms' : 'local'}
-                  nodeRef={loginRef}
-                  timeout={{ enter: 300, exit: 150 }}
-                  onEntered={() => {
-                    document
-                      .querySelector<HTMLInputElement>('#email, #username')
-                      ?.focus();
-                  }}
-                  classNames={{
-                    enter: 'opacity-0',
-                    enterActive: 'transition-opacity duration-300 opacity-100',
-                    exit: 'opacity-100',
-                    exitActive: 'transition-opacity duration-150 opacity-0',
-                  }}
-                >
-                  <div ref={loginRef} className="button-container">
-                    {isJellyfin &&
-                    (mediaServerLogin ||
-                      !settings.currentSettings.localLogin) ? (
-                      <JellyfinLogin
-                        serverType={settings.currentSettings.mediaServerType}
-                        revalidate={revalidate}
-                      />
-                    ) : (
-                      settings.currentSettings.localLogin && (
-                        <LocalLogin revalidate={revalidate} />
-                      )
-                    )}
-                  </div>
-                </CSSTransition>
-              </SwitchTransition>
 
-              {additionalLoginOptions.length > 0 &&
-                (loginFormVisible ? (
-                  <div className="flex items-center py-5">
-                    <div className="flex-grow border-t border-gray-600" />
-                    <span className="mx-2 flex-shrink text-sm text-gray-400">
-                      {intl.formatMessage(messages.orsigninwith)}
-                    </span>
-                    <div className="flex-grow border-t border-gray-600" />
+            <div className="px-10 py-8">
+              {/* Page heading — only when no login form at all */}
+              {!loginFormVisible && (
+                <h2 className="mb-6 text-center text-lg font-bold text-neutral-200">
+                  {intl.formatMessage(messages.signinheader)}
+                </h2>
+              )}
+
+              {/* Jellyfin / Emby form
+                  - Dual mode: wrapped in green container (visual differentiator)
+                  - Single-provider mode: rendered plain inside the existing card */}
+              {jellyfinLoginEnabled &&
+                (isDualMode ? (
+                  <div className={jfBoxClasses}>
+                    <JellyfinLogin
+                      serverType={mediaServerType}
+                      revalidate={revalidate}
+                    />
                   </div>
                 ) : (
-                  <h2 className="mb-6 text-center text-lg font-bold text-neutral-200">
-                    {intl.formatMessage(messages.signinheader)}
-                  </h2>
+                  <JellyfinLogin
+                    serverType={mediaServerType}
+                    revalidate={revalidate}
+                  />
                 ))}
 
-              <div
-                className={`flex w-full flex-wrap gap-2 ${
-                  !loginFormVisible ? 'flex-col' : ''
-                }`}
-              >
-                {additionalLoginOptions}
-              </div>
+              {/* Plex login button — full width, below the Jellyfin green box */}
+              {plexLoginEnabled && (
+                <PlexLoginButton
+                  isProcessing={isProcessing}
+                  onAuthToken={(authToken) => setAuthToken(authToken)}
+                  large
+                />
+              )}
+
+              {/* "Or sign in with" divider — only when local login is enabled
+                  AND at least one media-server form is already rendered above */}
+              {localLogin && hasMediaServerLogin && (
+                <div className="flex items-center py-5">
+                  <div className="flex-grow border-t border-gray-600" />
+                  <span className="mx-2 flex-shrink text-sm text-gray-400">
+                    {intl.formatMessage(messages.orsigninwith)}
+                  </span>
+                  <div className="flex-grow border-t border-gray-600" />
+                </div>
+              )}
+
+              {/* Local login form */}
+              {localLogin && <LocalLogin revalidate={revalidate} />}
             </div>
           </>
         </div>

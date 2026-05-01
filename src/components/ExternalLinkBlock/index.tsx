@@ -21,6 +21,7 @@ interface ExternalLinkBlockProps {
   imdbId?: string;
   rtUrl?: string;
   mediaUrl?: string;
+  jellyfinMediaUrl?: string;
 }
 
 const ExternalLinkBlock = ({
@@ -30,6 +31,7 @@ const ExternalLinkBlock = ({
   imdbId,
   rtUrl,
   mediaUrl,
+  jellyfinMediaUrl,
 }: ExternalLinkBlockProps) => {
   const settings = useSettings();
   const { locale } = useLocale();
@@ -43,10 +45,17 @@ const ExternalLinkBlock = ({
           target="_blank"
           rel="noreferrer"
         >
-          {settings.currentSettings.mediaServerType === MediaServerType.PLEX ? (
-            <PlexLogo />
-          ) : settings.currentSettings.mediaServerType ===
-            MediaServerType.EMBY ? (
+          <PlexLogo />
+        </a>
+      )}
+      {jellyfinMediaUrl && (
+        <a
+          href={jellyfinMediaUrl}
+          className="w-12 opacity-50 transition duration-300 hover:opacity-100"
+          target="_blank"
+          rel="noreferrer"
+        >
+          {settings.currentSettings.mediaServerType === MediaServerType.EMBY ? (
             <EmbyLogo />
           ) : (
             <JellyfinLogo />

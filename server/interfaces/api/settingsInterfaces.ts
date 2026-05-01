@@ -49,6 +49,8 @@ export interface PublicSettingsResponse {
   newPlexLogin: boolean;
   youtubeUrl: string;
   plexClientIdentifier: string;
+  plexLoginEnabled: boolean;
+  jellyfinLoginEnabled: boolean;
 }
 
 export interface CacheItem {

@@ -5,7 +5,7 @@ import { Permission } from '@app/hooks/useUser';
 import type { NextPage } from 'next';
 
 const JellyfinSettingsPage: NextPage = () => {
-  useRouteGuard(Permission.MANAGE_SETTINGS);
+  useRouteGuard(Permission.ADMIN);
   return (
     <SettingsLayout>
       <SettingsJellyfin />

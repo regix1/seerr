@@ -290,6 +290,9 @@ class Media {
   public mediaUrl?: string;
   public mediaUrl4k?: string;
 
+  public jellyfinMediaUrl?: string;
+  public jellyfinMediaUrl4k?: string;
+
   public iOSPlexUrl?: string;
   public iOSPlexUrl4k?: string;
 
@@ -346,7 +349,13 @@ class Media {
           this.tautulliUrl4k = `${tautulliUrl}/info?rating_key=${this.ratingKey4k}`;
         }
       }
-    } else {
+    }
+
+    // Always compute Jellyfin/Emby URLs when Jellyfin fields are present,
+    // regardless of which server is the primary mediaServerType.
+    // This allows both mediaUrl (Plex) and jellyfinMediaUrl (Jellyfin/Emby)
+    // to be non-null simultaneously on the same media row.
+    if (this.jellyfinMediaId || this.jellyfinMediaId4k) {
       const pageName =
         getSettings().main.mediaServerType == MediaServerType.EMBY
           ? 'item'
@@ -358,10 +367,21 @@ class Media {
           : getHostname();
 
       if (this.jellyfinMediaId) {
-        this.mediaUrl = `${jellyfinHost}/web/index.html#!/${pageName}?id=${this.jellyfinMediaId}&context=home&serverId=${serverId}`;
+        const jellyfinUrl = `${jellyfinHost}/web/index.html#!/${pageName}?id=${this.jellyfinMediaId}&context=home&serverId=${serverId}`;
+        this.jellyfinMediaUrl = jellyfinUrl;
+        // Backward compat: also populate mediaUrl when Plex is not the primary
+        // server (single-Jellyfin/Emby installs expect mediaUrl to be set).
+        if (getSettings().main.mediaServerType !== MediaServerType.PLEX) {
+          this.mediaUrl = jellyfinUrl;
+        }
       }
       if (this.jellyfinMediaId4k) {
-        this.mediaUrl4k = `${jellyfinHost}/web/index.html#!/${pageName}?id=${this.jellyfinMediaId4k}&context=home&serverId=${serverId}`;
+        const jellyfinUrl4k = `${jellyfinHost}/web/index.html#!/${pageName}?id=${this.jellyfinMediaId4k}&context=home&serverId=${serverId}`;
+        this.jellyfinMediaUrl4k = jellyfinUrl4k;
+        // Backward compat: also populate mediaUrl4k when Plex is not the primary server.
+        if (getSettings().main.mediaServerType !== MediaServerType.PLEX) {
+          this.mediaUrl4k = jellyfinUrl4k;
+        }
       }
     }
   }
