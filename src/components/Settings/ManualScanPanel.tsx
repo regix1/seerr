@@ -14,6 +14,7 @@ export interface ManualScanStatus {
   total: number;
   currentLibrary?: ManualScanLibrary;
   libraries: ManualScanLibrary[];
+  duplicatesSkipped?: number;
 }
 
 interface ManualScanPanelProps {
@@ -27,6 +28,7 @@ interface ManualScanPanelProps {
     cancelScan: string;
     currentLibrary: (name: string) => string;
     librariesRemaining: (count: number) => string;
+    duplicatesSkipped: (count: number) => string;
   };
 }
 
@@ -83,6 +85,15 @@ const ManualScanPanel = ({
                   {labels.librariesRemaining(remainingLibraries)}
                 </Badge>
               </div>
+              {(syncStatus.duplicatesSkipped ?? 0) > 0 && (
+                <div className="ml-0 mt-2 flex items-center sm:ml-2 sm:mt-0">
+                  <Badge badgeType="primary">
+                    {labels.duplicatesSkipped(
+                      syncStatus.duplicatesSkipped ?? 0
+                    )}
+                  </Badge>
+                </div>
+              )}
             </>
           )}
           <div className="flex-1 text-right">

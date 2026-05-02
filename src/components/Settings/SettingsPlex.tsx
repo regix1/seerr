@@ -58,6 +58,8 @@ const messages = defineMessages('components.Settings', {
   notrunning: 'Not Running',
   currentlibrary: 'Current Library: {name}',
   librariesRemaining: 'Libraries Remaining: {count}',
+  duplicatesSkipped:
+    '{count, plural, one {# Duplicate Skipped} other {# Duplicates Skipped}}',
   startscan: 'Start Scan',
   cancelscan: 'Cancel Scan',
   validationHostnameRequired: 'You must provide a valid hostname or IP address',
@@ -683,6 +685,8 @@ const SettingsPlex = ({ onComplete }: SettingsPlexProps) => {
             intl.formatMessage(messages.currentlibrary, { name }),
           librariesRemaining: (count) =>
             intl.formatMessage(messages.librariesRemaining, { count }),
+          duplicatesSkipped: (count) =>
+            intl.formatMessage(messages.duplicatesSkipped, { count }),
         }}
       />
       {!onComplete && (

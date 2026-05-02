@@ -44,6 +44,8 @@ const messages = defineMessages('components.Settings.SettingsEmby', {
   notrunning: 'Not Running',
   currentlibrary: 'Current Library: {name}',
   librariesRemaining: 'Libraries Remaining: {count}',
+  duplicatesSkipped:
+    '{count, plural, one {# Duplicate Skipped} other {# Duplicates Skipped}}',
   startscan: 'Start Scan',
   cancelscan: 'Cancel Scan',
   validationUrl: 'You must provide a valid URL',
@@ -224,6 +226,8 @@ const SettingsEmby: React.FC<SettingsEmbyProps> = ({
             intl.formatMessage(messages.currentlibrary, { name }),
           librariesRemaining: (count) =>
             intl.formatMessage(messages.librariesRemaining, { count }),
+          duplicatesSkipped: (count) =>
+            intl.formatMessage(messages.duplicatesSkipped, { count }),
         }}
       />
       {isSetupSettings && (
