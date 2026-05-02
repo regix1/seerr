@@ -272,6 +272,43 @@ class JellyfinAPI extends ExternalAPI {
     return;
   }
 
+  private get apiLabel(): string {
+    return this.mediaServerType === MediaServerType.EMBY
+      ? 'Emby API'
+      : 'Jellyfin API';
+  }
+
+  private getRequestPath(
+    endpoint: string,
+    params: Record<string, string>
+  ): string {
+    const queryString = new URLSearchParams(params).toString();
+
+    return `${endpoint}?${queryString}`;
+  }
+
+  private getErrorDetails(error: unknown): {
+    status: number;
+    message: string;
+    responseData?: unknown;
+  } {
+    const status =
+      error instanceof Object && 'response' in error
+        ? ((error as { response?: { status?: number } }).response?.status ??
+          500)
+        : 500;
+    const responseData =
+      error instanceof Object && 'response' in error
+        ? (error as { response?: { data?: unknown } }).response?.data
+        : undefined;
+
+    return {
+      status,
+      message: error instanceof Error ? error.message : String(error),
+      responseData,
+    };
+  }
+
   public async getSystemInfo(): Promise<any> {
     try {
       const systemInfoResponse = await this.get<any>('/System/Info');
@@ -569,75 +606,150 @@ class JellyfinAPI extends ExternalAPI {
   }
 
   public async getLibraryContents(id: string): Promise<JellyfinLibraryItem[]> {
-    try {
-      // Emby requires the userId segment in the path; Jellyfin accepts /Items directly.
-      const endpoint =
-        this.mediaServerType === MediaServerType.EMBY
-          ? `/Users/${this.userId}/Items`
-          : `/Items`;
-
-      // Emby's BaseItemKind enum has no "Others" entry and rejects unknown values with HTTP 500.
-      // collapseBoxSetItems is also a Jellyfin-specific parameter not supported by Emby.
-      const queryString =
-        this.mediaServerType === MediaServerType.EMBY
-          ? `SortBy=SortName&SortOrder=Ascending&IncludeItemTypes=Series,Movie&Recursive=true&StartIndex=0&ParentId=${id}`
-          : `SortBy=SortName&SortOrder=Ascending&IncludeItemTypes=Series,Movie,Others&Recursive=true&StartIndex=0&ParentId=${id}&collapseBoxSetItems=false`;
-
-      const libraryItemsResponse = await this.get<{
-        Items: JellyfinLibraryItem[];
-      }>(`${endpoint}?${queryString}`);
-
-      return libraryItemsResponse.Items.filter(
-        (item: JellyfinLibraryItem) => item.LocationType !== 'Virtual'
+    const isEmby = this.mediaServerType === MediaServerType.EMBY;
+    const endpoint = isEmby ? `/Users/${this.userId}/Items` : `/Items`;
+    const fetchItems = async (params: Record<string, string>) =>
+      this.get<{ Items: JellyfinLibraryItem[] }>(
+        this.getRequestPath(endpoint, params)
       );
+    const jellyfinParams = {
+      SortBy: 'SortName',
+      SortOrder: 'Ascending',
+      IncludeItemTypes: 'Series,Movie,Others',
+      Recursive: 'true',
+      StartIndex: '0',
+      ParentId: id,
+      collapseBoxSetItems: 'false',
+    };
+    const embyParams = {
+      ParentId: id,
+      Recursive: 'true',
+      IncludeItemTypes: 'Movie,Series',
+    };
+    const embyFallbackParams = {
+      ParentId: id,
+    };
+    let requestParams: Record<string, string> = isEmby
+      ? embyParams
+      : jellyfinParams;
+
+    logger.debug('Fetching library contents', {
+      label: this.apiLabel,
+      libraryId: id,
+      requestUrl: this.getRequestPath(endpoint, requestParams),
+    });
+
+    try {
+      let libraryItemsResponse: { Items: JellyfinLibraryItem[] };
+
+      if (isEmby) {
+        try {
+          libraryItemsResponse = await fetchItems(embyParams);
+        } catch (error) {
+          const { status, responseData } = this.getErrorDetails(error);
+
+          if (status !== 500) {
+            throw error;
+          }
+
+          logger.warn(
+            'Emby library content request failed; retrying with minimal query',
+            {
+              label: this.apiLabel,
+              error: status,
+              requestUrl: this.getRequestPath(endpoint, embyParams),
+              responseData,
+            }
+          );
+
+          requestParams = embyFallbackParams;
+          libraryItemsResponse = await fetchItems(embyFallbackParams);
+
+          logger.info('Emby fallback library query succeeded', {
+            label: this.apiLabel,
+            libraryId: id,
+            requestUrl: this.getRequestPath(endpoint, embyFallbackParams),
+            itemCount: libraryItemsResponse.Items.length,
+          });
+        }
+      } else {
+        libraryItemsResponse = await fetchItems(jellyfinParams);
+      }
+
+      const items = libraryItemsResponse.Items.filter(
+        (item: JellyfinLibraryItem) =>
+          item.LocationType !== 'Virtual' &&
+          (!isEmby || item.Type === 'Movie' || item.Type === 'Series')
+      );
+
+      logger.debug('Library contents fetched', {
+        label: this.apiLabel,
+        libraryId: id,
+        rawCount: libraryItemsResponse.Items.length,
+        filteredCount: items.length,
+      });
+
+      return items;
     } catch (e) {
-      const status =
-        e instanceof Object && 'response' in e
-          ? ((e as { response?: { status?: number } }).response?.status ?? 500)
-          : 500;
-      const msg = e instanceof Error ? e.message : String(e);
+      const { status, message, responseData } = this.getErrorDetails(e);
+      const requestUrl = this.getRequestPath(endpoint, requestParams);
+
       logger.error(
-        `Something went wrong while getting library content from the Jellyfin server: ${msg}`,
-        { label: 'Jellyfin API', error: status }
+        `Something went wrong while getting library content from the ${this.apiLabel}: ${message}`,
+        { label: this.apiLabel, error: status, requestUrl, responseData }
       );
 
       const errorCode =
         status === 401 ? ApiErrorCode.InvalidAuthToken : ApiErrorCode.Unknown;
-      throw new ApiError(status, errorCode, msg);
+      throw new ApiError(status, errorCode, message, {
+        requestUrl,
+        responseData,
+      });
     }
   }
 
   public async getRecentlyAdded(id: string): Promise<JellyfinLibraryItem[]> {
+    // Jellyfin: /Items/Latest?userId=<id>  (userId in query string)
+    // Emby:     /Users/<id>/Items/Latest   (userId in path; no query-string userId param)
+    const endpoint =
+      this.mediaServerType === MediaServerType.JELLYFIN
+        ? `/Items/Latest`
+        : `/Users/${this.userId}/Items/Latest`;
+    const requestUrl = `${endpoint}?Limit=12&ParentId=${id}${
+      this.mediaServerType === MediaServerType.JELLYFIN
+        ? `&userId=${this.userId ?? 'Me'}`
+        : ''
+    }`;
+
+    logger.debug('Fetching recently added items', {
+      label: this.apiLabel,
+      libraryId: id,
+      requestUrl,
+    });
+
     try {
-      // Jellyfin: /Items/Latest?userId=<id>  (userId in query string)
-      // Emby:     /Users/<id>/Items/Latest   (userId in path; no query-string userId param)
-      const endpoint =
-        this.mediaServerType === MediaServerType.JELLYFIN
-          ? `/Items/Latest`
-          : `/Users/${this.userId}/Items/Latest`;
-      const itemResponse = await this.get<JellyfinLibraryItem[]>(
-        `${endpoint}?Limit=12&ParentId=${id}${
-          this.mediaServerType === MediaServerType.JELLYFIN
-            ? `&userId=${this.userId ?? 'Me'}`
-            : ''
-        }`
-      );
+      const itemResponse = await this.get<JellyfinLibraryItem[]>(requestUrl);
+
+      logger.debug('Recently added items fetched', {
+        label: this.apiLabel,
+        libraryId: id,
+        itemCount: itemResponse.length,
+      });
 
       return itemResponse;
     } catch (e) {
-      const status =
-        e instanceof Object && 'response' in e
-          ? ((e as { response?: { status?: number } }).response?.status ?? 500)
-          : 500;
-      const msg = e instanceof Error ? e.message : String(e);
+      const { status, message, responseData } = this.getErrorDetails(e);
       logger.error(
-        `Something went wrong while getting library content from the Jellyfin server: ${msg}`,
-        { label: 'Jellyfin API', error: status }
+        `Something went wrong while getting recently added content from the ${this.apiLabel}: ${message}`,
+        { label: this.apiLabel, error: status, requestUrl, responseData }
       );
 
       const errorCode =
         status === 401 ? ApiErrorCode.InvalidAuthToken : ApiErrorCode.Unknown;
-      throw new ApiError(status, errorCode, msg);
+      throw new ApiError(status, errorCode, message, {
+        requestUrl,
+        responseData,
+      });
     }
   }
 

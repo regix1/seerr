@@ -564,6 +564,8 @@ export class MediaServerScanner
         errorMessage = e.message;
         httpStatus = e.statusCode;
         errorCode = e.errorCode;
+        requestUrl = e.requestUrl;
+        responseData = e.responseData;
       } else {
         // Fallback: raw axios error or unknown shape
         errorMessage = e instanceof Error ? e.message : String(e);
