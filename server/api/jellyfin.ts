@@ -156,6 +156,9 @@ class JellyfinAPI extends ExternalAPI {
       jellyfinHost,
       {},
       {
+        // 30-second cap so a hung Emby/Jellyfin server surfaces as a timeout
+        // error instead of an infinite spinner in the UI.
+        timeout: 30_000,
         headers: {
           Authorization: authHeaderVal,
           'Content-Type': 'application/json',
@@ -555,25 +558,74 @@ class JellyfinAPI extends ExternalAPI {
   }
 
   public async getLibraries(): Promise<JellyfinLibrary[]> {
+    const isEmby = this.mediaServerType === MediaServerType.EMBY;
+
+    if (isEmby) {
+      // Emby requires user-scoped Items endpoint — /Library/MediaFolders hangs
+      // or returns an empty list without admin-level credentials on many setups.
+      const endpoint = `/Users/${this.userId}/Items`;
+      const params: Record<string, string> = {
+        IncludeItemTypes: 'CollectionFolder',
+        Recursive: 'true',
+        IncludeHidden: 'true',
+      };
+
+      logger.debug(`[Emby API]: Fetching library list`, {
+        label: this.apiLabel,
+        requestUrl: this.getRequestPath(endpoint, params),
+      });
+
+      try {
+        const response = await this.get<{ Items: JellyfinMediaFolder[] }>(
+          this.getRequestPath(endpoint, params)
+        );
+
+        logger.debug(`[Emby API]: Library list fetched`, {
+          label: this.apiLabel,
+          itemCount: response.Items.length,
+        });
+
+        return this.mapLibraries(response.Items);
+      } catch (e) {
+        const { status, message, responseData } = this.getErrorDetails(e);
+        logger.error(
+          `Something went wrong while getting libraries from the ${this.apiLabel}: ${message}`,
+          {
+            label: this.apiLabel,
+            error: status,
+            requestUrl: this.getRequestPath(endpoint, params),
+            responseData,
+          }
+        );
+
+        throw e;
+      }
+    }
+
+    // Jellyfin path: /Library/MediaFolders with fallback to /Users/{id}/Views
     try {
-      const mediaFolderResponse = await this.get<any>(`/Library/MediaFolders`);
+      const mediaFolderResponse = await this.get<{
+        Items: JellyfinMediaFolder[];
+      }>(`/Library/MediaFolders`);
 
       return this.mapLibraries(mediaFolderResponse.Items);
     } catch {
       // fallback to user views to get libraries
       // this only and maybe/depending on factors affects LDAP users
       try {
-        const mediaFolderResponse = await this.get<any>(
-          `/Users/${this.userId ?? 'Me'}/Views`
-        );
+        const mediaFolderResponse = await this.get<{
+          Items: JellyfinMediaFolder[];
+        }>(`/Users/${this.userId ?? 'Me'}/Views`);
 
         return this.mapLibraries(mediaFolderResponse.Items);
       } catch (e) {
+        const { status, message, responseData } = this.getErrorDetails(e);
         logger.error(
-          `Something went wrong while getting libraries from the Jellyfin server: ${e.message}`,
+          `Something went wrong while getting libraries from the ${this.apiLabel}: ${message}`,
           {
-            label: 'Jellyfin API',
-            error: e.response?.status,
+            label: this.apiLabel,
+            error: status,
+            responseData,
           }
         );
 

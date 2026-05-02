@@ -758,50 +758,57 @@ settingsRoutes.post('/emby', async (req, res, next) => {
 settingsRoutes.get('/emby/library', async (req, res, next) => {
   const settings = getSettings();
 
-  if (req.query.sync) {
-    const userRepository = getRepository(User);
-    const admin = await userRepository.findOneOrFail({
-      select: ['id', 'embyDeviceId', 'embyUserId'],
-      where: { id: 1 },
-      order: { id: 'ASC' },
-    });
-    const embyClient = JellyfinAPI.forEmby(
-      settings.emby,
-      settings.emby.apiKey,
-      admin.embyDeviceId ?? ''
-    );
-
-    embyClient.setUserId(admin.embyUserId ?? '');
-
-    const libraries = await embyClient.getLibraries();
-
-    if (libraries.length === 0) {
-      return next({ status: 404, message: ApiErrorCode.SyncErrorNoLibraries });
-    }
-
-    settings.emby.libraries = libraries.map((library) => {
-      const existing = settings.emby.libraries.find(
-        (l) => l.id === library.key && l.name === library.title
+  try {
+    if (req.query.sync) {
+      const userRepository = getRepository(User);
+      const admin = await userRepository.findOneOrFail({
+        select: ['id', 'embyDeviceId', 'embyUserId'],
+        where: { id: 1 },
+        order: { id: 'ASC' },
+      });
+      const embyClient = JellyfinAPI.forEmby(
+        settings.emby,
+        settings.emby.apiKey,
+        admin.embyDeviceId ?? ''
       );
 
-      return {
-        id: library.key,
-        name: library.title,
-        enabled: existing?.enabled ?? false,
-        type: library.type,
-      };
-    });
-  }
+      embyClient.setUserId(admin.embyUserId ?? '');
 
-  const enabledLibraries = req.query.enable
-    ? (req.query.enable as string).split(',')
-    : [];
-  settings.emby.libraries = settings.emby.libraries.map((library) => ({
-    ...library,
-    enabled: enabledLibraries.includes(library.id),
-  }));
-  await settings.save();
-  return res.status(200).json(settings.emby.libraries);
+      const libraries = await embyClient.getLibraries();
+
+      if (libraries.length === 0) {
+        return next({
+          status: 404,
+          message: ApiErrorCode.SyncErrorNoLibraries,
+        });
+      }
+
+      settings.emby.libraries = libraries.map((library) => {
+        const existing = settings.emby.libraries.find(
+          (l) => l.id === library.key && l.name === library.title
+        );
+
+        return {
+          id: library.key,
+          name: library.title,
+          enabled: existing?.enabled ?? false,
+          type: library.type,
+        };
+      });
+    }
+
+    const enabledLibraries = req.query.enable
+      ? (req.query.enable as string).split(',')
+      : [];
+    settings.emby.libraries = settings.emby.libraries.map((library) => ({
+      ...library,
+      enabled: enabledLibraries.includes(library.id),
+    }));
+    await settings.save();
+    return res.status(200).json(settings.emby.libraries);
+  } catch (e) {
+    next(e);
+  }
 });
 
 settingsRoutes.get('/emby/users', async (_req, res) => {
