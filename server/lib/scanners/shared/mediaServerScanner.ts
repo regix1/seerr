@@ -35,7 +35,7 @@ import { getSettings } from '@server/lib/settings';
 import { uniqWith } from 'lodash';
 
 export interface MediaServerSyncStatus extends StatusBase {
-  currentLibrary: Library;
+  currentLibrary?: Library;
   libraries: Library[];
   duplicatesSkipped: number;
   lastRunAt: number;
@@ -76,8 +76,8 @@ export class MediaServerScanner
   implements RunnableScanner<MediaServerSyncStatus>
 {
   private client: JellyfinAPI;
-  private libraries: Library[];
-  private currentLibrary: Library;
+  private libraries: Library[] = [];
+  private currentLibrary?: Library;
   private isRecentOnly = false;
   private processedAnidbSeason: Map<number, Map<number, number>>;
   private readonly opts: MediaServerScannerOptions;
@@ -462,6 +462,12 @@ export class MediaServerScanner
     let completed = false;
 
     try {
+      const serverSettings = this.opts.settingsSelector();
+      this.libraries = serverSettings.libraries.filter(
+        (library) => library.enabled
+      );
+      this.currentLibrary = this.libraries[0];
+
       const userRepository = getRepository(User);
       const admin = await userRepository.findOne({
         where: { id: 1 },
@@ -482,7 +488,6 @@ export class MediaServerScanner
         );
       }
 
-      const serverSettings = this.opts.settingsSelector();
       const provider =
         this.opts.provider ??
         (this.opts.mediaServerType === MediaServerType.EMBY
@@ -499,10 +504,6 @@ export class MediaServerScanner
         deviceId ?? null
       );
       this.client.setUserId(userId ?? '');
-
-      this.libraries = serverSettings.libraries.filter(
-        (library) => library.enabled
-      );
 
       await animeList.sync();
 
@@ -550,8 +551,26 @@ export class MediaServerScanner
       );
       completed = true;
     } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      const httpStatus =
+        e instanceof Object && 'response' in e
+          ? (e as { response?: { status?: number; data?: unknown } }).response
+              ?.status
+          : undefined;
+      const responseData =
+        e instanceof Object && 'response' in e
+          ? (e as { response?: { status?: number; data?: unknown } }).response
+              ?.data
+          : undefined;
+      const requestUrl =
+        e instanceof Object && 'config' in e
+          ? (e as { config?: { url?: string } }).config?.url
+          : undefined;
       this.log('Sync interrupted', 'error', {
-        errorMessage: (e as Error).message,
+        errorMessage,
+        ...(httpStatus !== undefined && { httpStatus }),
+        ...(requestUrl !== undefined && { requestUrl }),
+        ...(responseData !== undefined && { responseData }),
       });
     } finally {
       this.endRun(sessionId, completed);

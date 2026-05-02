@@ -570,30 +570,44 @@ class JellyfinAPI extends ExternalAPI {
 
   public async getLibraryContents(id: string): Promise<JellyfinLibraryItem[]> {
     try {
-      const libraryItemsResponse = await this.get<any>(
-        `/Items?SortBy=SortName&SortOrder=Ascending&IncludeItemTypes=Series,Movie,Others&Recursive=true&StartIndex=0&ParentId=${id}&collapseBoxSetItems=false`
+      // Emby requires the userId segment in the path; Jellyfin accepts /Items directly.
+      const endpoint =
+        this.mediaServerType === MediaServerType.EMBY
+          ? `/Users/${this.userId}/Items`
+          : `/Items`;
+      const libraryItemsResponse = await this.get<{
+        Items: JellyfinLibraryItem[];
+      }>(
+        `${endpoint}?SortBy=SortName&SortOrder=Ascending&IncludeItemTypes=Series,Movie,Others&Recursive=true&StartIndex=0&ParentId=${id}&collapseBoxSetItems=false`
       );
 
       return libraryItemsResponse.Items.filter(
         (item: JellyfinLibraryItem) => item.LocationType !== 'Virtual'
       );
     } catch (e) {
+      const status =
+        e instanceof Object && 'response' in e
+          ? ((e as { response?: { status?: number } }).response?.status ?? 500)
+          : 500;
+      const msg = e instanceof Error ? e.message : String(e);
       logger.error(
-        `Something went wrong while getting library content from the Jellyfin server: ${e.message}`,
-        { label: 'Jellyfin API', error: e?.response?.status }
+        `Something went wrong while getting library content from the Jellyfin server: ${msg}`,
+        { label: 'Jellyfin API', error: status }
       );
 
-      throw new ApiError(e.response?.status, ApiErrorCode.InvalidAuthToken);
+      throw new ApiError(status, ApiErrorCode.InvalidAuthToken);
     }
   }
 
   public async getRecentlyAdded(id: string): Promise<JellyfinLibraryItem[]> {
     try {
+      // Jellyfin: /Items/Latest?userId=<id>  (userId in query string)
+      // Emby:     /Users/<id>/Items/Latest   (userId in path; no query-string userId param)
       const endpoint =
         this.mediaServerType === MediaServerType.JELLYFIN
           ? `/Items/Latest`
           : `/Users/${this.userId}/Items/Latest`;
-      const itemResponse = await this.get<any>(
+      const itemResponse = await this.get<JellyfinLibraryItem[]>(
         `${endpoint}?Limit=12&ParentId=${id}${
           this.mediaServerType === MediaServerType.JELLYFIN
             ? `&userId=${this.userId ?? 'Me'}`
@@ -603,12 +617,17 @@ class JellyfinAPI extends ExternalAPI {
 
       return itemResponse;
     } catch (e) {
+      const status =
+        e instanceof Object && 'response' in e
+          ? ((e as { response?: { status?: number } }).response?.status ?? 500)
+          : 500;
+      const msg = e instanceof Error ? e.message : String(e);
       logger.error(
-        `Something went wrong while getting library content from the Jellyfin server: ${e.message}`,
-        { label: 'Jellyfin API', error: e.response?.status }
+        `Something went wrong while getting library content from the Jellyfin server: ${msg}`,
+        { label: 'Jellyfin API', error: status }
       );
 
-      throw new ApiError(e.response?.status, ApiErrorCode.InvalidAuthToken);
+      throw new ApiError(status, ApiErrorCode.InvalidAuthToken);
     }
   }
 
