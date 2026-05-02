@@ -20,6 +20,7 @@ import type {
 import { MediaServerType } from '@server/constants/server';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
+import { Permission } from '@server/lib/permissions';
 import type {
   ProcessableSeason,
   RunnableScanner,
@@ -499,17 +500,24 @@ export class MediaServerScanner
       });
 
       if (!scanUser) {
-        scanUser = await userRepository.findOne({
-          where: { [userIdField]: Not(IsNull()) },
-          select: selectFields,
-          order: { id: 'ASC' },
-        });
+        // Security: only admins are trusted to hold service-level credentials.
+        // Bitwise check is required because TypeORM `where` has no native
+        // support for bitwise operators — filter at the DB level via QueryBuilder.
+        scanUser = await userRepository
+          .createQueryBuilder('user')
+          .select(selectFields.map((f) => `user.${String(f)}`))
+          .where(`user.${userIdField} IS NOT NULL`)
+          .andWhere(`(user.permissions & :adminBit) = :adminBit`, {
+            adminBit: Permission.ADMIN,
+          })
+          .orderBy('user.id', 'ASC')
+          .getOne();
       }
 
       if (!scanUser?.[userIdField]) {
         this.log(
-          `${this.opts.scannerLabel} scan cannot run: no user has ${this.opts.scannerLabel} credentials linked. ` +
-            `Have an admin sign in via the ${this.opts.scannerLabel} login button to enable scanning.`,
+          `${this.opts.scannerLabel} scan cannot run: no admin user has ${this.opts.scannerLabel} credentials linked. ` +
+            `Have a seerr admin sign in via the ${this.opts.scannerLabel} login button to enable scanning.`,
           'warn'
         );
         return;

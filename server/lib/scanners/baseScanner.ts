@@ -207,8 +207,6 @@ class BaseScanner<T> {
             `Media for ${title} exists. Changes were detected and the title will be updated.`,
             'info'
           );
-        } else {
-          this.log(`Title already exists and no changes detected for ${title}`);
         }
       } else {
         const newMedia = new Media();
