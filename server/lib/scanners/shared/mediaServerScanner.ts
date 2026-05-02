@@ -34,6 +34,7 @@ import type {
 import { getSettings } from '@server/lib/settings';
 import { ApiError } from '@server/types/error';
 import { uniqWith } from 'lodash';
+import { IsNull, Not } from 'typeorm';
 
 export interface MediaServerSyncStatus extends StatusBase {
   currentLibrary?: Library;
@@ -470,41 +471,59 @@ export class MediaServerScanner
       this.currentLibrary = this.libraries[0];
 
       const userRepository = getRepository(User);
-      const admin = await userRepository.findOne({
-        where: { id: 1 },
-        select: [
-          'id',
-          'jellyfinUserId',
-          'jellyfinDeviceId',
-          'embyUserId',
-          'embyDeviceId',
-        ],
-        order: { id: 'ASC' },
-      });
-
-      if (!admin) {
-        return this.log(
-          `No admin configured. ${this.opts.scannerLabel} sync skipped.`,
-          'warn'
-        );
-      }
 
       const provider =
         this.opts.provider ??
         (this.opts.mediaServerType === MediaServerType.EMBY
           ? 'emby'
           : 'jellyfin');
-      const userId =
-        provider === 'emby' ? admin.embyUserId : admin.jellyfinUserId;
-      const deviceId =
-        provider === 'emby' ? admin.embyDeviceId : admin.jellyfinDeviceId;
+
+      const userIdField: 'embyUserId' | 'jellyfinUserId' =
+        provider === 'emby' ? 'embyUserId' : 'jellyfinUserId';
+      const deviceIdField: 'embyDeviceId' | 'jellyfinDeviceId' =
+        provider === 'emby' ? 'embyDeviceId' : 'jellyfinDeviceId';
+
+      // Prefer owner (id=1) if they have credentials for this provider;
+      // otherwise fall back to any user that does.
+      const selectFields: (keyof User)[] = [
+        'id',
+        'jellyfinUserId',
+        'jellyfinDeviceId',
+        'embyUserId',
+        'embyDeviceId',
+      ];
+
+      let scanUser = await userRepository.findOne({
+        where: { id: 1, [userIdField]: Not(IsNull()) },
+        select: selectFields,
+      });
+
+      if (!scanUser) {
+        scanUser = await userRepository.findOne({
+          where: { [userIdField]: Not(IsNull()) },
+          select: selectFields,
+          order: { id: 'ASC' },
+        });
+      }
+
+      if (!scanUser?.[userIdField]) {
+        this.log(
+          `${this.opts.scannerLabel} scan cannot run: no user has ${this.opts.scannerLabel} credentials linked. ` +
+            `Have an admin sign in via the ${this.opts.scannerLabel} login button to enable scanning.`,
+          'warn'
+        );
+        return;
+      }
+
+      const userId = scanUser[userIdField] as string;
+      const deviceId = (scanUser[deviceIdField] ?? null) as string | null;
 
       this.client = this.opts.apiFactory(
         serverSettings,
         serverSettings.apiKey,
-        deviceId ?? null
+        deviceId
       );
-      this.client.setUserId(userId ?? '');
+      this.client.setUserId(userId);
 
       await animeList.sync();
 

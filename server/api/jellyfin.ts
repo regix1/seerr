@@ -268,8 +268,12 @@ class JellyfinAPI extends ExternalAPI {
   }
 
   public setUserId(userId: string): void {
+    if (!userId) {
+      throw new Error(
+        `JellyfinAPI.setUserId called with empty value — the caller must resolve a valid user ID before constructing the API client.`
+      );
+    }
     this.userId = userId;
-    return;
   }
 
   private get apiLabel(): string {
