@@ -19,7 +19,6 @@ interface BaseMedia {
   mediaType: string;
   mediaInfo?: {
     status: MediaStatus;
-    isHidden?: boolean;
   };
 }
 
@@ -140,15 +139,6 @@ const useDiscover = <
       (i) =>
         (i.mediaType === 'movie' || i.mediaType === 'tv') &&
         i.mediaInfo?.status !== MediaStatus.BLOCKLISTED
-    );
-  }
-
-  // Filter hidden media for non-privileged users
-  if (!hasPermission(Permission.MANAGE_REQUESTS)) {
-    titles = titles.filter(
-      (i) =>
-        (i.mediaType === 'movie' || i.mediaType === 'tv') &&
-        !i.mediaInfo?.isHidden
     );
   }
 

@@ -16,7 +16,11 @@ import type {
   UserResultsResponse,
   UserWatchDataResponse,
 } from '@server/interfaces/api/userInterfaces';
-import { Permission, hasPermission } from '@server/lib/permissions';
+import {
+  Permission,
+  Permission2,
+  hasPermission,
+} from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
@@ -30,6 +34,40 @@ import { In, Not } from 'typeorm';
 import userSettingsRoutes from './usersettings';
 
 const router = Router();
+
+/**
+ * Server-side requester redaction (criterion 32). When a viewer lacks
+ * VIEW_REQUESTER / MANAGE_REQUESTS, strip `requestedBy` from
+ * any request rows that don't belong to them. Owner of a row always sees
+ * their own attribution.
+ */
+const canViewRequester = (user?: User): boolean => {
+  return (
+    !!user &&
+    user.hasPermission(
+      [Permission2.VIEW_REQUESTER, Permission.MANAGE_REQUESTS],
+      { type: 'or' }
+    )
+  );
+};
+
+const redactRequester = <T extends { requestedBy?: User | null }>(
+  viewer: User | undefined,
+  request: T
+): T => {
+  if (!request || !request.requestedBy) {
+    return request;
+  }
+  if (viewer && viewer.id === request.requestedBy.id) {
+    return request;
+  }
+  if (canViewRequester(viewer)) {
+    return request;
+  }
+  const cloned = { ...request } as T & { requestedBy?: User | null };
+  delete cloned.requestedBy;
+  return cloned;
+};
 
 router.get('/', async (req, res, next) => {
   try {
@@ -83,6 +121,19 @@ router.get('/', async (req, res, next) => {
 
     if (includeIds.length > 0) {
       query.andWhereInIds(includeIds);
+    }
+
+    // Filter on column presence (not userType) so triple-linked users match every provider
+    // they hold credentials for. Per Phase 14 acceptance criterion #25.
+    const providerFilter = req.query.filter
+      ? req.query.filter.toString()
+      : undefined;
+    if (providerFilter === 'plex') {
+      query = query.andWhere('user.plexId IS NOT NULL');
+    } else if (providerFilter === 'jellyfin') {
+      query = query.andWhere('user.jellyfinUserId IS NOT NULL');
+    } else if (providerFilter === 'emby') {
+      query = query.andWhere('user.embyUserId IS NOT NULL');
     }
 
     switch (sortParam) {
@@ -171,7 +222,8 @@ router.get('/', async (req, res, next) => {
 
 router.post(
   '/',
-  isAuthenticated(Permission.MANAGE_USERS),
+  // was Permission.MANAGE_USERS — re-pointed to granular MANAGE_USERS_CREATE
+  isAuthenticated(Permission2.MANAGE_USERS_CREATE),
   async (req, res, next) => {
     try {
       const settings = getSettings();
@@ -466,6 +518,10 @@ router.get<{ id: string }, UserRequestsResponse>(
         .skip(skip)
         .getManyAndCount();
 
+      // Redact requester for viewers without VIEW_REQUESTER on rows they
+      // do not own (criterion 32).
+      const safeRequests = requests.map((r) => redactRequester(req.user, r));
+
       return res.status(200).json({
         pageInfo: {
           pages: Math.ceil(requestCount / pageSize),
@@ -473,7 +529,7 @@ router.get<{ id: string }, UserRequestsResponse>(
           results: requestCount,
           page: Math.ceil(skip / pageSize) + 1,
         },
-        results: requests,
+        results: safeRequests,
       });
     } catch (e) {
       next({ status: 500, message: e.message });
@@ -485,52 +541,70 @@ export const canMakePermissionsChange = (
   permissions: number,
   user?: User
 ): boolean =>
-  // Only let the owner grant admin privileges
-  !(hasPermission(Permission.ADMIN, permissions) && user?.id !== 1);
+  // Only let the owner grant admin privileges. ADMIN lives on the legacy
+  // bitmask only, so we pass `0` as the granular bitmask — the new
+  // `hasPermission` signature requires both columns explicitly.
+  !(hasPermission(Permission.ADMIN, permissions, 0) && user?.id !== 1);
 
 router.put<
   Record<string, never>,
   Partial<User>[],
   { ids: string[]; permissions: number }
->('/', isAuthenticated(Permission.MANAGE_USERS), async (req, res, next) => {
-  try {
-    const isOwner = req.user?.id === 1;
+>(
+  '/',
+  // was Permission.MANAGE_USERS — re-pointed to granular MANAGE_USERS_PERMISSIONS
+  // (this bulk endpoint mutates permissions; pure profile edits use PUT /:id)
+  isAuthenticated(Permission2.MANAGE_USERS_PERMISSIONS),
+  async (req, res, next) => {
+    try {
+      const isOwner = req.user?.id === 1;
 
-    if (!canMakePermissionsChange(req.body.permissions, req.user)) {
-      return next({
-        status: 403,
-        message: 'You do not have permission to grant this level of access',
-      });
-    }
-
-    const userRepository = getRepository(User);
-
-    const users: User[] = await userRepository.find({
-      where: {
-        id: In(
-          isOwner ? req.body.ids : req.body.ids.filter((id) => Number(id) !== 1)
-        ),
-      },
-    });
-
-    const updatedUsers = await Promise.all(
-      users.map(async (user) => {
-        return userRepository.save(<User>{
-          ...user,
-          ...{ permissions: req.body.permissions },
+      if (!canMakePermissionsChange(req.body.permissions, req.user)) {
+        return next({
+          status: 403,
+          message: 'You do not have permission to grant this level of access',
         });
-      })
-    );
+      }
 
-    return res.status(200).json(updatedUsers);
-  } catch (e) {
-    next({ status: 500, message: e.message });
+      const userRepository = getRepository(User);
+
+      const users: User[] = await userRepository.find({
+        where: {
+          id: In(
+            isOwner
+              ? req.body.ids
+              : req.body.ids.filter((id) => Number(id) !== 1)
+          ),
+        },
+      });
+
+      const updatedUsers = await Promise.all(
+        users.map(async (user) => {
+          return userRepository.save(<User>{
+            ...user,
+            ...{ permissions: req.body.permissions },
+          });
+        })
+      );
+
+      return res.status(200).json(updatedUsers);
+    } catch (e) {
+      next({ status: 500, message: e.message });
+    }
   }
-});
+);
 
 router.put<{ id: string }>(
   '/:id',
-  isAuthenticated(Permission.MANAGE_USERS),
+  // was Permission.MANAGE_USERS — re-pointed: edits to permissions need
+  // MANAGE_USERS_PERMISSIONS, plain profile field edits need MANAGE_USERS_EDIT.
+  // The combined OR keeps the umbrella holders working while letting an EDIT-only
+  // operator change usernames; the inner canMakePermissionsChange() still gates
+  // permission elevation.
+  isAuthenticated(
+    [Permission2.MANAGE_USERS_EDIT, Permission2.MANAGE_USERS_PERMISSIONS],
+    { type: 'or' }
+  ),
   async (req, res, next) => {
     try {
       const userRepository = getRepository(User);
@@ -544,6 +618,22 @@ router.put<{ id: string }>(
         return next({
           status: 403,
           message: 'You do not have permission to modify this user',
+        });
+      }
+
+      // Inner gate: changing the `permissions` field requires the granular
+      // MANAGE_USERS_PERMISSIONS bit. EDIT-only operators may patch profile
+      // fields (username) but cannot mutate access levels.
+      const isPermissionChange =
+        typeof req.body.permissions === 'number' &&
+        req.body.permissions !== user.permissions;
+      if (
+        isPermissionChange &&
+        !req.user?.hasPermission(Permission2.MANAGE_USERS_PERMISSIONS)
+      ) {
+        return next({
+          status: 403,
+          message: 'You do not have permission to modify user permissions.',
         });
       }
 
@@ -570,7 +660,8 @@ router.put<{ id: string }>(
 
 router.delete<{ id: string }>(
   '/:id',
-  isAuthenticated(Permission.MANAGE_USERS),
+  // was Permission.MANAGE_USERS — re-pointed to granular MANAGE_USERS_DELETE
+  isAuthenticated(Permission2.MANAGE_USERS_DELETE),
   async (req, res, next) => {
     try {
       const userRepository = getRepository(User);
@@ -634,7 +725,8 @@ router.delete<{ id: string }>(
 
 router.post(
   '/import-from-plex',
-  isAuthenticated(Permission.MANAGE_USERS),
+  // was Permission.MANAGE_USERS — re-pointed (creates new users)
+  isAuthenticated(Permission2.MANAGE_USERS_CREATE),
   async (req, res, next) => {
     try {
       const settings = getSettings();
@@ -707,7 +799,8 @@ router.post(
 
 router.post(
   '/import-from-jellyfin',
-  isAuthenticated(Permission.MANAGE_USERS),
+  // was Permission.MANAGE_USERS — re-pointed (creates new users)
+  isAuthenticated(Permission2.MANAGE_USERS_CREATE),
   async (req, res, next) => {
     try {
       const settings = getSettings();
@@ -809,7 +902,8 @@ router.post(
 
 router.post(
   '/import-from-emby',
-  isAuthenticated(Permission.MANAGE_USERS),
+  // was Permission.MANAGE_USERS — re-pointed (creates new users)
+  isAuthenticated(Permission2.MANAGE_USERS_CREATE),
   async (req, res, next) => {
     try {
       const settings = getSettings();

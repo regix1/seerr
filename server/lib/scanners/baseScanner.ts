@@ -16,6 +16,10 @@ export type StatusBase = {
   running: boolean;
   progress: number;
   total: number;
+  duplicatesSkipped?: number;
+  lastRunAt?: number;
+  lastRunDuplicatesSkipped?: number;
+  lastRunCompleted?: boolean;
 };
 
 export interface RunnableScanner<T> {
@@ -64,6 +68,11 @@ class BaseScanner<T> {
   protected enable4kShow = false;
   protected sessionId: string;
   protected running = false;
+  protected processedKeys: Set<string> = new Set();
+  protected duplicatesSkipped = 0;
+  protected lastRunDuplicatesSkipped = 0;
+  protected lastRunAt = 0;
+  protected lastRunCompleted = false;
   readonly asyncLock = new AsyncLock();
   readonly tmdb = new TheMovieDb();
 
@@ -665,6 +674,12 @@ class BaseScanner<T> {
       );
     }
 
+    // Reset per-run dedup tracking BEFORE flipping running flag so the first
+    // processed item starts with a clean slate.
+    this.processedKeys = new Set<string>();
+    this.duplicatesSkipped = 0;
+    this.lastRunCompleted = false;
+
     this.running = true;
 
     return sessionId;
@@ -673,10 +688,32 @@ class BaseScanner<T> {
   /**
    * Call at end of run loop to perform cleanup
    */
-  protected endRun(sessionId: string): void {
+  protected endRun(sessionId: string, completed = false): void {
     if (this.sessionId === sessionId) {
+      // Snapshot dedup metrics BEFORE flipping running so the values survive
+      // for the next status() poll after the scan completes.
+      this.lastRunDuplicatesSkipped = this.duplicatesSkipped;
+      this.lastRunAt = Date.now();
+      this.lastRunCompleted = completed;
       this.running = false;
     }
+  }
+
+  /**
+   * Per-scan duplicate detection helper. Returns `true` if `key` was already
+   * processed during the current run (and increments `duplicatesSkipped`),
+   * or `false` if it is new (and records it for future calls).
+   *
+   * Subclasses should call this at the top of `processItem()` BEFORE any
+   * TMDb resolution / network work to keep the gate cheap.
+   */
+  protected markDuplicate(key: string): boolean {
+    if (this.processedKeys.has(key)) {
+      this.duplicatesSkipped += 1;
+      return true;
+    }
+    this.processedKeys.add(key);
+    return false;
   }
 
   public cancel(): void {

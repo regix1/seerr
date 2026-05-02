@@ -6,7 +6,7 @@ import AdvancedRequester from '@app/components/RequestModal/AdvancedRequester';
 import QuotaDisplay from '@app/components/RequestModal/QuotaDisplay';
 import SearchByNameModal from '@app/components/RequestModal/SearchByNameModal';
 import useSettings from '@app/hooks/useSettings';
-import { useUser } from '@app/hooks/useUser';
+import { Permission, Permission2, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import { ANIME_KEYWORD_ID } from '@server/api/themoviedb/constants';
@@ -15,7 +15,6 @@ import type { MediaRequest } from '@server/entity/MediaRequest';
 import type SeasonRequest from '@server/entity/SeasonRequest';
 import type { NonFunctionProperties } from '@server/interfaces/api/common';
 import type { QuotaResponse } from '@server/interfaces/api/userInterfaces';
-import { Permission } from '@server/lib/permissions';
 import type { TvDetails } from '@server/models/Tv';
 import axios from 'axios';
 import { useState } from 'react';
@@ -50,7 +49,6 @@ const messages = defineMessages('components.RequestModal', {
   autoapproval: 'Automatic Approval',
   requesterror: 'Something went wrong while submitting the request.',
   pendingapproval: 'Your request is pending approval.',
-  hiddenRequest: 'Hide this request from other users',
 });
 
 interface RequestModalProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -76,7 +74,6 @@ const TvRequestModal = ({
     (season) => season.seasonNumber
   );
   const { data, error } = useSWR<TvDetails>(`/api/v1/tv/${tmdbId}`);
-  const [isHidden, setIsHidden] = useState(false);
   const [requestOverrides, setRequestOverrides] =
     useState<RequestOverrides | null>(null);
   const [selectedSeasons, setSelectedSeasons] = useState<number[]>(
@@ -201,7 +198,6 @@ const TvRequestModal = ({
         tvdbId: tvdbId ?? data?.externalIds.tvdbId,
         mediaType: 'tv',
         is4k,
-        isHidden,
         seasons: settings.currentSettings.partialRequestsEnabled
           ? selectedSeasons.sort((a, b) => a - b)
           : getAllSeasons().filter(
@@ -376,7 +372,7 @@ const TvRequestModal = ({
     return seasonRequest;
   };
 
-  const isOwner = editRequest && editRequest.requestedBy.id === user?.id;
+  const isOwner = editRequest && editRequest.requestedBy?.id === user?.id;
 
   return data && !error && !data.externalIds.tvdbId && searchModal.show ? (
     <SearchByNameModal
@@ -468,9 +464,14 @@ const TvRequestModal = ({
       {editRequest
         ? isOwner
           ? intl.formatMessage(messages.pendingapproval)
-          : intl.formatMessage(messages.requestfrom, {
-              username: editRequest?.requestedBy.displayName,
-            })
+          : hasPermission(
+                [Permission2.VIEW_REQUESTER, Permission.MANAGE_REQUESTS],
+                { type: 'or' }
+              )
+            ? intl.formatMessage(messages.requestfrom, {
+                username: editRequest?.requestedBy?.displayName,
+              })
+            : intl.formatMessage(messages.pendingapproval)
         : null}
       {hasPermission(
         [
@@ -737,23 +738,6 @@ const TvRequestModal = ({
               : undefined
           }
         />
-      )}
-      {!editRequest && hasPermission(Permission.HIDDEN_REQUEST) && (
-        <div className="mt-4 flex items-center">
-          <input
-            type="checkbox"
-            id="hidden-request"
-            checked={isHidden}
-            onChange={(e) => setIsHidden(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-indigo-500 focus:ring-indigo-500"
-          />
-          <label
-            htmlFor="hidden-request"
-            className="ml-2 text-sm text-gray-300"
-          >
-            {intl.formatMessage(messages.hiddenRequest)}
-          </label>
-        </div>
       )}
     </Modal>
   );

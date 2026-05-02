@@ -21,13 +21,54 @@ import type {
   MediaRequestBody,
   RequestResultsResponse,
 } from '@server/interfaces/api/requestInterfaces';
-import { Permission } from '@server/lib/permissions';
+import { Permission, Permission2 } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
 import { Router } from 'express';
 
 const requestRoutes = Router();
+
+/**
+ * View-permission helper used for `requestedBy` redaction. Callers without
+ * `VIEW_REQUESTER` / `MANAGE_REQUESTS` MUST NOT receive
+ * other users' identity in the JSON payload (frontend gating alone is
+ * insufficient — the value never leaves the server in that case).
+ */
+const canViewRequester = (user?: User): boolean => {
+  return (
+    !!user &&
+    user.hasPermission(
+      [Permission2.VIEW_REQUESTER, Permission.MANAGE_REQUESTS],
+      { type: 'or' }
+    )
+  );
+};
+
+/**
+ * Strip `requestedBy` from a request object IF the viewer cannot see other
+ * users' identity AND the viewer is not the request owner. Mutates a shallow
+ * copy and returns it; the original entity is untouched.
+ */
+const redactRequester = <T extends { requestedBy?: User | null }>(
+  viewer: User | undefined,
+  request: T
+): T => {
+  if (!request || !request.requestedBy) {
+    return request;
+  }
+  if (viewer && viewer.id === request.requestedBy.id) {
+    return request;
+  }
+  if (canViewRequester(viewer)) {
+    return request;
+  }
+  // Strip the field server-side; downstream callers see `requestedBy:
+  // undefined` and the frontend renders the privacy-preserving fallback.
+  const cloned = { ...request } as T & { requestedBy?: User | null };
+  delete cloned.requestedBy;
+  return cloned;
+};
 
 requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
   '/',
@@ -160,14 +201,6 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
         });
       }
 
-      // Filter hidden requests: non-privileged users can only see their own hidden requests
-      if (!req.user?.hasPermission(Permission.MANAGE_REQUESTS)) {
-        query = query.andWhere(
-          '(request.isHidden = false OR requestedBy.id = :currentUserId)',
-          { currentUserId: req.user?.id }
-        );
-      }
-
       switch (mediaType) {
         case 'all':
           break;
@@ -275,6 +308,12 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
         });
       }
 
+      // Server-side requester redaction (criterion 32). Frontend gating is not
+      // enough — strip `requestedBy` from rows the viewer is not entitled to.
+      const safeRequests = mappedRequests.map((r) =>
+        r ? redactRequester(req.user, r) : r
+      );
+
       return res.status(200).json({
         pageInfo: {
           pages: Math.ceil(requestCount / pageSize),
@@ -282,7 +321,7 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
           results: requestCount,
           page: Math.ceil(skip / pageSize) + 1,
         },
-        results: mappedRequests,
+        results: safeRequests,
         serviceErrors: {
           radarr: radarrServers
             .filter((s) => !s.profiles)
@@ -347,23 +386,11 @@ requestRoutes.get('/count', async (req, res, next) => {
   const requestRepository = getRepository(MediaRequest);
 
   try {
-    const isPrivileged = req.user?.hasPermission(Permission.MANAGE_REQUESTS);
-
     const createBaseQuery = () => {
-      const q = requestRepository
+      return requestRepository
         .createQueryBuilder('request')
         .innerJoinAndSelect('request.media', 'media')
         .leftJoin('request.requestedBy', 'requestedBy');
-
-      // Filter hidden requests for non-privileged users
-      if (!isPrivileged) {
-        q.andWhere(
-          '(request.isHidden = false OR requestedBy.id = :currentUserId)',
-          { currentUserId: req.user?.id }
-        );
-      }
-
-      return q;
     };
 
     const totalCount = await createBaseQuery().getCount();
@@ -457,18 +484,6 @@ requestRoutes.get('/:requestId', async (req, res, next) => {
       relations: { requestedBy: true, modifiedBy: true },
     });
 
-    // Hidden requests return 404 for unauthorized users
-    if (
-      request.isHidden &&
-      request.requestedBy.id !== req.user?.id &&
-      !req.user?.hasPermission(Permission.MANAGE_REQUESTS)
-    ) {
-      return next({
-        status: 404,
-        message: 'Request not found.',
-      });
-    }
-
     if (
       request.requestedBy.id !== req.user?.id &&
       !req.user?.hasPermission(
@@ -482,7 +497,7 @@ requestRoutes.get('/:requestId', async (req, res, next) => {
       });
     }
 
-    return res.status(200).json(request);
+    return res.status(200).json(redactRequester(req.user, request));
   } catch (e) {
     logger.debug('Failed to retrieve request.', {
       label: 'API',
@@ -518,51 +533,6 @@ requestRoutes.put<{ requestId: string }>(
           status: 403,
           message: 'You do not have permission to modify this request.',
         });
-      }
-
-      // Handle isHidden toggle
-      if (req.body.isHidden !== undefined) {
-        const canToggleHidden =
-          // Owner with HIDDEN_REQUEST permission can toggle their own
-          (request.requestedBy.id === req.user?.id &&
-            req.user?.hasPermission(
-              [Permission.HIDDEN_REQUEST, Permission.MANAGE_REQUESTS],
-              { type: 'or' }
-            )) ||
-          // MANAGE_REQUESTS/admin can toggle any
-          req.user?.hasPermission(Permission.MANAGE_REQUESTS);
-
-        if (!canToggleHidden) {
-          return next({
-            status: 403,
-            message:
-              'You do not have permission to change the hidden status of this request.',
-          });
-        }
-
-        request.isHidden = req.body.isHidden;
-
-        // Sync Media.isHidden with request hidden state
-        const mediaRepository = getRepository(Media);
-        const media = await mediaRepository.findOne({
-          where: { id: request.media.id },
-          relations: { requests: true },
-        });
-
-        if (media) {
-          if (req.body.isHidden) {
-            media.isHidden = true;
-            await mediaRepository.save(media);
-          } else {
-            const hasOtherHiddenRequests = media.requests.some(
-              (r) => r.id !== request.id && r.isHidden
-            );
-            if (!hasOtherHiddenRequests) {
-              media.isHidden = false;
-              await mediaRepository.save(media);
-            }
-          }
-        }
       }
 
       let requestUser = request.requestedBy;
@@ -673,7 +643,7 @@ requestRoutes.put<{ requestId: string }>(
         await requestRepository.save(request);
       }
 
-      return res.status(200).json(request);
+      return res.status(200).json(redactRequester(req.user, request));
     } catch (e) {
       next({ status: 500, message: e.message });
     }
@@ -689,8 +659,9 @@ requestRoutes.delete('/:requestId', async (req, res, next) => {
       relations: { requestedBy: true, modifiedBy: true },
     });
 
+    // was Permission.MANAGE_REQUESTS — re-pointed to granular DELETE_REQUEST
     if (
-      !req.user?.hasPermission(Permission.MANAGE_REQUESTS) &&
+      !req.user?.hasPermission(Permission2.DELETE_REQUEST) &&
       (request.requestedBy.id !== req.user?.id ||
         request.status !== MediaRequestStatus.PENDING)
     ) {
@@ -700,26 +671,7 @@ requestRoutes.delete('/:requestId', async (req, res, next) => {
       });
     }
 
-    const wasHidden = request.isHidden;
-    const mediaId = request.media.id;
-
     await requestRepository.remove(request);
-
-    if (wasHidden) {
-      const mediaRepository = getRepository(Media);
-      const media = await mediaRepository.findOne({
-        where: { id: mediaId },
-        relations: { requests: true },
-      });
-
-      if (media) {
-        const hasOtherHiddenRequests = media.requests.some((r) => r.isHidden);
-        if (!hasOtherHiddenRequests) {
-          media.isHidden = false;
-          await mediaRepository.save(media);
-        }
-      }
-    }
 
     return res.status(204).send();
   } catch (e) {
@@ -735,7 +687,8 @@ requestRoutes.post<{
   requestId: string;
 }>(
   '/:requestId/retry',
-  isAuthenticated(Permission.MANAGE_REQUESTS),
+  // was Permission.MANAGE_REQUESTS — re-pointed to granular RETRY_REQUEST
+  isAuthenticated(Permission2.RETRY_REQUEST),
   async (req, res, next) => {
     const requestRepository = getRepository(MediaRequest);
 
@@ -750,7 +703,7 @@ requestRoutes.post<{
       request.modifiedBy = req.user;
       await requestRepository.save(request);
 
-      return res.status(200).json(request);
+      return res.status(200).json(redactRequester(req.user, request));
     } catch (e) {
       logger.error('Error processing request retry', {
         label: 'Media Request',
@@ -766,7 +719,11 @@ requestRoutes.post<{
   status: 'pending' | 'approve' | 'decline';
 }>(
   '/:requestId/:status',
-  isAuthenticated(Permission.MANAGE_REQUESTS),
+  // was isAuthenticated(Permission.MANAGE_REQUESTS) — split into per-status
+  // checks below (approve -> APPROVE_REQUEST, decline/pending -> DECLINE_REQUEST).
+  isAuthenticated([Permission2.APPROVE_REQUEST, Permission2.DECLINE_REQUEST], {
+    type: 'or',
+  }),
   async (req, res, next) => {
     const requestRepository = getRepository(MediaRequest);
 
@@ -777,24 +734,36 @@ requestRoutes.post<{
       });
 
       let newStatus: MediaRequestStatus;
+      // was Permission.MANAGE_REQUESTS — re-pointed per status to granular bits
+      let requiredPermission: Permission2;
 
       switch (req.params.status) {
         case 'pending':
           newStatus = MediaRequestStatus.PENDING;
+          requiredPermission = Permission2.DECLINE_REQUEST;
           break;
         case 'approve':
           newStatus = MediaRequestStatus.APPROVED;
+          requiredPermission = Permission2.APPROVE_REQUEST;
           break;
         case 'decline':
           newStatus = MediaRequestStatus.DECLINED;
+          requiredPermission = Permission2.DECLINE_REQUEST;
           break;
+      }
+
+      if (!req.user?.hasPermission(requiredPermission)) {
+        return next({
+          status: 403,
+          message: `You do not have permission to ${req.params.status} this request.`,
+        });
       }
 
       request.status = newStatus;
       request.modifiedBy = req.user;
       await requestRepository.save(request);
 
-      return res.status(200).json(request);
+      return res.status(200).json(redactRequester(req.user, request));
     } catch (e) {
       logger.error('Error processing request update', {
         label: 'Media Request',

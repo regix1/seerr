@@ -3,14 +3,13 @@ import Modal from '@app/components/Common/Modal';
 import type { RequestOverrides } from '@app/components/RequestModal/AdvancedRequester';
 import AdvancedRequester from '@app/components/RequestModal/AdvancedRequester';
 import QuotaDisplay from '@app/components/RequestModal/QuotaDisplay';
-import { useUser } from '@app/hooks/useUser';
+import { Permission, Permission2, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import { MediaStatus } from '@server/constants/media';
 import type { MediaRequest } from '@server/entity/MediaRequest';
 import type { NonFunctionProperties } from '@server/interfaces/api/common';
 import type { QuotaResponse } from '@server/interfaces/api/userInterfaces';
-import { Permission } from '@server/lib/permissions';
 import type { MovieDetails } from '@server/models/Movie';
 import axios from 'axios';
 import { useCallback, useEffect, useState } from 'react';
@@ -35,7 +34,6 @@ const messages = defineMessages('components.RequestModal', {
   requestApproved: 'Request for <strong>{title}</strong> approved!',
   requesterror: 'Something went wrong while submitting the request.',
   pendingapproval: 'Your request is pending approval.',
-  hiddenRequest: 'Hide this request from other users',
 });
 
 interface RequestModalProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -56,7 +54,6 @@ const MovieRequestModal = ({
   is4k = false,
 }: RequestModalProps) => {
   const [isUpdating, setIsUpdating] = useState(false);
-  const [isHidden, setIsHidden] = useState(false);
   const [requestOverrides, setRequestOverrides] =
     useState<RequestOverrides | null>(null);
   const { addToast } = useToasts();
@@ -96,7 +93,6 @@ const MovieRequestModal = ({
         mediaId: data?.id,
         mediaType: 'movie',
         is4k,
-        isHidden,
         ...overrideParams,
       });
       mutate('/api/v1/request?filter=all&take=10&sort=modified&skip=0');
@@ -140,7 +136,6 @@ const MovieRequestModal = ({
     data?.id,
     data?.title,
     is4k,
-    isHidden,
     onComplete,
     addToast,
     intl,
@@ -227,7 +222,7 @@ const MovieRequestModal = ({
   };
 
   if (editRequest) {
-    const isOwner = editRequest.requestedBy.id === user?.id;
+    const isOwner = editRequest.requestedBy?.id === user?.id;
 
     return (
       <Modal
@@ -285,9 +280,14 @@ const MovieRequestModal = ({
       >
         {isOwner
           ? intl.formatMessage(messages.pendingapproval)
-          : intl.formatMessage(messages.requestfrom, {
-              username: editRequest.requestedBy.displayName,
-            })}
+          : hasPermission(
+                [Permission2.VIEW_REQUESTER, Permission.MANAGE_REQUESTS],
+                { type: 'or' }
+              )
+            ? intl.formatMessage(messages.requestfrom, {
+                username: editRequest.requestedBy?.displayName,
+              })
+            : intl.formatMessage(messages.pendingapproval)}
         {(hasPermission(Permission.REQUEST_ADVANCED) ||
           hasPermission(Permission.MANAGE_REQUESTS)) && (
           <AdvancedRequester
@@ -367,23 +367,6 @@ const MovieRequestModal = ({
             setRequestOverrides(overrides);
           }}
         />
-      )}
-      {!editRequest && hasPermission(Permission.HIDDEN_REQUEST) && (
-        <div className="mt-4 flex items-center">
-          <input
-            type="checkbox"
-            id="hidden-request"
-            checked={isHidden}
-            onChange={(e) => setIsHidden(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-indigo-500 focus:ring-indigo-500"
-          />
-          <label
-            htmlFor="hidden-request"
-            className="ml-2 text-sm text-gray-300"
-          >
-            {intl.formatMessage(messages.hiddenRequest)}
-          </label>
-        </div>
       )}
     </Modal>
   );

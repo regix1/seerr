@@ -6,7 +6,7 @@ import Tooltip from '@app/components/Common/Tooltip';
 import RequestModal from '@app/components/RequestModal';
 import StatusBadge from '@app/components/StatusBadge';
 import useDeepLinks from '@app/hooks/useDeepLinks';
-import { Permission, useUser } from '@app/hooks/useUser';
+import { Permission, Permission2, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import { refreshIntervalHelper } from '@app/utils/refreshIntervalHelper';
@@ -43,7 +43,6 @@ const messages = defineMessages('components.RequestCard', {
   editrequest: 'Edit Request',
   cancelrequest: 'Cancel Request',
   deleterequest: 'Delete Request',
-  hidden: 'Hidden',
   unknowntitle: 'Unknown Title',
 });
 
@@ -66,7 +65,7 @@ interface RequestCardErrorProps {
 }
 
 const RequestCardError = ({ requestData }: RequestCardErrorProps) => {
-  const { hasPermission } = useUser();
+  const { user, hasPermission } = useUser();
   const intl = useIntl();
 
   const { mediaUrl: plexUrl, mediaUrl4k: plexUrl4k } = useDeepLinks({
@@ -107,31 +106,33 @@ const RequestCardError = ({ requestData }: RequestCardErrorProps) => {
             </div>
             {requestData && (
               <>
-                {hasPermission(
-                  [Permission.MANAGE_REQUESTS, Permission.REQUEST_VIEW],
-                  { type: 'or' }
-                ) && (
-                  <div className="card-field !hidden sm:!block">
-                    <Link
-                      href={`/users/${requestData.requestedBy.id}`}
-                      className="group flex items-center"
-                    >
-                      <span className="avatar-sm">
-                        <CachedImage
-                          type="avatar"
-                          src={requestData.requestedBy.avatar}
-                          alt=""
-                          className="avatar-sm object-cover"
-                          width={20}
-                          height={20}
-                        />
-                      </span>
-                      <span className="truncate group-hover:underline">
-                        {requestData.requestedBy.displayName}
-                      </span>
-                    </Link>
-                  </div>
-                )}
+                {requestData.requestedBy &&
+                  (hasPermission(
+                    [Permission2.VIEW_REQUESTER, Permission.MANAGE_REQUESTS],
+                    { type: 'or' }
+                  ) ||
+                    requestData.requestedBy.id === user?.id) && (
+                    <div className="card-field !hidden sm:!block">
+                      <Link
+                        href={`/users/${requestData.requestedBy.id}`}
+                        className="group flex items-center"
+                      >
+                        <span className="avatar-sm">
+                          <CachedImage
+                            type="avatar"
+                            src={requestData.requestedBy.avatar}
+                            alt=""
+                            className="avatar-sm object-cover"
+                            width={20}
+                            height={20}
+                          />
+                        </span>
+                        <span className="truncate group-hover:underline">
+                          {requestData.requestedBy.displayName}
+                        </span>
+                      </Link>
+                    </div>
+                  )}
                 <div className="mt-2 flex items-center text-sm sm:mt-1">
                   <span className="mr-2 hidden font-bold sm:block">
                     {intl.formatMessage(globalMessages.status)}
@@ -181,7 +182,11 @@ const RequestCardError = ({ requestData }: RequestCardErrorProps) => {
               </>
             )}
             <div className="flex flex-1 items-end space-x-2">
-              {hasPermission(Permission.MANAGE_REQUESTS) &&
+              {/* was Permission.MANAGE_REQUESTS */}
+              {hasPermission(
+                [Permission2.DELETE_REQUEST, Permission.MANAGE_REQUESTS],
+                { type: 'or' }
+              ) &&
                 requestData?.media.id && (
                   <>
                     <Button
@@ -343,13 +348,11 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
         }}
       />
       <div
-        className={`relative flex w-72 overflow-hidden rounded-xl bg-gray-800 bg-cover bg-center p-4 text-gray-400 shadow ring-1 sm:w-96 ${request.isHidden ? 'ring-yellow-600/50' : 'ring-gray-700'}`}
+        className="relative flex w-72 overflow-hidden rounded-xl bg-gray-800 bg-cover bg-center p-4 text-gray-400 shadow ring-1 ring-gray-700 sm:w-96"
         data-testid="request-card"
       >
         {title.backdropPath && (
-          <div
-            className={`absolute inset-0 z-0 ${request.isHidden ? 'grayscale' : ''}`}
-          >
+          <div className="absolute inset-0 z-0">
             <CachedImage
               type="tmdb"
               alt=""
@@ -386,31 +389,34 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
           >
             {isMovie(title) ? title.title : title.name}
           </Link>
-          {hasPermission(
-            [Permission.MANAGE_REQUESTS, Permission.REQUEST_VIEW],
-            { type: 'or' }
-          ) && (
-            <div className="card-field">
-              <Link
-                href={`/users/${requestData.requestedBy.id}`}
-                className="group flex items-center"
-              >
-                <span className="avatar-sm">
-                  <CachedImage
-                    type="avatar"
-                    src={requestData.requestedBy.avatar}
-                    alt=""
-                    className="avatar-sm object-cover"
-                    width={20}
-                    height={20}
-                  />
-                </span>
-                <span className="truncate font-semibold group-hover:text-white group-hover:underline">
-                  {requestData.requestedBy.displayName}
-                </span>
-              </Link>
-            </div>
-          )}
+          {/* VIEW_REQUESTER gate: also show to self */}
+          {requestData.requestedBy &&
+            (hasPermission(
+              [Permission2.VIEW_REQUESTER, Permission.MANAGE_REQUESTS],
+              { type: 'or' }
+            ) ||
+              requestData.requestedBy.id === user?.id) && (
+              <div className="card-field">
+                <Link
+                  href={`/users/${requestData.requestedBy.id}`}
+                  className="group flex items-center"
+                >
+                  <span className="avatar-sm">
+                    <CachedImage
+                      type="avatar"
+                      src={requestData.requestedBy.avatar}
+                      alt=""
+                      className="avatar-sm object-cover"
+                      width={20}
+                      height={20}
+                    />
+                  </span>
+                  <span className="truncate font-semibold group-hover:text-white group-hover:underline">
+                    {requestData.requestedBy.displayName}
+                  </span>
+                </Link>
+              </div>
+            )}
           {!isMovie(title) && request.seasons.length > 0 && (
             <div className="my-0.5 hidden items-center text-sm sm:my-1 sm:flex">
               <span className="mr-2 font-bold">
@@ -484,15 +490,14 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                 }
               />
             )}
-            {request.isHidden && hasPermission(Permission.MANAGE_REQUESTS) && (
-              <Badge badgeType="warning" className="ml-2">
-                {intl.formatMessage(messages.hidden)}
-              </Badge>
-            )}
           </div>
           <div className="flex flex-1 items-end space-x-2">
             {requestData.status === MediaRequestStatus.FAILED &&
-              hasPermission(Permission.MANAGE_REQUESTS) && (
+              // was Permission.MANAGE_REQUESTS
+              hasPermission(
+                [Permission2.RETRY_REQUEST, Permission.MANAGE_REQUESTS],
+                { type: 'or' }
+              ) && (
                 <Button
                   buttonType="primary"
                   buttonSize="sm"
@@ -509,7 +514,15 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                 </Button>
               )}
             {requestData.status === MediaRequestStatus.PENDING &&
-              hasPermission(Permission.MANAGE_REQUESTS) && (
+              // was Permission.MANAGE_REQUESTS
+              hasPermission(
+                [
+                  Permission2.APPROVE_REQUEST,
+                  Permission2.DECLINE_REQUEST,
+                  Permission.MANAGE_REQUESTS,
+                ],
+                { type: 'or' }
+              ) && (
                 <>
                   <div>
                     <Button
@@ -572,12 +585,26 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                 </>
               )}
             {requestData.status === MediaRequestStatus.PENDING &&
-              !hasPermission(Permission.MANAGE_REQUESTS) &&
-              requestData.requestedBy.id === user?.id &&
+              !hasPermission(
+                [
+                  Permission2.APPROVE_REQUEST,
+                  Permission2.DECLINE_REQUEST,
+                  Permission.MANAGE_REQUESTS,
+                ],
+                { type: 'or' }
+              ) &&
+              requestData.requestedBy?.id === user?.id &&
               (requestData.type === 'tv' ||
                 hasPermission(Permission.REQUEST_ADVANCED)) && (
                 <div>
-                  {!hasPermission(Permission.MANAGE_REQUESTS) && (
+                  {!hasPermission(
+                    [
+                      Permission2.APPROVE_REQUEST,
+                      Permission2.DECLINE_REQUEST,
+                      Permission.MANAGE_REQUESTS,
+                    ],
+                    { type: 'or' }
+                  ) && (
                     <Button
                       buttonType="primary"
                       buttonSize="sm"
@@ -603,8 +630,15 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                 </div>
               )}
             {requestData.status === MediaRequestStatus.PENDING &&
-              !hasPermission(Permission.MANAGE_REQUESTS) &&
-              requestData.requestedBy.id === user?.id && (
+              !hasPermission(
+                [
+                  Permission2.APPROVE_REQUEST,
+                  Permission2.DECLINE_REQUEST,
+                  Permission.MANAGE_REQUESTS,
+                ],
+                { type: 'or' }
+              ) &&
+              requestData.requestedBy?.id === user?.id && (
                 <div>
                   <Button
                     buttonType="danger"

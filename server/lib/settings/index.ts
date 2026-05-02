@@ -148,6 +148,7 @@ export interface MainSettings {
   applicationUrl: string;
   cacheImages: boolean;
   defaultPermissions: number;
+  defaultPermissions2: number;
   defaultQuotas: {
     movie: Quota;
     tv: Quota;
@@ -165,9 +166,10 @@ export interface MainSettings {
   blocklistedTags: string;
   blocklistedTagsLimit: number;
   /**
-   * @deprecated Use plexLoginEnabled / jellyfinLoginEnabled / embyLoginEnabled. Kept for back-compat reads only.
+   * @deprecated Use `plexLoginEnabled` / `jellyfinLoginEnabled` / `embyLoginEnabled` instead.
+   * Kept for back-compat reads only — new code should never branch on this value.
    */
-  mediaServerType: number;
+  mediaServerType: MediaServerType;
   plexLoginEnabled?: boolean;
   jellyfinLoginEnabled?: boolean;
   embyLoginEnabled?: boolean;
@@ -434,6 +436,7 @@ class Settings {
         applicationUrl: '',
         cacheImages: false,
         defaultPermissions: Permission.REQUEST,
+        defaultPermissions2: 0,
         defaultQuotas: {
           movie: {},
           tv: {},

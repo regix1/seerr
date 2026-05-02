@@ -105,6 +105,7 @@ const SettingsTabs = ({
                   ? hasPermission(
                       route.requiredPermission,
                       currentUser?.permissions ?? 0,
+                      0,
                       route.permissionType
                     )
                   : true)
@@ -155,6 +156,7 @@ const SettingsTabs = ({
                     ? hasPermission(
                         route.requiredPermission,
                         currentUser?.permissions ?? 0,
+                        0,
                         route.permissionType
                       )
                     : true)

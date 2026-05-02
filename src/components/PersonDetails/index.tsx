@@ -183,8 +183,6 @@ const PersonDetails = () => {
                 summary={media.overview}
                 mediaType={media.mediaType as 'movie' | 'tv'}
                 status={media.mediaInfo?.status}
-                isHidden={media.mediaInfo?.isHidden}
-                mediaId={media.mediaInfo?.id}
                 canExpand
               />
               {media.character && (
@@ -226,8 +224,6 @@ const PersonDetails = () => {
                 summary={media.overview}
                 mediaType={media.mediaType as 'movie' | 'tv'}
                 status={media.mediaInfo?.status}
-                isHidden={media.mediaInfo?.isHidden}
-                mediaId={media.mediaInfo?.id}
                 canExpand
               />
               {media.job && (

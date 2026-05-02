@@ -63,6 +63,7 @@ const SettingsUsers = () => {
             tvQuotaLimit: data?.defaultQuotas.tv.quotaLimit ?? 0,
             tvQuotaDays: data?.defaultQuotas.tv.quotaDays ?? 7,
             defaultPermissions: data?.defaultPermissions ?? 0,
+            defaultPermissions2: data?.defaultPermissions2 ?? 0,
           }}
           enableReinitialize
           onSubmit={async (values) => {
@@ -80,6 +81,7 @@ const SettingsUsers = () => {
                   },
                 },
                 defaultPermissions: values.defaultPermissions,
+                defaultPermissions2: values.defaultPermissions2,
               });
               mutate('/api/v1/settings/public');
 
@@ -168,8 +170,15 @@ const SettingsUsers = () => {
                       <div className="max-w-lg">
                         <PermissionEdit
                           currentPermission={values.defaultPermissions}
-                          onUpdate={(newPermissions) =>
+                          currentPermission2={values.defaultPermissions2}
+                          onUpdate={(newPermissions: number) =>
                             setFieldValue('defaultPermissions', newPermissions)
+                          }
+                          onUpdate2={(newPermissions2: number) =>
+                            setFieldValue(
+                              'defaultPermissions2',
+                              newPermissions2
+                            )
                           }
                         />
                       </div>

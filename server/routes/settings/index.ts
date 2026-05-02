@@ -82,6 +82,7 @@ settingsRoutes.post('/main', async (req, res) => {
     'applicationUrl',
     'cacheImages',
     'defaultPermissions',
+    'defaultPermissions2',
     'defaultQuotas',
     'hideAvailable',
     'hideBlocklisted',

@@ -19,7 +19,13 @@ interface SyncStatus {
     name: string;
     enabled: boolean;
   }[];
+  duplicatesSkipped?: number;
+  lastRunAt?: number;
+  lastRunDuplicatesSkipped?: number;
+  lastRunCompleted?: boolean;
 }
+
+export type { SyncStatus };
 
 type ProviderSettings<T extends Provider> = T extends 'jellyfin'
   ? JellyfinSettings

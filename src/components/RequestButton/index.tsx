@@ -80,14 +80,14 @@ const RequestButton = ({
   const activeRequest = useMemo(() => {
     return activeRequests && activeRequests.length > 0
       ? (activeRequests.find(
-          (request) => request.requestedBy.id === user?.id
+          (request) => request.requestedBy?.id === user?.id
         ) ?? activeRequests[0])
       : undefined;
   }, [activeRequests, user]);
   const active4kRequest = useMemo(() => {
     return active4kRequests && active4kRequests.length > 0
       ? (active4kRequests.find(
-          (request) => request.requestedBy.id === user?.id
+          (request) => request.requestedBy?.id === user?.id
         ) ?? active4kRequests[0])
       : undefined;
   }, [active4kRequests, user]);
@@ -128,7 +128,7 @@ const RequestButton = ({
   if (activeRequest || active4kRequest) {
     if (
       activeRequest &&
-      (activeRequest.requestedBy.id === user?.id ||
+      (activeRequest.requestedBy?.id === user?.id ||
         (activeRequests?.length === 1 &&
           hasPermission(Permission.MANAGE_REQUESTS)))
     ) {
@@ -198,7 +198,7 @@ const RequestButton = ({
 
     if (
       active4kRequest &&
-      (active4kRequest.requestedBy.id === user?.id ||
+      (active4kRequest.requestedBy?.id === user?.id ||
         (active4kRequests?.length === 1 &&
           hasPermission(Permission.MANAGE_REQUESTS)))
     ) {
@@ -293,7 +293,7 @@ const RequestButton = ({
     });
   } else if (
     mediaType === 'tv' &&
-    (!activeRequest || activeRequest.requestedBy.id !== user?.id) &&
+    (!activeRequest || activeRequest.requestedBy?.id !== user?.id) &&
     hasPermission([Permission.REQUEST, Permission.REQUEST_TV], {
       type: 'or',
     }) &&
@@ -340,7 +340,7 @@ const RequestButton = ({
     });
   } else if (
     mediaType === 'tv' &&
-    (!active4kRequest || active4kRequest.requestedBy.id !== user?.id) &&
+    (!active4kRequest || active4kRequest.requestedBy?.id !== user?.id) &&
     hasPermission([Permission.REQUEST_4K, Permission.REQUEST_4K_TV], {
       type: 'or',
     }) &&

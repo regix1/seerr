@@ -1,5 +1,4 @@
 import BlocklistBlock from '@app/components/BlocklistBlock';
-import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import ConfirmButton from '@app/components/Common/ConfirmButton';
@@ -12,11 +11,7 @@ import useSettings from '@app/hooks/useSettings';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
-import {
-  Bars4Icon,
-  EyeSlashIcon,
-  ServerIcon,
-} from '@heroicons/react/24/outline';
+import { Bars4Icon, ServerIcon } from '@heroicons/react/24/outline';
 import {
   CheckCircleIcon,
   DocumentMinusIcon,
@@ -37,7 +32,7 @@ import type { TvDetails } from '@server/models/Tv';
 import axios from 'axios';
 import Link from 'next/link';
 import { useIntl } from 'react-intl';
-import useSWR, { mutate } from 'swr';
+import useSWR from 'swr';
 
 const filterDuplicateDownloads = (
   items: DownloadingItem[] = []
@@ -80,9 +75,6 @@ const messages = defineMessages('components.ManageSlideOver', {
   playedby: 'Played By',
   movie: 'movie',
   tvshow: 'series',
-  hidden: 'Hidden',
-  hideMedia: 'Hide Media',
-  unhideMedia: 'Unhide Media',
 });
 
 const isMovie = (movie: MovieDetails | TvDetails): movie is MovieDetails => {
@@ -338,54 +330,6 @@ const ManageSlideOver = ({
             </div>
           </div>
         )}
-        {hasPermission(Permission.MANAGE_REQUESTS) &&
-          data.mediaInfo &&
-          (() => {
-            const isAnyHidden =
-              data.mediaInfo!.isHidden ||
-              data.mediaInfo!.requests?.some((r) => r.isHidden);
-            return (
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <EyeSlashIcon className="h-5 w-5 text-gray-400" />
-                    <span className="text-lg font-bold text-gray-200">
-                      {intl.formatMessage(messages.hidden)}
-                    </span>
-                    {isAnyHidden && (
-                      <Badge badgeType="warning">
-                        {intl.formatMessage(messages.hidden)}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                <Button
-                  buttonType={isAnyHidden ? 'warning' : 'ghost'}
-                  className="w-full"
-                  onClick={async () => {
-                    const endpoint = isAnyHidden ? 'unhide' : 'hide';
-                    await axios.post(
-                      `/api/v1/media/${data.mediaInfo?.id}/${endpoint}`
-                    );
-                    revalidate();
-                    mutate(
-                      '/api/v1/media?filter=allavailable&take=20&sort=mediaAdded'
-                    );
-                    mutate(
-                      '/api/v1/request?filter=all&take=10&sort=modified&skip=0'
-                    );
-                  }}
-                >
-                  <EyeSlashIcon />
-                  <span>
-                    {intl.formatMessage(
-                      isAnyHidden ? messages.unhideMedia : messages.hideMedia
-                    )}
-                  </span>
-                </Button>
-              </div>
-            );
-          })()}
         {hasPermission(Permission.ADMIN) &&
           (data.mediaInfo?.serviceUrl ||
             data.mediaInfo?.tautulliUrl ||

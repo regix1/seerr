@@ -37,6 +37,10 @@ const HAMA_AGENT = 'com.plexapp.agents.hama';
 type SyncStatus = StatusBase & {
   currentLibrary: Library;
   libraries: Library[];
+  duplicatesSkipped: number;
+  lastRunAt: number;
+  lastRunDuplicatesSkipped: number;
+  lastRunCompleted: boolean;
 };
 
 class PlexScanner
@@ -60,6 +64,10 @@ class PlexScanner
       total: this.totalSize ?? 0,
       currentLibrary: this.currentLibrary,
       libraries: this.libraries,
+      duplicatesSkipped: this.duplicatesSkipped,
+      lastRunAt: this.lastRunAt,
+      lastRunDuplicatesSkipped: this.lastRunDuplicatesSkipped,
+      lastRunCompleted: this.lastRunCompleted,
     };
   }
 
@@ -74,6 +82,7 @@ class PlexScanner
     }
 
     const sessionId = this.startRun();
+    let completed = false;
     try {
       const userRepository = getRepository(User);
       const admin = await userRepository.findOne({
@@ -157,14 +166,19 @@ class PlexScanner
         this.isRecentOnly
           ? 'Recently Added Scan Complete'
           : 'Full Scan Complete',
-        'info'
+        'info',
+        {
+          duplicatesSkipped: this.duplicatesSkipped,
+          totalProcessed: this.items?.length ?? 0,
+        }
       );
+      completed = true;
     } catch (e) {
       this.log('Scan interrupted', 'error', {
         errorMessage: e.message,
       });
     } finally {
-      this.endRun(sessionId);
+      this.endRun(sessionId, completed);
     }
   }
 
@@ -215,6 +229,17 @@ class PlexScanner
   }
 
   private async processItem(plexitem: PlexLibraryItem) {
+    // Dedup gate BEFORE any TMDb resolution / network work. Keys roll up to
+    // the show level when present so episode/season fan-out within the same
+    // grandparent counts once.
+    const dedupKey =
+      plexitem.grandparentRatingKey ??
+      plexitem.parentRatingKey ??
+      plexitem.ratingKey;
+    if (this.markDuplicate(String(dedupKey))) {
+      return;
+    }
+
     try {
       if (plexitem.type === 'movie') {
         await this.processPlexMovie(plexitem);

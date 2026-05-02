@@ -72,8 +72,6 @@ const TmdbTitleCard = ({
       userScore={title.voteAverage}
       year={title.releaseDate}
       mediaType={'movie'}
-      isHidden={title.mediaInfo?.isHidden}
-      mediaId={title.mediaInfo?.id}
       canExpand={canExpand}
       mutateParent={mutateParent}
     />
@@ -91,8 +89,6 @@ const TmdbTitleCard = ({
       userScore={title.voteAverage}
       year={title.firstAirDate}
       mediaType={'tv'}
-      isHidden={title.mediaInfo?.isHidden}
-      mediaId={title.mediaInfo?.id}
       canExpand={canExpand}
       mutateParent={mutateParent}
     />

@@ -42,8 +42,6 @@ interface TitleCardProps {
   canExpand?: boolean;
   inProgress?: boolean;
   isAddedToWatchlist?: number | boolean;
-  isHidden?: boolean;
-  mediaId?: number;
   mutateParent?: () => void;
 }
 
@@ -55,8 +53,6 @@ const messages = defineMessages('components.TitleCard', {
     '<strong>{title}</strong> Removed from watchlist  successfully!',
   watchlistCancel: 'watchlist for <strong>{title}</strong> canceled.',
   watchlistError: 'Something went wrong. Please try again.',
-  hideMedia: 'Hide Media',
-  unhideMedia: 'Unhide Media',
 });
 
 const TitleCard = ({
@@ -68,8 +64,6 @@ const TitleCard = ({
   status,
   mediaType,
   isAddedToWatchlist = false,
-  isHidden = false,
-  mediaId,
   inProgress = false,
   canExpand = false,
   mutateParent,
@@ -85,7 +79,6 @@ const TitleCard = ({
   const [toggleWatchlist, setToggleWatchlist] =
     useState<boolean>(!isAddedToWatchlist);
   const [showBlocklistModal, setShowBlocklistModal] = useState(false);
-  const [currentIsHidden, setCurrentIsHidden] = useState(isHidden);
   const cardRef = useRef<HTMLDivElement>(null);
 
   // Just to get the year from the date
@@ -96,10 +89,6 @@ const TitleCard = ({
   useEffect(() => {
     setCurrentStatus(status);
   }, [status]);
-
-  useEffect(() => {
-    setCurrentIsHidden(isHidden);
-  }, [isHidden]);
 
   const requestComplete = useCallback((newStatus: MediaStatus) => {
     setCurrentStatus(newStatus);
@@ -309,28 +298,6 @@ const TitleCard = ({
     setIsUpdating(false);
   };
 
-  const onClickToggleHideMedia = async (e: React.MouseEvent): Promise<void> => {
-    e.stopPropagation();
-    e.preventDefault();
-    if (!mediaId) return;
-
-    const newHidden = !currentIsHidden;
-    setCurrentIsHidden(newHidden);
-
-    try {
-      const endpoint = newHidden ? 'hide' : 'unhide';
-      await axios.post(`/api/v1/media/${mediaId}/${endpoint}`);
-      const swrKey =
-        mediaType === 'movie' ? `/api/v1/movie/${id}` : `/api/v1/tv/${id}`;
-      mutate(swrKey);
-      mutateParent?.();
-      mutate('/api/v1/media?filter=allavailable&take=20&sort=mediaAdded');
-      mutate('/api/v1/request?filter=all&take=10&sort=modified&skip=0');
-    } catch {
-      setCurrentIsHidden(!newHidden);
-    }
-  };
-
   const closeModal = useCallback(() => setShowRequestModal(false), []);
 
   const showRequestButton = hasPermission(
@@ -405,9 +372,7 @@ const TitleCard = ({
         role="link"
         tabIndex={0}
       >
-        <div
-          className={`absolute inset-0 h-full w-full overflow-hidden ${currentIsHidden ? 'grayscale' : ''}`}
-        >
+        <div className="absolute inset-0 h-full w-full overflow-hidden">
           <CachedImage
             type="tmdb"
             className="absolute inset-0 h-full w-full"
@@ -471,24 +436,6 @@ const TitleCard = ({
                       <EyeSlashIcon className={'h-3'} />
                     </Button>
                   )}
-                {hasPermission(Permission.MANAGE_REQUESTS) && mediaId && (
-                  <Tooltip
-                    content={intl.formatMessage(
-                      currentIsHidden
-                        ? messages.unhideMedia
-                        : messages.hideMedia
-                    )}
-                  >
-                    <Button
-                      buttonType={currentIsHidden ? 'warning' : 'ghost'}
-                      className="z-40"
-                      buttonSize={'sm'}
-                      onClick={onClickToggleHideMedia}
-                    >
-                      <EyeSlashIcon className={'h-3'} />
-                    </Button>
-                  </Tooltip>
-                )}
               </div>
             )}
             {showDetail &&
@@ -521,12 +468,6 @@ const TitleCard = ({
               </div>
             )}
           </div>
-          {currentIsHidden && (
-            <div className="absolute inset-0 z-30 flex items-center justify-center rounded-xl bg-gray-900/30">
-              <EyeSlashIcon className="h-10 w-10 text-white drop-shadow-lg" />
-            </div>
-          )}
-
           <Transition
             as={Fragment}
             show={isUpdating}

@@ -4,7 +4,7 @@ import CachedImage from '@app/components/Common/CachedImage';
 import Tooltip from '@app/components/Common/Tooltip';
 import RequestModal from '@app/components/RequestModal';
 import useRequestOverride from '@app/hooks/useRequestOverride';
-import { useUser } from '@app/hooks/useUser';
+import { Permission, Permission2, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import {
@@ -46,7 +46,7 @@ interface RequestBlockProps {
 }
 
 const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
-  const { user } = useUser();
+  const { user, hasPermission } = useUser();
   const intl = useIntl();
   const [isUpdating, setIsUpdating] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -95,33 +95,41 @@ const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
       <div className="px-4 py-3 text-gray-300">
         <div className="flex items-center justify-between">
           <div className="mr-6 min-w-0 flex-1 flex-col items-center text-sm leading-5">
-            <div className="white mb-1 flex flex-nowrap">
-              <span className="flex w-40 items-center truncate md:w-auto">
-                <Tooltip content={intl.formatMessage(messages.requestedby)}>
-                  <UserIcon className="mr-1.5 h-5 w-5 min-w-0 flex-shrink-0" />
-                </Tooltip>
-                <Link
-                  href={
-                    request.requestedBy.id === user?.id
-                      ? '/profile'
-                      : `/users/${request.requestedBy.id}`
-                  }
-                  className="flex items-center font-semibold text-gray-100 transition duration-300 hover:text-white hover:underline"
-                >
-                  <span className="avatar-sm">
-                    <CachedImage
-                      type="avatar"
-                      src={request.requestedBy.avatar}
-                      alt=""
-                      className="avatar-sm object-cover"
-                      width={20}
-                      height={20}
-                    />
+            {/* VIEW_REQUESTER gate: always show to request owner */}
+            {request.requestedBy &&
+              (hasPermission(
+                [Permission2.VIEW_REQUESTER, Permission.MANAGE_REQUESTS],
+                { type: 'or' }
+              ) ||
+                request.requestedBy.id === user?.id) && (
+                <div className="white mb-1 flex flex-nowrap">
+                  <span className="flex w-40 items-center truncate md:w-auto">
+                    <Tooltip content={intl.formatMessage(messages.requestedby)}>
+                      <UserIcon className="mr-1.5 h-5 w-5 min-w-0 flex-shrink-0" />
+                    </Tooltip>
+                    <Link
+                      href={
+                        request.requestedBy.id === user?.id
+                          ? '/profile'
+                          : `/users/${request.requestedBy.id}`
+                      }
+                      className="flex items-center font-semibold text-gray-100 transition duration-300 hover:text-white hover:underline"
+                    >
+                      <span className="avatar-sm">
+                        <CachedImage
+                          type="avatar"
+                          src={request.requestedBy.avatar}
+                          alt=""
+                          className="avatar-sm object-cover"
+                          width={20}
+                          height={20}
+                        />
+                      </span>
+                      {request.requestedBy.displayName}
+                    </Link>
                   </span>
-                  {request.requestedBy.displayName}
-                </Link>
-              </span>
-            </div>
+                </div>
+              )}
             {request.modifiedBy && (
               <div className="flex flex-nowrap">
                 <span className="flex w-40 items-center truncate md:w-auto">

@@ -5,6 +5,7 @@ import type { User } from '@app/hooks/useUser';
 import { Permission } from '@app/hooks/useUser';
 import defineMessages from '@app/utils/defineMessages';
 import type { PublicSettingsResponse } from '@server/interfaces/api/settingsInterfaces';
+import { Permission2 } from '@server/lib/permissions';
 import { useIntl } from 'react-intl';
 
 const getWatchlistMediaName = (
@@ -97,23 +98,66 @@ export const messages = defineMessages('components.PermissionEdit', {
   viewblocklistedItems: 'View blocklisted media.',
   viewblocklistedItemsDescription:
     'Grant permission to view blocklisted media.',
-  hiddenRequest: 'Hidden Requests',
-  hiddenRequestDescription:
-    'Grant permission to create hidden requests that are not visible to other users.',
+  // Permission2 — Advanced Request sub-permissions
+  requestadvancedtags: 'Advanced Tags',
+  requestadvancedtagsDescription:
+    'Grant permission to set custom tags on advanced media requests.',
+  requestadvancedpath: 'Advanced Root Folder / Path',
+  requestadvancedpathDescription:
+    'Grant permission to set a custom root folder path on advanced media requests.',
+  requestadvancedprofile: 'Advanced Quality Profile',
+  requestadvancedprofileDescription:
+    'Grant permission to select a custom quality profile on advanced media requests.',
+  // Permission2 — Manage Users sub-permissions
+  manageuserscreate: 'Create Users',
+  manageuserscreateDescription: 'Grant permission to create new user accounts.',
+  manageusersedit: 'Edit Users',
+  manageuserseditDescription:
+    'Grant permission to edit existing user accounts.',
+  manageuserspermissions: 'Edit User Permissions',
+  manageuserspermissionsDescription:
+    'Grant permission to modify user permission settings.',
+  manageusersdelete: 'Delete Users',
+  manageusersdeleteDescription: 'Grant permission to delete user accounts.',
+  // Permission2 — Manage Requests sub-permissions
+  approverequest: 'Approve Requests',
+  approverequestDescription: 'Grant permission to approve media requests.',
+  declinerequest: 'Decline Requests',
+  declinerequestDescription: 'Grant permission to decline media requests.',
+  deleterequest: 'Delete Requests',
+  deleterequestDescription: 'Grant permission to delete media requests.',
+  retryrequest: 'Retry Requests',
+  retryrequestDescription: 'Grant permission to retry failed media requests.',
+  // Permission2 — View Requests sub-permissions
+  viewrequester: 'View Requester Identity',
+  viewrequesterDescription:
+    'Grant permission to see which user submitted a media request.',
+  // Permission2 — Manage Issues sub-permissions
+  manageissuesresolve: 'Resolve Issues',
+  manageissuesresolveDescription: 'Grant permission to resolve media issues.',
+  manageissuesdelete: 'Delete Issues',
+  manageissuesdeleteDescription: 'Grant permission to delete media issues.',
+  manageissuescomment: 'Comment on Issues',
+  manageissuescommentDescription:
+    'Grant permission to add comments to media issues.',
 });
 
 interface PermissionEditProps {
   actingUser?: User;
   currentUser?: User;
   currentPermission: number;
+  currentPermission2: number;
   onUpdate: (newPermissions: number) => void;
+  onUpdate2: (newPermissions2: number) => void;
 }
 
 export const PermissionEdit = ({
   actingUser,
   currentUser,
   currentPermission,
+  currentPermission2,
   onUpdate,
+  onUpdate2,
 }: PermissionEditProps) => {
   const intl = useIntl();
   const settings = useSettings();
@@ -130,6 +174,38 @@ export const PermissionEdit = ({
       name: intl.formatMessage(messages.users),
       description: intl.formatMessage(messages.usersDescription),
       permission: Permission.MANAGE_USERS,
+      children: [
+        {
+          id: 'manageuserscreate',
+          name: intl.formatMessage(messages.manageuserscreate),
+          description: intl.formatMessage(
+            messages.manageuserscreateDescription
+          ),
+          permission2: Permission2.MANAGE_USERS_CREATE,
+        },
+        {
+          id: 'manageusersedit',
+          name: intl.formatMessage(messages.manageusersedit),
+          description: intl.formatMessage(messages.manageuserseditDescription),
+          permission2: Permission2.MANAGE_USERS_EDIT,
+        },
+        {
+          id: 'manageuserspermissions',
+          name: intl.formatMessage(messages.manageuserspermissions),
+          description: intl.formatMessage(
+            messages.manageuserspermissionsDescription
+          ),
+          permission2: Permission2.MANAGE_USERS_PERMISSIONS,
+        },
+        {
+          id: 'manageusersdelete',
+          name: intl.formatMessage(messages.manageusersdelete),
+          description: intl.formatMessage(
+            messages.manageusersdeleteDescription
+          ),
+          permission2: Permission2.MANAGE_USERS_DELETE,
+        },
+      ],
     },
     {
       id: 'managerequest',
@@ -142,12 +218,72 @@ export const PermissionEdit = ({
           name: intl.formatMessage(messages.advancedrequest),
           description: intl.formatMessage(messages.advancedrequestDescription),
           permission: Permission.REQUEST_ADVANCED,
+          children: [
+            {
+              id: 'requestadvancedtags',
+              name: intl.formatMessage(messages.requestadvancedtags),
+              description: intl.formatMessage(
+                messages.requestadvancedtagsDescription
+              ),
+              permission2: Permission2.REQUEST_ADVANCED_TAGS,
+            },
+            {
+              id: 'requestadvancedpath',
+              name: intl.formatMessage(messages.requestadvancedpath),
+              description: intl.formatMessage(
+                messages.requestadvancedpathDescription
+              ),
+              permission2: Permission2.REQUEST_ADVANCED_PATH,
+            },
+            {
+              id: 'requestadvancedprofile',
+              name: intl.formatMessage(messages.requestadvancedprofile),
+              description: intl.formatMessage(
+                messages.requestadvancedprofileDescription
+              ),
+              permission2: Permission2.REQUEST_ADVANCED_PROFILE,
+            },
+          ],
+        },
+        {
+          id: 'approverequest',
+          name: intl.formatMessage(messages.approverequest),
+          description: intl.formatMessage(messages.approverequestDescription),
+          permission2: Permission2.APPROVE_REQUEST,
+        },
+        {
+          id: 'declinerequest',
+          name: intl.formatMessage(messages.declinerequest),
+          description: intl.formatMessage(messages.declinerequestDescription),
+          permission2: Permission2.DECLINE_REQUEST,
+        },
+        {
+          id: 'deleterequest',
+          name: intl.formatMessage(messages.deleterequest),
+          description: intl.formatMessage(messages.deleterequestDescription),
+          permission2: Permission2.DELETE_REQUEST,
+        },
+        {
+          id: 'retryrequest',
+          name: intl.formatMessage(messages.retryrequest),
+          description: intl.formatMessage(messages.retryrequestDescription),
+          permission2: Permission2.RETRY_REQUEST,
         },
         {
           id: 'viewrequests',
           name: intl.formatMessage(messages.viewrequests),
           description: intl.formatMessage(messages.viewrequestsDescription),
           permission: Permission.REQUEST_VIEW,
+          children: [
+            {
+              id: 'viewrequester',
+              name: intl.formatMessage(messages.viewrequester),
+              description: intl.formatMessage(
+                messages.viewrequesterDescription
+              ),
+              permission2: Permission2.VIEW_REQUESTER,
+            },
+          ],
         },
         {
           id: 'viewrecent',
@@ -184,12 +320,6 @@ export const PermissionEdit = ({
           name: intl.formatMessage(messages.requestTv),
           description: intl.formatMessage(messages.requestTvDescription),
           permission: Permission.REQUEST_TV,
-        },
-        {
-          id: 'hidden-request',
-          name: intl.formatMessage(messages.hiddenRequest),
-          description: intl.formatMessage(messages.hiddenRequestDescription),
-          permission: Permission.HIDDEN_REQUEST,
         },
       ],
     },
@@ -335,6 +465,30 @@ export const PermissionEdit = ({
       permission: Permission.MANAGE_ISSUES,
       children: [
         {
+          id: 'manageissuesresolve',
+          name: intl.formatMessage(messages.manageissuesresolve),
+          description: intl.formatMessage(
+            messages.manageissuesresolveDescription
+          ),
+          permission2: Permission2.MANAGE_ISSUES_RESOLVE,
+        },
+        {
+          id: 'manageissuesdelete',
+          name: intl.formatMessage(messages.manageissuesdelete),
+          description: intl.formatMessage(
+            messages.manageissuesdeleteDescription
+          ),
+          permission2: Permission2.MANAGE_ISSUES_DELETE,
+        },
+        {
+          id: 'manageissuescomment',
+          name: intl.formatMessage(messages.manageissuescomment),
+          description: intl.formatMessage(
+            messages.manageissuescommentDescription
+          ),
+          permission2: Permission2.MANAGE_ISSUES_COMMENT,
+        },
+        {
           id: 'createissues',
           name: intl.formatMessage(messages.createissues),
           description: intl.formatMessage(messages.createissuesDescription),
@@ -375,7 +529,9 @@ export const PermissionEdit = ({
           actingUser={actingUser}
           currentUser={currentUser}
           currentPermission={currentPermission}
+          currentPermission2={currentPermission2}
           onUpdate={(newPermission) => onUpdate(newPermission)}
+          onUpdate2={(newPermission2) => onUpdate2(newPermission2)}
         />
       ))}
     </>

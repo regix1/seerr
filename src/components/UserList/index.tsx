@@ -927,7 +927,7 @@ const UserList = () => {
               <Table.TD>
                 {user.id === 1
                   ? intl.formatMessage(messages.owner)
-                  : hasPermission(Permission.ADMIN, user.permissions)
+                  : hasPermission(Permission.ADMIN, user.permissions, 0)
                     ? intl.formatMessage(messages.admin)
                     : intl.formatMessage(messages.user)}
               </Table.TD>
@@ -959,7 +959,7 @@ const UserList = () => {
                   disabled={
                     user.id === 1 ||
                     (currentUser?.id !== 1 &&
-                      hasPermission(Permission.ADMIN, user.permissions))
+                      hasPermission(Permission.ADMIN, user.permissions, 0))
                   }
                   onClick={() => setDeleteModal({ isOpen: true, user })}
                 >

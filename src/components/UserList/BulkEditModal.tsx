@@ -18,6 +18,11 @@ interface BulkEditProps {
   onSaving?: (isSaving: boolean) => void;
 }
 
+interface BulkPermissionState {
+  permissions: number;
+  permissions2: number;
+}
+
 const messages = defineMessages('components.UserList', {
   userssaved: 'User permissions saved successfully!',
   userfail: 'Something went wrong while saving user permissions.',
@@ -34,7 +39,10 @@ const BulkEditModal = ({
   const { user: currentUser } = useUser();
   const intl = useIntl();
   const { addToast } = useToasts();
-  const [currentPermission, setCurrentPermission] = useState(0);
+  const [permissionState, setPermissionState] = useState<BulkPermissionState>({
+    permissions: 0,
+    permissions2: 0,
+  });
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -48,7 +56,8 @@ const BulkEditModal = ({
       setIsSaving(true);
       const { data: updated } = await axios.put<User[]>(`/api/v1/user`, {
         ids: selectedUserIds,
-        permissions: currentPermission,
+        permissions: permissionState.permissions,
+        permissions2: permissionState.permissions2,
       });
       if (onComplete) {
         onComplete(updated);
@@ -74,16 +83,28 @@ const BulkEditModal = ({
         ({ permissions: aPerms }, { permissions: bPerms }) => {
           return {
             permissions:
-              aPerms === bPerms || hasPermission(Permission.ADMIN, aPerms)
+              aPerms === bPerms || hasPermission(Permission.ADMIN, aPerms, 0)
                 ? aPerms
                 : NaN,
           };
         },
         { permissions: selectedUsers[0].permissions }
       );
-      if (allPermissionsEqual) {
-        setCurrentPermission(allPermissionsEqual);
-      }
+      const { permissions2: allPermissions2Equal } = selectedUsers.reduce(
+        (
+          { permissions2: aPerms2 }: { permissions2: number },
+          { permissions2: bPerms2 }: { permissions2: number }
+        ) => {
+          return {
+            permissions2: aPerms2 === bPerms2 ? aPerms2 : NaN,
+          };
+        },
+        { permissions2: selectedUsers[0].permissions2 ?? 0 }
+      );
+      setPermissionState({
+        permissions: allPermissionsEqual || 0,
+        permissions2: allPermissions2Equal || 0,
+      });
     }
   }, [users, selectedUserIds]);
 
@@ -100,8 +121,20 @@ const BulkEditModal = ({
       <div className="mb-6">
         <PermissionEdit
           actingUser={currentUser}
-          currentPermission={currentPermission}
-          onUpdate={(newPermission) => setCurrentPermission(newPermission)}
+          currentPermission={permissionState.permissions}
+          currentPermission2={permissionState.permissions2}
+          onUpdate={(newPermission: number) =>
+            setPermissionState((prev) => ({
+              ...prev,
+              permissions: newPermission,
+            }))
+          }
+          onUpdate2={(newPermission2: number) =>
+            setPermissionState((prev) => ({
+              ...prev,
+              permissions2: newPermission2,
+            }))
+          }
         />
       </div>
     </Modal>

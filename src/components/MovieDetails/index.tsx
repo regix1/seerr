@@ -61,7 +61,7 @@ import { useRouter } from 'next/router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
-import useSWR, { mutate } from 'swr';
+import useSWR from 'swr';
 
 const messages = defineMessages('components.MovieDetails', {
   originaltitle: 'Original Title',
@@ -106,8 +106,6 @@ const messages = defineMessages('components.MovieDetails', {
   watchlistError: 'Something went wrong. Please try again.',
   removefromwatchlist: 'Remove From Watchlist',
   addtowatchlist: 'Add To Watchlist',
-  hideMedia: 'Hide Media',
-  unhideMedia: 'Unhide Media',
 });
 
 interface MovieDetailsProps {
@@ -687,40 +685,6 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
                 </Button>
               </Tooltip>
             )}
-          {hasPermission(Permission.MANAGE_REQUESTS) &&
-            data.mediaInfo &&
-            (() => {
-              const isAnyHidden =
-                data.mediaInfo!.isHidden ||
-                data.mediaInfo!.requests?.some((r) => r.isHidden);
-              return (
-                <Tooltip
-                  content={intl.formatMessage(
-                    isAnyHidden ? messages.unhideMedia : messages.hideMedia
-                  )}
-                >
-                  <Button
-                    buttonType={isAnyHidden ? 'warning' : 'ghost'}
-                    className="ml-2 first:ml-0"
-                    onClick={async () => {
-                      const endpoint = isAnyHidden ? 'unhide' : 'hide';
-                      await axios.post(
-                        `/api/v1/media/${data.mediaInfo?.id}/${endpoint}`
-                      );
-                      revalidate();
-                      mutate(
-                        '/api/v1/media?filter=allavailable&take=20&sort=mediaAdded'
-                      );
-                      mutate(
-                        '/api/v1/request?filter=all&take=10&sort=modified&skip=0'
-                      );
-                    }}
-                  >
-                    <EyeSlashIcon />
-                  </Button>
-                </Tooltip>
-              );
-            })()}
           {hasPermission(Permission.MANAGE_REQUESTS) &&
             data.mediaInfo &&
             (data.mediaInfo.jellyfinMediaId ||

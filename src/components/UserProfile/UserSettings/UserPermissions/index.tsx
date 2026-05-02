@@ -15,6 +15,16 @@ import { useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 
+interface UserPermissionsData {
+  permissions?: number;
+  permissions2?: number;
+}
+
+interface UserPermissionsFormValues {
+  currentPermissions: number;
+  currentPermissions2: number;
+}
+
 const messages = defineMessages(
   'components.UserProfile.UserSettings.UserPermissions',
   {
@@ -37,7 +47,7 @@ const UserPermissions = () => {
     data,
     error,
     mutate: revalidate,
-  } = useSWR<{ permissions?: number }>(
+  } = useSWR<UserPermissionsData>(
     user ? `/api/v1/user/${user?.id}/settings/permissions` : null
   );
 
@@ -65,6 +75,11 @@ const UserPermissions = () => {
     );
   }
 
+  const initialValues: UserPermissionsFormValues = {
+    currentPermissions: data?.permissions ?? 0,
+    currentPermissions2: data?.permissions2 ?? 0,
+  };
+
   return (
     <>
       <PageTitle
@@ -78,14 +93,13 @@ const UserPermissions = () => {
         <h3 className="heading">{intl.formatMessage(messages.permissions)}</h3>
       </div>
       <Formik
-        initialValues={{
-          currentPermissions: data?.permissions,
-        }}
+        initialValues={initialValues}
         enableReinitialize
-        onSubmit={async (values) => {
+        onSubmit={async (values: UserPermissionsFormValues) => {
           try {
             await axios.post(`/api/v1/user/${user?.id}/settings/permissions`, {
-              permissions: values.currentPermissions ?? 0,
+              permissions: values.currentPermissions,
+              permissions2: values.currentPermissions2,
             });
 
             addToast(intl.formatMessage(messages.toastSettingsSuccess), {
@@ -110,9 +124,13 @@ const UserPermissions = () => {
                 <PermissionEdit
                   actingUser={currentUser}
                   currentUser={user}
-                  currentPermission={values.currentPermissions ?? 0}
-                  onUpdate={(newPermission) =>
+                  currentPermission={values.currentPermissions}
+                  currentPermission2={values.currentPermissions2}
+                  onUpdate={(newPermission: number) =>
                     setFieldValue('currentPermissions', newPermission)
+                  }
+                  onUpdate2={(newPermission2: number) =>
+                    setFieldValue('currentPermissions2', newPermission2)
                   }
                 />
               </div>

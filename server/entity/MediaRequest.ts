@@ -119,19 +119,6 @@ export class MediaRequest {
       throw new QuotaRestrictedError('Series Quota exceeded.');
     }
 
-    // Hidden request permission check
-    if (
-      requestBody.isHidden &&
-      !requestUser.hasPermission(
-        [Permission.HIDDEN_REQUEST, Permission.MANAGE_REQUESTS],
-        { type: 'or' }
-      )
-    ) {
-      throw new RequestPermissionError(
-        'You do not have permission to create hidden requests.'
-      );
-    }
-
     const tmdbMedia =
       requestBody.mediaType === MediaType.MOVIE
         ? await tmdb.getMovie({ movieId: requestBody.mediaId })
@@ -186,15 +173,10 @@ export class MediaRequest {
 
     if (existing && existing.length > 0) {
       if (requestBody.mediaType === MediaType.MOVIE) {
-        const isPrivileged = requestUser.hasPermission(
-          Permission.MANAGE_REQUESTS
-        );
         const blockingRequest = existing.find(
           (r) =>
             r.status !== MediaRequestStatus.DECLINED &&
-            r.status !== MediaRequestStatus.COMPLETED &&
-            // Non-privileged users can't see hidden requests from others, so those don't block
-            (isPrivileged || !r.isHidden || r.requestedBy.id === requestUser.id)
+            r.status !== MediaRequestStatus.COMPLETED
         );
         if (blockingRequest) {
           logger.warn('Duplicate request for media blocked', {
@@ -360,10 +342,6 @@ export class MediaRequest {
       }
     }
 
-    if (requestBody.isHidden) {
-      media.isHidden = true;
-    }
-
     if (requestBody.mediaType === MediaType.MOVIE) {
       await mediaRepository.save(media);
 
@@ -406,7 +384,6 @@ export class MediaRequest {
         rootFolder: rootFolder,
         tags: tags,
         isAutoRequest: options.isAutoRequest ?? false,
-        isHidden: requestBody.isHidden ?? false,
       });
 
       await requestRepository.save(request);
@@ -431,20 +408,12 @@ export class MediaRequest {
       // already requested. In the case they were, we just throw out any duplicates but still approve the request.
       // (Unless there are no seasons, in which case we abort)
       if (media.requests) {
-        const isPrivileged = requestUser.hasPermission(
-          Permission.MANAGE_REQUESTS
-        );
-
         existingSeasons = media.requests
           .filter(
             (request) =>
               request.is4k === requestBody.is4k &&
               request.status !== MediaRequestStatus.DECLINED &&
-              request.status !== MediaRequestStatus.COMPLETED &&
-              // Non-privileged: hidden requests from others don't block seasons
-              (isPrivileged ||
-                !request.isHidden ||
-                request.requestedBy.id === requestUser.id)
+              request.status !== MediaRequestStatus.COMPLETED
           )
           .reduce((seasons, request) => {
             const combinedSeasons = request.seasons.map(
@@ -546,7 +515,6 @@ export class MediaRequest {
             })
         ),
         isAutoRequest: options.isAutoRequest ?? false,
-        isHidden: requestBody.isHidden ?? false,
       });
 
       await requestRepository.save(request);
@@ -653,9 +621,6 @@ export class MediaRequest {
   @Column({ default: false })
   public isAutoRequest: boolean;
 
-  @Column({ default: false })
-  public isHidden: boolean;
-
   constructor(init?: Partial<MediaRequest>) {
     Object.assign(this, init);
   }
@@ -672,15 +637,6 @@ export class MediaRequest {
           label: 'Media Request',
           requestId: this.id,
           mediaId: this.media.id,
-        });
-        return;
-      }
-
-      // Hidden requests should not send broad notifications
-      if (this.isHidden) {
-        logger.info('Skipping broad notifications for hidden request', {
-          label: 'Media Request',
-          requestId: this.id,
         });
         return;
       }
@@ -718,15 +674,6 @@ export class MediaRequest {
           label: 'Media Request',
           requestId: this.id,
           mediaId: this.media.id,
-        });
-        return;
-      }
-
-      // Hidden requests should not send broad notifications
-      if (this.isHidden) {
-        logger.info('Skipping broad notifications for hidden request', {
-          label: 'Media Request',
-          requestId: this.id,
         });
         return;
       }

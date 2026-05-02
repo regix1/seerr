@@ -491,13 +491,6 @@ const CollectionDetails = ({ collection }: CollectionDetailsProps) => {
             }
             return title;
           })
-          .filter((title) => {
-            // Filter hidden media for non-privileged users
-            if (!hasPermission(Permission.MANAGE_REQUESTS)) {
-              return !title.mediaInfo?.isHidden;
-            }
-            return true;
-          })
           .map((title) => (
             <TitleCard
               key={`collection-movie-${title.id}`}
@@ -510,8 +503,6 @@ const CollectionDetails = ({ collection }: CollectionDetailsProps) => {
               userScore={title.voteAverage}
               year={title.releaseDate}
               mediaType={title.mediaType}
-              isHidden={title.mediaInfo?.isHidden}
-              mediaId={title.mediaInfo?.id}
               mutateParent={revalidate}
             />
           ))}

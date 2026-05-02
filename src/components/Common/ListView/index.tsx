@@ -73,13 +73,6 @@ const ListView = ({
               );
             return title;
           })
-          .filter((title) => {
-            // Filter hidden media for non-privileged users
-            if (!hasPermission(Permission.MANAGE_REQUESTS)) {
-              return !(title as TvResult | MovieResult).mediaInfo?.isHidden;
-            }
-            return true;
-          })
           .map((title, index) => {
             let titleCard: React.ReactNode;
 
@@ -102,8 +95,6 @@ const ListView = ({
                     inProgress={
                       (title.mediaInfo?.downloadStatus ?? []).length > 0
                     }
-                    isHidden={title.mediaInfo?.isHidden}
-                    mediaId={title.mediaInfo?.id}
                     canExpand
                   />
                 );
@@ -126,8 +117,6 @@ const ListView = ({
                     inProgress={
                       (title.mediaInfo?.downloadStatus ?? []).length > 0
                     }
-                    isHidden={title.mediaInfo?.isHidden}
-                    mediaId={title.mediaInfo?.id}
                     canExpand
                   />
                 );

@@ -37,6 +37,10 @@ import { uniqWith } from 'lodash';
 export interface MediaServerSyncStatus extends StatusBase {
   currentLibrary: Library;
   libraries: Library[];
+  duplicatesSkipped: number;
+  lastRunAt: number;
+  lastRunDuplicatesSkipped: number;
+  lastRunCompleted: boolean;
 }
 
 export interface MediaServerScannerOptions {
@@ -428,6 +432,14 @@ export class MediaServerScanner
   }
 
   private async processItem(item: JellyfinLibraryItem): Promise<void> {
+    // Dedup gate BEFORE any TMDb resolution / network work. Keys roll up to
+    // series/season level when present so episode fan-out within the same
+    // series counts once.
+    const dedupKey = String(item.SeriesId ?? item.SeasonId ?? item.Id);
+    if (this.markDuplicate(dedupKey)) {
+      return;
+    }
+
     if (item.Type === 'Movie') {
       await this.processMediaMovie(item);
     } else if (item.Type === 'Series') {
@@ -447,6 +459,7 @@ export class MediaServerScanner
     }
 
     const sessionId = this.startRun();
+    let completed = false;
 
     try {
       const userRepository = getRepository(User);
@@ -529,14 +542,19 @@ export class MediaServerScanner
         this.isRecentOnly
           ? 'Recently Added Scan Complete'
           : 'Full Scan Complete',
-        'info'
+        'info',
+        {
+          duplicatesSkipped: this.duplicatesSkipped,
+          totalProcessed: this.items?.length ?? 0,
+        }
       );
+      completed = true;
     } catch (e) {
       this.log('Sync interrupted', 'error', {
         errorMessage: (e as Error).message,
       });
     } finally {
-      this.endRun(sessionId);
+      this.endRun(sessionId, completed);
     }
   }
 
@@ -547,6 +565,10 @@ export class MediaServerScanner
       total: this.items.length,
       currentLibrary: this.currentLibrary,
       libraries: this.libraries,
+      duplicatesSkipped: this.duplicatesSkipped,
+      lastRunAt: this.lastRunAt,
+      lastRunDuplicatesSkipped: this.lastRunDuplicatesSkipped,
+      lastRunCompleted: this.lastRunCompleted,
     };
   }
 }

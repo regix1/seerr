@@ -1,5 +1,5 @@
 import Button from '@app/components/Common/Button';
-import { Permission, useUser } from '@app/hooks/useUser';
+import { Permission, Permission2, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import { Menu, Transition } from '@headlessui/react';
@@ -40,7 +40,16 @@ const IssueDescription = ({
         <div className="font-semibold text-gray-100 lg:text-xl">
           {intl.formatMessage(messages.description)}
         </div>
-        {(hasPermission(Permission.MANAGE_ISSUES) || belongsToUser) && (
+        {/* was Permission.MANAGE_ISSUES */}
+        {(hasPermission(
+          [
+            Permission2.MANAGE_ISSUES_DELETE,
+            Permission2.MANAGE_ISSUES_COMMENT,
+            Permission.MANAGE_ISSUES,
+          ],
+          { type: 'or' }
+        ) ||
+          belongsToUser) && (
           <Menu as="div" className="relative inline-block text-left">
             {({ open }) => (
               <>
@@ -85,7 +94,14 @@ const IssueDescription = ({
                           )}
                         </Menu.Item>
                       )}
-                      {(hasPermission(Permission.MANAGE_ISSUES) ||
+                      {/* was Permission.MANAGE_ISSUES */}
+                      {(hasPermission(
+                        [
+                          Permission2.MANAGE_ISSUES_DELETE,
+                          Permission.MANAGE_ISSUES,
+                        ],
+                        { type: 'or' }
+                      ) ||
                         !commentCount) && (
                         <Menu.Item>
                           {({ active }) => (

@@ -4,7 +4,10 @@ import { getRepository } from '@server/datasource';
 import { Watchlist } from '@server/entity/Watchlist';
 import type { QuotaResponse } from '@server/interfaces/api/userInterfaces';
 import PreparedEmail from '@server/lib/email';
-import type { PermissionCheckOptions } from '@server/lib/permissions';
+import type {
+  Permission2,
+  PermissionCheckOptions,
+} from '@server/lib/permissions';
 import { Permission, hasPermission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -118,6 +121,31 @@ export class User {
   @Column({ type: 'integer', default: 0 })
   public permissions = 0;
 
+  /**
+   * Granular sub-permissions bitmask (see `Permission2` enum). Stored as
+   * Postgres BIGINT and SQLite INTEGER. SQLite drivers may serialize bigint
+   * as string; the transformer below normalizes both shapes to a JS Number,
+   * which is safe up to 2^53 - 1 (enforced in `permissions.ts`).
+   */
+  @Column({
+    type: 'bigint',
+    default: 0,
+    transformer: {
+      from: (value: string | number | null | undefined): number => {
+        if (value == null) {
+          return 0;
+        }
+        if (typeof value === 'number') {
+          return value;
+        }
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+      },
+      to: (value: number | null | undefined): number => value ?? 0,
+    },
+  })
+  public permissions2 = 0;
+
   @Column()
   public avatar: string;
 
@@ -190,10 +218,15 @@ export class User {
   }
 
   public hasPermission(
-    permissions: Permission | Permission[],
+    permissions: Permission | Permission2 | (Permission | Permission2)[],
     options?: PermissionCheckOptions
   ): boolean {
-    return !!hasPermission(permissions, this.permissions, options);
+    return !!hasPermission(
+      permissions,
+      this.permissions,
+      this.permissions2,
+      options
+    );
   }
 
   public passwordMatch(password: string): Promise<boolean> {

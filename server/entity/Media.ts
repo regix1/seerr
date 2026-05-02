@@ -8,7 +8,7 @@ import type { User } from '@server/entity/User';
 import { Watchlist } from '@server/entity/Watchlist';
 import type { DownloadingItem } from '@server/lib/downloadtracker';
 import downloadTracker from '@server/lib/downloadtracker';
-import { Permission } from '@server/lib/permissions';
+import { Permission, Permission2 } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { DbAwareColumn, resolveDbType } from '@server/utils/DbColumnHelper';
@@ -95,26 +95,12 @@ class Media {
         relations: { requests: true, issues: true },
       });
 
-      if (!media) {
-        return undefined;
+      if (media) {
+        // Strip cross-user `requestedBy` for callers without VIEW_REQUESTER
+        // (criterion 32). Owner of a request still sees their own attribution.
+        Media.redactRequestersOnList([media], user);
       }
-
-      const isPrivileged =
-        user?.hasPermission(Permission.MANAGE_REQUESTS) ?? false;
-
-      // If media is admin-hidden, non-privileged users can't see it
-      if (media.isHidden && !isPrivileged) {
-        return undefined;
-      }
-
-      // Filter hidden requests from other users for non-privileged users
-      if (!isPrivileged) {
-        media.requests = (media.requests ?? []).filter(
-          (request) => !request.isHidden || request.requestedBy?.id === user?.id
-        );
-      }
-
-      return media;
+      return media ?? undefined;
     } catch (e) {
       logger.error(e.message);
       return undefined;
@@ -146,32 +132,56 @@ class Media {
         )
         .where('media.tmdbId IN (:...finalIds)', { finalIds });
 
-      const isPrivileged =
-        user?.hasPermission(Permission.MANAGE_REQUESTS) ?? false;
-
-      // Filter admin-hidden media for non-privileged users
-      if (!isPrivileged) {
-        query.andWhere('media.isHidden = :isHidden', { isHidden: false });
-      }
-
       const media = (await query.getMany()).filter((m) =>
         items.some((i) => i.tmdbId === m.tmdbId && i.mediaType === m.mediaType)
       );
 
-      // Filter hidden requests from other users for non-privileged users
-      if (!isPrivileged) {
-        for (const m of media) {
-          m.requests = (m.requests ?? []).filter(
-            (request) =>
-              !request.isHidden || request.requestedBy?.id === user?.id
-          );
-        }
-      }
-
+      // Strip cross-user `requestedBy` for callers without VIEW_REQUESTER
+      // (criterion 32). Owner of a request still sees their own attribution.
+      Media.redactRequestersOnList(media, user);
       return media;
     } catch (e) {
       logger.error(e.message);
       return [];
+    }
+  }
+
+  /**
+   * Strip `requestedBy` from joined media-request rows the viewer is not
+   * entitled to see (criterion 32). Mutates each Media's `requests` array
+   * in place; the underlying entity remains untouched in the DB.
+   *
+   * Visibility rule: viewer must have one of
+   *   `Permission2.VIEW_REQUESTER` / `Permission.MANAGE_REQUESTS` to see
+   * other users' identities.
+   * Request owner ALWAYS sees their own attribution.
+   */
+  public static redactRequestersOnList(
+    mediaList: Media[],
+    viewer: User | undefined
+  ): void {
+    if (!mediaList.length) {
+      return;
+    }
+    const canViewAll = !!viewer?.hasPermission(
+      [Permission2.VIEW_REQUESTER, Permission.MANAGE_REQUESTS],
+      { type: 'or' }
+    );
+    if (canViewAll) {
+      return;
+    }
+    for (const media of mediaList) {
+      if (!media.requests) {
+        continue;
+      }
+      for (const request of media.requests) {
+        if (
+          request.requestedBy &&
+          (!viewer || request.requestedBy.id !== viewer.id)
+        ) {
+          (request as { requestedBy?: User }).requestedBy = undefined;
+        }
+      }
     }
   }
 
@@ -248,9 +258,6 @@ class Media {
     nullable: true,
   })
   public mediaAddedAt: Date;
-
-  @Column({ default: false })
-  public isHidden: boolean;
 
   @Column({ nullable: true, type: 'int' })
   public serviceId?: number | null;

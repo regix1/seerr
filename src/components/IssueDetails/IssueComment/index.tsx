@@ -1,7 +1,7 @@
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import Modal from '@app/components/Common/Modal';
-import { Permission, useUser } from '@app/hooks/useUser';
+import { Permission, Permission2, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import { Menu, Transition } from '@headlessui/react';
@@ -98,7 +98,12 @@ const IssueComment = ({
       </Link>
       <div className="relative flex-1">
         <div className="w-full rounded-md shadow ring-1 ring-gray-500">
-          {(isActiveUser || hasPermission(Permission.MANAGE_ISSUES)) && (
+          {/* was Permission.MANAGE_ISSUES */}
+          {(isActiveUser ||
+            hasPermission(
+              [Permission2.MANAGE_ISSUES_COMMENT, Permission.MANAGE_ISSUES],
+              { type: 'or' }
+            )) && (
             <Menu
               as="div"
               className="absolute right-1 top-2 z-40 inline-block text-left"

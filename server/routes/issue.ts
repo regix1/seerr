@@ -4,7 +4,7 @@ import Issue from '@server/entity/Issue';
 import IssueComment from '@server/entity/IssueComment';
 import Media from '@server/entity/Media';
 import type { IssueResultsResponse } from '@server/interfaces/api/issueInterfaces';
-import { Permission } from '@server/lib/permissions';
+import { Permission, Permission2 } from '@server/lib/permissions';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
 import { Router } from 'express';
@@ -262,9 +262,13 @@ issueRoutes.get<{ issueId: string }>(
 
 issueRoutes.post<{ issueId: string }, Issue, { message: string }>(
   '/:issueId/comment',
-  isAuthenticated([Permission.MANAGE_ISSUES, Permission.CREATE_ISSUES], {
-    type: 'or',
-  }),
+  // was [MANAGE_ISSUES, CREATE_ISSUES] — re-pointed to MANAGE_ISSUES_COMMENT
+  // (CREATE_ISSUES still implies the right to comment on your own issue, which
+  // is enforced by the inner ownership check below).
+  isAuthenticated(
+    [Permission2.MANAGE_ISSUES_COMMENT, Permission.CREATE_ISSUES],
+    { type: 'or' }
+  ),
   async (req, res, next) => {
     const issueRepository = getRepository(Issue);
     // Satisfy typescript here. User is set, we assure you!
@@ -279,7 +283,8 @@ issueRoutes.post<{ issueId: string }, Issue, { message: string }>(
 
       if (
         issue.createdBy.id !== req.user.id &&
-        !req.user.hasPermission(Permission.MANAGE_ISSUES)
+        // was Permission.MANAGE_ISSUES — re-pointed to MANAGE_ISSUES_COMMENT
+        !req.user.hasPermission(Permission2.MANAGE_ISSUES_COMMENT)
       ) {
         return next({
           status: 403,
@@ -309,9 +314,13 @@ issueRoutes.post<{ issueId: string }, Issue, { message: string }>(
 
 issueRoutes.post<{ issueId: string; status: string }, Issue>(
   '/:issueId/:status',
-  isAuthenticated([Permission.MANAGE_ISSUES, Permission.CREATE_ISSUES], {
-    type: 'or',
-  }),
+  // was [MANAGE_ISSUES, CREATE_ISSUES] — re-pointed to MANAGE_ISSUES_RESOLVE
+  // (resolve/reopen). CREATE_ISSUES holders may still toggle their own
+  // issue, enforced by the inner ownership check below.
+  isAuthenticated(
+    [Permission2.MANAGE_ISSUES_RESOLVE, Permission.CREATE_ISSUES],
+    { type: 'or' }
+  ),
   async (req, res, next) => {
     const issueRepository = getRepository(Issue);
     // Satisfy typescript here. User is set, we assure you!
@@ -325,7 +334,8 @@ issueRoutes.post<{ issueId: string; status: string }, Issue>(
       });
 
       if (
-        !req.user?.hasPermission(Permission.MANAGE_ISSUES) &&
+        // was Permission.MANAGE_ISSUES — re-pointed to MANAGE_ISSUES_RESOLVE
+        !req.user?.hasPermission(Permission2.MANAGE_ISSUES_RESOLVE) &&
         issue.createdBy.id !== req.user?.id
       ) {
         return next({
@@ -369,9 +379,13 @@ issueRoutes.post<{ issueId: string; status: string }, Issue>(
 
 issueRoutes.delete(
   '/:issueId',
-  isAuthenticated([Permission.MANAGE_ISSUES, Permission.CREATE_ISSUES], {
-    type: 'or',
-  }),
+  // was [MANAGE_ISSUES, CREATE_ISSUES] — re-pointed to MANAGE_ISSUES_DELETE
+  // (CREATE_ISSUES holders may still delete their own untouched issue, enforced
+  // by the inner ownership + comment-count check below).
+  isAuthenticated(
+    [Permission2.MANAGE_ISSUES_DELETE, Permission.CREATE_ISSUES],
+    { type: 'or' }
+  ),
   async (req, res, next) => {
     const issueRepository = getRepository(Issue);
 
@@ -382,7 +396,8 @@ issueRoutes.delete(
       });
 
       if (
-        !req.user?.hasPermission(Permission.MANAGE_ISSUES) &&
+        // was Permission.MANAGE_ISSUES — re-pointed to MANAGE_ISSUES_DELETE
+        !req.user?.hasPermission(Permission2.MANAGE_ISSUES_DELETE) &&
         (issue.createdBy.id !== req.user?.id || issue.comments.length > 1)
       ) {
         return next({

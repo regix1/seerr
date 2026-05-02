@@ -6,7 +6,7 @@ import ConfirmButton from '@app/components/Common/ConfirmButton';
 import RequestModal from '@app/components/RequestModal';
 import StatusBadge from '@app/components/StatusBadge';
 import useDeepLinks from '@app/hooks/useDeepLinks';
-import { Permission, useUser } from '@app/hooks/useUser';
+import { Permission, Permission2, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import { refreshIntervalHelper } from '@app/utils/refreshIntervalHelper';
@@ -43,7 +43,6 @@ const messages = defineMessages('components.RequestList.RequestItem', {
   editrequest: 'Edit Request',
   deleterequest: 'Delete Request',
   cancelRequest: 'Cancel Request',
-  hidden: 'Hidden',
   tmdbid: 'TMDB ID',
   tvdbid: 'TheTVDB ID',
   unknowntitle: 'Unknown Title',
@@ -65,7 +64,7 @@ const RequestItemError = ({
   revalidateList,
 }: RequestItemErrorProps) => {
   const intl = useIntl();
-  const { hasPermission } = useUser();
+  const { user, hasPermission } = useUser();
 
   const deleteRequest = async () => {
     await axios.delete(`/api/v1/media/${requestData?.media.id}`);
@@ -166,10 +165,13 @@ const RequestItemError = ({
                 )}
               </div>
               <div className="card-field">
-                {hasPermission(
-                  [Permission.MANAGE_REQUESTS, Permission.REQUEST_VIEW],
+                {/* VIEW_REQUESTER gate: also show to owner */}
+                {requestData.requestedBy &&
+                (hasPermission(
+                  [Permission2.VIEW_REQUESTER, Permission.MANAGE_REQUESTS],
                   { type: 'or' }
-                ) ? (
+                ) ||
+                  requestData.requestedBy.id === user?.id) ? (
                   <>
                     <span className="card-field-name">
                       {intl.formatMessage(messages.requested)}
@@ -276,16 +278,21 @@ const RequestItemError = ({
         </div>
       </div>
       <div className="z-10 mt-4 flex w-full flex-col justify-center pl-4 pr-4 xl:mt-0 xl:w-96 xl:items-end xl:pl-0">
-        {hasPermission(Permission.MANAGE_REQUESTS) && requestData?.media.id && (
-          <Button
-            className="w-full"
-            buttonType="danger"
-            onClick={() => deleteRequest()}
-          >
-            <TrashIcon />
-            <span>{intl.formatMessage(messages.deleterequest)}</span>
-          </Button>
-        )}
+        {/* was Permission.MANAGE_REQUESTS */}
+        {hasPermission(
+          [Permission2.DELETE_REQUEST, Permission.MANAGE_REQUESTS],
+          { type: 'or' }
+        ) &&
+          requestData?.media.id && (
+            <Button
+              className="w-full"
+              buttonType="danger"
+              onClick={() => deleteRequest()}
+            >
+              <TrashIcon />
+              <span>{intl.formatMessage(messages.deleterequest)}</span>
+            </Button>
+          )}
       </div>
     </div>
   );
@@ -417,13 +424,9 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
           setShowEditModal(false);
         }}
       />
-      <div
-        className={`relative flex w-full flex-col justify-between overflow-hidden rounded-xl bg-gray-800 py-2 text-gray-400 shadow-md ring-1 ${requestData.isHidden ? 'ring-yellow-600/50' : 'ring-gray-700'} xl:h-28 xl:flex-row`}
-      >
+      <div className="relative flex w-full flex-col justify-between overflow-hidden rounded-xl bg-gray-800 py-2 text-gray-400 shadow-md ring-1 ring-gray-700 xl:h-28 xl:flex-row">
         {title.backdropPath && (
-          <div
-            className={`absolute inset-0 z-0 w-full bg-cover bg-center xl:w-2/3 ${requestData.isHidden ? 'grayscale' : ''}`}
-          >
+          <div className="absolute inset-0 z-0 w-full bg-cover bg-center xl:w-2/3">
             <CachedImage
               type="tmdb"
               src={`https://image.tmdb.org/t/p/w1920_and_h800_multi_faces/${title.backdropPath}`}
@@ -557,18 +560,15 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   }
                 />
               )}
-              {requestData.isHidden &&
-                hasPermission(Permission.MANAGE_REQUESTS) && (
-                  <Badge badgeType="warning">
-                    {intl.formatMessage(messages.hidden)}
-                  </Badge>
-                )}
             </div>
             <div className="card-field">
-              {hasPermission(
-                [Permission.MANAGE_REQUESTS, Permission.REQUEST_VIEW],
+              {/* VIEW_REQUESTER gate: also show to owner */}
+              {requestData.requestedBy &&
+              (hasPermission(
+                [Permission2.VIEW_REQUESTER, Permission.MANAGE_REQUESTS],
                 { type: 'or' }
-              ) ? (
+              ) ||
+                requestData.requestedBy.id === user?.id) ? (
                 <>
                   <span className="card-field-name">
                     {intl.formatMessage(messages.requested)}
@@ -684,7 +684,11 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
         </div>
         <div className="z-10 mt-4 flex w-full flex-col justify-center space-y-2 pl-4 pr-4 xl:mt-0 xl:w-96 xl:items-end xl:pl-0">
           {requestData.status === MediaRequestStatus.FAILED &&
-            hasPermission(Permission.MANAGE_REQUESTS) && (
+            // was Permission.MANAGE_REQUESTS
+            hasPermission(
+              [Permission2.RETRY_REQUEST, Permission.MANAGE_REQUESTS],
+              { type: 'or' }
+            ) && (
               <Button
                 className="w-full"
                 buttonType="primary"
@@ -703,7 +707,11 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
               </Button>
             )}
           {requestData.status !== MediaRequestStatus.PENDING &&
-            hasPermission(Permission.MANAGE_REQUESTS) && (
+            // was Permission.MANAGE_REQUESTS
+            hasPermission(
+              [Permission2.DELETE_REQUEST, Permission.MANAGE_REQUESTS],
+              { type: 'or' }
+            ) && (
               <>
                 <ConfirmButton
                   onClick={() => deleteRequest()}
@@ -730,7 +738,15 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
               </>
             )}
           {requestData.status === MediaRequestStatus.PENDING &&
-            hasPermission(Permission.MANAGE_REQUESTS) && (
+            // was Permission.MANAGE_REQUESTS
+            hasPermission(
+              [
+                Permission2.APPROVE_REQUEST,
+                Permission2.DECLINE_REQUEST,
+                Permission.MANAGE_REQUESTS,
+              ],
+              { type: 'or' }
+            ) && (
               <div className="flex w-full flex-row space-x-2">
                 <span className="w-full">
                   <Button
@@ -757,8 +773,15 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
               </div>
             )}
           {requestData.status === MediaRequestStatus.PENDING &&
-            (hasPermission(Permission.MANAGE_REQUESTS) ||
-              (requestData.requestedBy.id === user?.id &&
+            (hasPermission(
+              [
+                Permission2.APPROVE_REQUEST,
+                Permission2.DECLINE_REQUEST,
+                Permission.MANAGE_REQUESTS,
+              ],
+              { type: 'or' }
+            ) ||
+              (requestData.requestedBy?.id === user?.id &&
                 (requestData.type === 'tv' ||
                   hasPermission(Permission.REQUEST_ADVANCED)))) && (
               <span className="w-full">
@@ -774,8 +797,15 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
               </span>
             )}
           {requestData.status === MediaRequestStatus.PENDING &&
-            !hasPermission(Permission.MANAGE_REQUESTS) &&
-            requestData.requestedBy.id === user?.id && (
+            !hasPermission(
+              [
+                Permission2.APPROVE_REQUEST,
+                Permission2.DECLINE_REQUEST,
+                Permission.MANAGE_REQUESTS,
+              ],
+              { type: 'or' }
+            ) &&
+            requestData.requestedBy?.id === user?.id && (
               <ConfirmButton
                 onClick={() => deleteRequest()}
                 confirmText={intl.formatMessage(globalMessages.areyousure)}

@@ -1,13 +1,17 @@
 import { UserType } from '@server/constants/user';
 import type { PermissionCheckOptions } from '@server/lib/permissions';
-import { hasPermission, Permission } from '@server/lib/permissions';
+import {
+  hasPermission,
+  Permission,
+  Permission2,
+} from '@server/lib/permissions';
 import type { NotificationAgentKey } from '@server/lib/settings';
 import axios from 'axios';
 import { useRouter } from 'next/router';
 import type { MutatorCallback } from 'swr';
 import useSWR from 'swr';
 
-export { Permission, UserType };
+export { Permission, Permission2, UserType };
 export type { PermissionCheckOptions };
 
 export interface MediaServerLoginPayload {
@@ -68,6 +72,7 @@ export interface User {
   email: string;
   avatar: string;
   permissions: number;
+  permissions2: number;
   userType: number;
   createdAt: Date;
   updatedAt: Date;
@@ -98,7 +103,7 @@ interface UserHookResponse {
     shouldRevalidate?: boolean | undefined
   ) => Promise<User | undefined>;
   hasPermission: (
-    permission: Permission | Permission[],
+    permission: Permission | Permission2 | (Permission | Permission2)[],
     options?: PermissionCheckOptions
   ) => boolean;
 }
@@ -127,10 +132,15 @@ export const useUser = ({
   });
 
   const checkPermission = (
-    permission: Permission | Permission[],
+    permission: Permission | Permission2 | (Permission | Permission2)[],
     options?: PermissionCheckOptions
   ): boolean => {
-    return hasPermission(permission, data?.permissions ?? 0, options);
+    return hasPermission(
+      permission as Permission | Permission[],
+      data?.permissions ?? 0,
+      data?.permissions2 ?? 0,
+      options
+    );
   };
 
   return {

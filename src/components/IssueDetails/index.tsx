@@ -8,7 +8,7 @@ import IssueComment from '@app/components/IssueDetails/IssueComment';
 import IssueDescription from '@app/components/IssueDetails/IssueDescription';
 import { issueOptions } from '@app/components/IssueModal/constants';
 import useDeepLinks from '@app/hooks/useDeepLinks';
-import { Permission, useUser } from '@app/hooks/useUser';
+import { Permission, Permission2, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
@@ -528,7 +528,12 @@ const IssueDetails = () => {
                 <span>{intl.formatMessage(messages.nocomments)}</span>
               </div>
             )}
-            {(hasPermission(Permission.MANAGE_ISSUES) || belongsToUser) && (
+            {/* was Permission.MANAGE_ISSUES */}
+            {(hasPermission(
+              [Permission2.MANAGE_ISSUES_COMMENT, Permission.MANAGE_ISSUES],
+              { type: 'or' }
+            ) ||
+              belongsToUser) && (
               <Formik
                 initialValues={{
                   message: '',
@@ -556,7 +561,14 @@ const IssueDetails = () => {
                           className="h-20"
                         />
                         <div className="mt-4 flex items-center justify-end space-x-2">
-                          {(hasPermission(Permission.MANAGE_ISSUES) ||
+                          {/* was Permission.MANAGE_ISSUES */}
+                          {(hasPermission(
+                            [
+                              Permission2.MANAGE_ISSUES_RESOLVE,
+                              Permission.MANAGE_ISSUES,
+                            ],
+                            { type: 'or' }
+                          ) ||
                             belongsToUser) && (
                             <>
                               {issueData.status === IssueStatus.OPEN ? (

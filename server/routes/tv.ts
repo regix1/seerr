@@ -12,6 +12,10 @@ import { mapTvResult } from '@server/models/Search';
 import { mapSeasonWithEpisodes, mapTvDetails } from '@server/models/Tv';
 import { Router } from 'express';
 
+// NOTE: cross-user `requestedBy` redaction (criterion 32) is performed inside
+// `Media.getMediaForUser` / `Media.getRelatedMediaForUser` via
+// `Media.redactRequestersOnList`, so route handlers below need no extra work.
+
 const tvRoutes = Router();
 
 tvRoutes.get('/:id', async (req, res, next) => {

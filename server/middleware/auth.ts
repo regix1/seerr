@@ -2,6 +2,7 @@ import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
 import type {
   Permission,
+  Permission2,
   PermissionCheckOptions,
 } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
@@ -41,7 +42,7 @@ export const checkUser: Middleware = async (req, _res, next) => {
 };
 
 export const isAuthenticated = (
-  permissions?: Permission | Permission[],
+  permissions?: Permission | Permission2 | (Permission | Permission2)[],
   options?: PermissionCheckOptions
 ): Middleware => {
   const authMiddleware: Middleware = (req, res, next) => {

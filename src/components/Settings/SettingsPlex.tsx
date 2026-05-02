@@ -6,6 +6,7 @@ import PageTitle from '@app/components/Common/PageTitle';
 import SensitiveInput from '@app/components/Common/SensitiveInput';
 import LibraryItem from '@app/components/Settings/LibraryItem';
 import SettingsBadge from '@app/components/Settings/SettingsBadge';
+import useScanCompleteToast from '@app/hooks/useScanCompleteToast';
 import useSettings from '@app/hooks/useSettings';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
@@ -102,6 +103,10 @@ interface SyncStatus {
   total: number;
   currentLibrary?: Library;
   libraries: Library[];
+  duplicatesSkipped?: number;
+  lastRunAt?: number;
+  lastRunDuplicatesSkipped?: number;
+  lastRunCompleted?: boolean;
 }
 
 interface PresetServerDisplay {
@@ -140,6 +145,8 @@ const SettingsPlex = ({ onComplete }: SettingsPlexProps) => {
   const intl = useIntl();
   const { addToast, removeToast } = useToasts();
   const settings = useSettings();
+
+  useScanCompleteToast('Plex', dataSync);
 
   const showBothProvidersBanner =
     settings.currentSettings.plexLoginEnabled &&

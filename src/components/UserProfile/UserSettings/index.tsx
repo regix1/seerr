@@ -59,10 +59,10 @@ const UserSettings = ({ children }: UserSettingsProps) => {
       regex: /\/settings\/password/,
       hidden:
         (!settings.currentSettings.localLogin &&
-          !hasPermission(Permission.ADMIN, currentUser?.permissions ?? 0)) ||
+          !hasPermission(Permission.ADMIN, currentUser?.permissions ?? 0, 0)) ||
         (currentUser?.id !== 1 &&
           currentUser?.id !== user?.id &&
-          hasPermission(Permission.ADMIN, user?.permissions ?? 0)),
+          hasPermission(Permission.ADMIN, user?.permissions ?? 0, 0)),
     },
     {
       text: intl.formatMessage(messages.menuLinkedAccounts),
