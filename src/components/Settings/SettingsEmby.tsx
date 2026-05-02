@@ -1,24 +1,19 @@
 import Alert from '@app/components/Common/Alert';
 import Badge from '@app/components/Common/Badge';
-import Button from '@app/components/Common/Button';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
-import SensitiveInput from '@app/components/Common/SensitiveInput';
-import LibraryItem from '@app/components/Settings/LibraryItem';
+import ManualScanPanel from '@app/components/Settings/ManualScanPanel';
+import MediaBrowserSettingsForm from '@app/components/Settings/MediaBrowserSettingsForm';
+import MediaServerLibrariesPanel from '@app/components/Settings/MediaServerLibrariesPanel';
 import useMediaServerSettings from '@app/hooks/useMediaServerSettings';
 import useScanCompleteToast from '@app/hooks/useScanCompleteToast';
 import useSettings from '@app/hooks/useSettings';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
-import { isValidURL } from '@app/utils/urlValidationHelper';
-import { ArrowDownOnSquareIcon } from '@heroicons/react/24/outline';
 import { ApiErrorCode } from '@server/constants/error';
 import type { EmbySettings } from '@server/lib/settings';
 import axios from 'axios';
-import { Field, Formik } from 'formik';
 import { FormattedMessage, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
-import useSWR from 'swr';
-import * as Yup from 'yup';
 
 const messages = defineMessages('components.Settings.SettingsEmby', {
   embysettings: 'Emby Settings',
@@ -62,27 +57,7 @@ const messages = defineMessages('components.Settings.SettingsEmby', {
     'Scanning will run in the background. You can continue the setup process in the meantime.',
   bothProvidersBanner:
     'Libraries from Plex and Emby are scanned independently. Items present on both servers are deduplicated by TMDB ID.',
-  crossStatusTitle: 'Plex Last Scan',
-  crossStatusNotRun: 'Not yet run',
-  crossStatusRunning: 'Currently running ({progress} of {total})',
-  crossStatusDone: '{progress} of {total} items',
 });
-
-interface SyncStatus {
-  running: boolean;
-  progress: number;
-  total: number;
-  currentLibrary?: {
-    id: string;
-    name: string;
-    enabled: boolean;
-  };
-  libraries: {
-    id: string;
-    name: string;
-    enabled: boolean;
-  }[];
-}
 
 interface SettingsEmbyProps {
   isSetupSettings?: boolean;
@@ -115,56 +90,6 @@ const SettingsEmby: React.FC<SettingsEmbyProps> = ({
     settings.currentSettings.plexLoginEnabled &&
     settings.currentSettings.embyLoginEnabled;
 
-  const { data: plexSyncData } = useSWR<SyncStatus>(
-    showBothProvidersBanner ? '/api/v1/settings/plex/sync' : null,
-    { refreshInterval: 10000 }
-  );
-
-  const EmbySettingsSchema = Yup.object().shape({
-    hostname: Yup.string()
-      .nullable()
-      .required(intl.formatMessage(messages.validationHostnameRequired)),
-    port: Yup.number().when(['hostname'], {
-      is: (value: unknown) => !!value,
-      then: (schema) =>
-        schema
-          .typeError(intl.formatMessage(messages.validationPortRequired))
-          .nullable()
-          .required(intl.formatMessage(messages.validationPortRequired)),
-      otherwise: (schema) =>
-        schema
-          .typeError(intl.formatMessage(messages.validationPortRequired))
-          .nullable(),
-    }),
-    urlBase: Yup.string()
-      .test(
-        'leading-slash',
-        intl.formatMessage(messages.validationUrlBaseLeadingSlash),
-        (value) => !value || value.startsWith('/')
-      )
-      .test(
-        'trailing-slash',
-        intl.formatMessage(messages.validationUrlBaseTrailingSlash),
-        (value) => !value || !value.endsWith('/')
-      ),
-    embyExternalUrl: Yup.string()
-      .nullable()
-      .test('valid-url', intl.formatMessage(messages.validationUrl), isValidURL)
-      .test(
-        'no-trailing-slash',
-        intl.formatMessage(messages.validationUrlTrailingSlash),
-        (value) => !value || !value.endsWith('/')
-      ),
-    embyForgotPasswordUrl: Yup.string()
-      .nullable()
-      .test('valid-url', intl.formatMessage(messages.validationUrl), isValidURL)
-      .test(
-        'no-trailing-slash',
-        intl.formatMessage(messages.validationUrlTrailingSlash),
-        (value) => !value || !value.endsWith('/')
-      ),
-  });
-
   const activeLibraries =
     data?.libraries
       .filter((library) => library.enabled)
@@ -190,17 +115,44 @@ const SettingsEmby: React.FC<SettingsEmbyProps> = ({
           {intl.formatMessage(messages.embySettingsDescription2)}
         </p>
       </div>
-      <Formik
-        initialValues={{
-          hostname: data?.ip,
-          port: data?.port ?? 8096,
+      <MediaBrowserSettingsForm
+        settings={{
+          ip: data?.ip,
+          port: data?.port,
           useSsl: data?.useSsl,
-          urlBase: data?.urlBase || '',
-          embyExternalUrl: data?.externalHostname || '',
-          embyForgotPasswordUrl: data?.forgotPasswordUrl || '',
+          urlBase: data?.urlBase,
+          externalHostname: data?.externalHostname,
+          forgotPasswordUrl: data?.forgotPasswordUrl,
           apiKey: data?.apiKey,
         }}
-        validationSchema={EmbySettingsSchema}
+        isSetupSettings={isSetupSettings}
+        labels={{
+          hostname: intl.formatMessage(messages.hostname),
+          port: intl.formatMessage(messages.port),
+          enableSsl: intl.formatMessage(messages.enablessl),
+          apiKey: intl.formatMessage(messages.apiKey),
+          urlBase: intl.formatMessage(messages.urlBase),
+          externalUrl: intl.formatMessage(messages.externalUrl),
+          forgotPasswordUrl: intl.formatMessage(messages.embyForgotPasswordUrl),
+          save: intl.formatMessage(globalMessages.save),
+          saving: intl.formatMessage(globalMessages.saving),
+        }}
+        validationMessages={{
+          hostnameRequired: intl.formatMessage(
+            messages.validationHostnameRequired
+          ),
+          portRequired: intl.formatMessage(messages.validationPortRequired),
+          url: intl.formatMessage(messages.validationUrl),
+          urlTrailingSlash: intl.formatMessage(
+            messages.validationUrlTrailingSlash
+          ),
+          urlBaseLeadingSlash: intl.formatMessage(
+            messages.validationUrlBaseLeadingSlash
+          ),
+          urlBaseTrailingSlash: intl.formatMessage(
+            messages.validationUrlBaseTrailingSlash
+          ),
+        }}
         onSubmit={async (values) => {
           try {
             await axios.post('/api/v1/settings/emby', {
@@ -208,8 +160,8 @@ const SettingsEmby: React.FC<SettingsEmbyProps> = ({
               port: Number(values.port),
               useSsl: values.useSsl,
               urlBase: values.urlBase,
-              externalHostname: values.embyExternalUrl,
-              forgotPasswordUrl: values.embyForgotPasswordUrl,
+              externalHostname: values.externalUrl,
+              forgotPasswordUrl: values.forgotPasswordUrl,
               apiKey: values.apiKey,
             } as Partial<EmbySettings>);
 
@@ -217,8 +169,12 @@ const SettingsEmby: React.FC<SettingsEmbyProps> = ({
               autoDismiss: true,
               appearance: 'success',
             });
-          } catch (e) {
-            if (e?.response?.data?.message === ApiErrorCode.InvalidUrl) {
+          } catch (error) {
+            const message = axios.isAxiosError(error)
+              ? error.response?.data?.message
+              : undefined;
+
+            if (message === ApiErrorCode.InvalidUrl) {
               addToast(intl.formatMessage(messages.invalidurlerror), {
                 autoDismiss: true,
                 appearance: 'error',
@@ -233,231 +189,21 @@ const SettingsEmby: React.FC<SettingsEmbyProps> = ({
             revalidate();
           }
         }}
-      >
-        {({
-          errors,
-          touched,
-          values,
-          setFieldValue,
-          handleSubmit,
-          isSubmitting,
-          isValid,
-        }) => {
-          return (
-            <form className="section" onSubmit={handleSubmit}>
-              {!isSetupSettings && (
-                <>
-                  <div className="form-row">
-                    <label htmlFor="hostname" className="text-label">
-                      {intl.formatMessage(messages.hostname)}
-                      <span className="text-red-500">*</span>
-                    </label>
-                    <div className="form-input-area">
-                      <div className="form-input-field">
-                        <span className="inline-flex cursor-default items-center rounded-l-md border border-r-0 border-gray-500 bg-gray-800 px-3 text-gray-100 sm:text-sm">
-                          {values.useSsl ? 'https://' : 'http://'}
-                        </span>
-                        <Field
-                          type="text"
-                          inputMode="url"
-                          id="hostname"
-                          name="hostname"
-                          className="rounded-r-only"
-                        />
-                      </div>
-                      {errors.hostname &&
-                        touched.hostname &&
-                        typeof errors.hostname === 'string' && (
-                          <div className="error">{errors.hostname}</div>
-                        )}
-                    </div>
-                  </div>
-                  <div className="form-row">
-                    <label htmlFor="port" className="text-label">
-                      {intl.formatMessage(messages.port)}
-                      <span className="label-required">*</span>
-                    </label>
-                    <div className="form-input-area">
-                      <Field
-                        type="text"
-                        inputMode="numeric"
-                        id="port"
-                        name="port"
-                        className="short"
-                      />
-                      {errors.port &&
-                        touched.port &&
-                        typeof errors.port === 'string' && (
-                          <div className="error">{errors.port}</div>
-                        )}
-                    </div>
-                  </div>
-                  <div className="form-row">
-                    <label htmlFor="useSsl" className="checkbox-label">
-                      {intl.formatMessage(messages.enablessl)}
-                    </label>
-                    <div className="form-input-area">
-                      <Field
-                        type="checkbox"
-                        id="useSsl"
-                        name="useSsl"
-                        onChange={() => {
-                          setFieldValue('useSsl', !values.useSsl);
-                          setFieldValue('port', values.useSsl ? 8096 : 443);
-                        }}
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
-              <div className="form-row">
-                <label htmlFor="apiKey" className="text-label">
-                  {intl.formatMessage(messages.apiKey)}
-                </label>
-                <div className="form-input-area">
-                  <div className="form-input-field">
-                    <SensitiveInput
-                      as="field"
-                      type="text"
-                      inputMode="url"
-                      id="apiKey"
-                      name="apiKey"
-                    />
-                  </div>
-                  {errors.apiKey && touched.apiKey && (
-                    <div className="error">{errors.apiKey}</div>
-                  )}
-                </div>
-              </div>
-              {!isSetupSettings && (
-                <>
-                  <div className="form-row">
-                    <label htmlFor="urlBase" className="text-label">
-                      {intl.formatMessage(messages.urlBase)}
-                    </label>
-                    <div className="form-input-area">
-                      <div className="form-input-field">
-                        <Field
-                          type="text"
-                          inputMode="url"
-                          id="urlBase"
-                          name="urlBase"
-                        />
-                      </div>
-                      {errors.urlBase &&
-                        touched.urlBase &&
-                        typeof errors.urlBase === 'string' && (
-                          <div className="error">{errors.urlBase}</div>
-                        )}
-                    </div>
-                  </div>
-                </>
-              )}
-              <div className="form-row">
-                <label htmlFor="embyExternalUrl" className="text-label">
-                  {intl.formatMessage(messages.externalUrl)}
-                </label>
-                <div className="form-input-area">
-                  <div className="form-input-field">
-                    <Field
-                      type="text"
-                      inputMode="url"
-                      id="embyExternalUrl"
-                      name="embyExternalUrl"
-                    />
-                  </div>
-                  {errors.embyExternalUrl && touched.embyExternalUrl && (
-                    <div className="error">{errors.embyExternalUrl}</div>
-                  )}
-                </div>
-              </div>
-              <div className="form-row">
-                <label htmlFor="embyForgotPasswordUrl" className="text-label">
-                  {intl.formatMessage(messages.embyForgotPasswordUrl)}
-                </label>
-                <div className="form-input-area">
-                  <div className="form-input-field">
-                    <Field
-                      type="text"
-                      inputMode="url"
-                      id="embyForgotPasswordUrl"
-                      name="embyForgotPasswordUrl"
-                    />
-                  </div>
-                  {errors.embyForgotPasswordUrl &&
-                    touched.embyForgotPasswordUrl && (
-                      <div className="error">
-                        {errors.embyForgotPasswordUrl}
-                      </div>
-                    )}
-                </div>
-              </div>
-              <div
-                className={`actions ${isSetupSettings ? 'mt-0 border-0' : ''}`}
-              >
-                <div className="flex justify-end">
-                  <span className="ml-3 inline-flex rounded-md shadow-sm">
-                    <Button
-                      buttonType="primary"
-                      type="submit"
-                      disabled={isSubmitting || !isValid}
-                    >
-                      <ArrowDownOnSquareIcon />
-                      <span>
-                        {isSubmitting
-                          ? intl.formatMessage(globalMessages.saving)
-                          : intl.formatMessage(globalMessages.save)}
-                      </span>
-                    </Button>
-                  </span>
-                </div>
-              </div>
-            </form>
-          );
-        }}
-      </Formik>
-      <div className="mb-6 mt-10">
-        <h3 className="heading">
-          {intl.formatMessage(messages.embylibraries)}
-        </h3>
-        <p className="description">
-          {intl.formatMessage(messages.embylibrariesDescription)}
-        </p>
-      </div>
-      <div className="section">
-        <Button
-          onClick={() => syncLibraries(activeLibraries)}
-          disabled={isSyncing}
-        >
-          <svg
-            className={`${isSyncing ? 'animate-spin' : ''} mr-1 h-5 w-5`}
-            fill="currentColor"
-            viewBox="0 0 20 20"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              fillRule="evenodd"
-              d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
-              clipRule="evenodd"
-            />
-          </svg>
-          {isSyncing
-            ? intl.formatMessage(messages.syncing)
-            : intl.formatMessage(messages.syncEmby)}
-        </Button>
-        <ul className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
-          {data?.libraries.map((library) => (
-            <LibraryItem
-              name={library.name}
-              isEnabled={library.enabled}
-              key={`setting-emby-library-${library.id}`}
-              onToggle={() =>
-                toggleLibrary(library.id, activeLibraries, onComplete)
-              }
-            />
-          ))}
-        </ul>
-      </div>
+      />
+      <MediaServerLibrariesPanel
+        title={intl.formatMessage(messages.embylibraries)}
+        description={intl.formatMessage(messages.embylibrariesDescription)}
+        libraries={data?.libraries}
+        isSyncing={isSyncing}
+        syncDisabled={isSyncing}
+        syncLabel={intl.formatMessage(messages.syncEmby)}
+        syncingLabel={intl.formatMessage(messages.syncing)}
+        keyPrefix="setting-emby-library"
+        onSync={() => syncLibraries(activeLibraries)}
+        onToggle={(libraryId) =>
+          toggleLibrary(libraryId, activeLibraries, onComplete)
+        }
+      />
       <div className="mb-6 mt-10">
         <h3 className="heading">
           <FormattedMessage {...messages.manualscanEmby} />
@@ -466,127 +212,20 @@ const SettingsEmby: React.FC<SettingsEmbyProps> = ({
           {intl.formatMessage(messages.manualscanDescriptionEmby)}
         </p>
       </div>
-      <div className="section">
-        <div className="rounded-md bg-gray-800 p-4">
-          <div className="relative mb-6 h-8 w-full overflow-hidden rounded-full bg-gray-600">
-            {dataSync?.running && (
-              <div
-                className="h-8 bg-green-600 transition-all duration-200 ease-in-out"
-                style={{
-                  width: `${Math.round(
-                    (dataSync.progress / dataSync.total) * 100
-                  )}%`,
-                }}
-              />
-            )}
-            <div className="absolute inset-0 flex h-8 w-full items-center justify-center text-sm">
-              <span>
-                {dataSync?.running
-                  ? `${dataSync.progress} of ${dataSync.total}`
-                  : 'Not running'}
-              </span>
-            </div>
-          </div>
-          <div className="flex w-full flex-col sm:flex-row">
-            {dataSync?.running && (
-              <>
-                {dataSync.currentLibrary && (
-                  <div className="mb-2 mr-0 flex items-center sm:mb-0 sm:mr-2">
-                    <Badge>
-                      <FormattedMessage
-                        {...messages.currentlibrary}
-                        values={{ name: dataSync.currentLibrary.name }}
-                      />
-                    </Badge>
-                  </div>
-                )}
-                <div className="flex items-center">
-                  <Badge badgeType="warning">
-                    <FormattedMessage
-                      {...messages.librariesRemaining}
-                      values={{
-                        count: dataSync.currentLibrary
-                          ? dataSync.libraries.slice(
-                              dataSync.libraries.findIndex(
-                                (library) =>
-                                  library.id === dataSync.currentLibrary?.id
-                              ) + 1
-                            ).length
-                          : 0,
-                      }}
-                    />
-                  </Badge>
-                </div>
-              </>
-            )}
-            <div className="flex-1 text-right">
-              {!dataSync?.running && (
-                <Button buttonType="warning" onClick={() => startScan()}>
-                  <svg
-                    className="mr-1 h-5 w-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
-                  </svg>
-                  <FormattedMessage {...messages.startscan} />
-                </Button>
-              )}
-
-              {dataSync?.running && (
-                <Button buttonType="danger" onClick={() => cancelScan()}>
-                  <svg
-                    className="mr-1 h-5 w-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                  <FormattedMessage {...messages.cancelscan} />
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-      {showBothProvidersBanner && (
-        <div className="mb-6 mt-4">
-          <div className="rounded-md bg-gray-800 p-4">
-            <h4 className="mb-2 text-sm font-medium text-gray-300">
-              {intl.formatMessage(messages.crossStatusTitle)}
-            </h4>
-            <div className="text-sm text-gray-400">
-              {!plexSyncData
-                ? intl.formatMessage(messages.crossStatusNotRun)
-                : plexSyncData.running
-                  ? intl.formatMessage(messages.crossStatusRunning, {
-                      progress: plexSyncData.progress,
-                      total: plexSyncData.total,
-                    })
-                  : plexSyncData.total > 0
-                    ? intl.formatMessage(messages.crossStatusDone, {
-                        progress: plexSyncData.progress,
-                        total: plexSyncData.total,
-                      })
-                    : intl.formatMessage(messages.crossStatusNotRun)}
-            </div>
-          </div>
-        </div>
-      )}
+      <ManualScanPanel
+        syncStatus={dataSync}
+        onStart={startScan}
+        onCancel={cancelScan}
+        labels={{
+          notRunning: intl.formatMessage(messages.notrunning),
+          startScan: intl.formatMessage(messages.startscan),
+          cancelScan: intl.formatMessage(messages.cancelscan),
+          currentLibrary: (name) =>
+            intl.formatMessage(messages.currentlibrary, { name }),
+          librariesRemaining: (count) =>
+            intl.formatMessage(messages.librariesRemaining, { count }),
+        }}
+      />
       {isSetupSettings && (
         <div className="text-sm text-gray-500">
           <span className="mr-2">

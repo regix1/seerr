@@ -33,6 +33,7 @@ type ProviderSettings<T extends Provider> = T extends 'jellyfin'
 
 interface UseMediaServerSettingsOptions<T extends Provider> {
   provider: T;
+  onLibrarySyncError?: (error: unknown) => void;
 }
 
 interface UseMediaServerSettingsResult<T extends Provider> {
@@ -42,7 +43,6 @@ interface UseMediaServerSettingsResult<T extends Provider> {
   syncData: SyncStatus | undefined;
   mutateSync: () => void;
   isSyncing: boolean;
-  setIsSyncing: (value: boolean) => void;
   syncLibraries: (activeLibraries: string[]) => Promise<void>;
   toggleLibrary: (
     libraryId: string,
@@ -56,7 +56,7 @@ interface UseMediaServerSettingsResult<T extends Provider> {
 function useMediaServerSettings<T extends Provider>(
   options: UseMediaServerSettingsOptions<T>
 ): UseMediaServerSettingsResult<T> {
-  const { provider } = options;
+  const { provider, onLibrarySyncError } = options;
   const [isSyncing, setIsSyncing] = useState(false);
 
   const { data, error, mutate } = useSWR<ProviderSettings<T>>(
@@ -77,9 +77,19 @@ function useMediaServerSettings<T extends Provider>(
       params.enable = activeLibraries.join(',');
     }
 
-    await axios.get(`/api/v1/settings/${provider}/library`, { params });
-    setIsSyncing(false);
-    mutate();
+    try {
+      await axios.get(`/api/v1/settings/${provider}/library`, { params });
+    } catch (error) {
+      if (onLibrarySyncError) {
+        onLibrarySyncError(error);
+        return;
+      }
+
+      throw error;
+    } finally {
+      setIsSyncing(false);
+      mutate();
+    }
   };
 
   const toggleLibrary = async (
@@ -89,30 +99,32 @@ function useMediaServerSettings<T extends Provider>(
   ): Promise<void> => {
     setIsSyncing(true);
 
-    if (activeLibraries.includes(libraryId)) {
-      const params: { enable?: string } = {};
+    try {
+      if (activeLibraries.includes(libraryId)) {
+        const params: { enable?: string } = {};
 
-      if (activeLibraries.length > 1) {
-        params.enable = activeLibraries
-          .filter((id) => id !== libraryId)
-          .join(',');
+        if (activeLibraries.length > 1) {
+          params.enable = activeLibraries
+            .filter((id) => id !== libraryId)
+            .join(',');
+        }
+
+        await axios.get(`/api/v1/settings/${provider}/library`, { params });
+      } else {
+        await axios.get(`/api/v1/settings/${provider}/library`, {
+          params: {
+            enable: [...activeLibraries, libraryId].join(','),
+          },
+        });
       }
 
-      await axios.get(`/api/v1/settings/${provider}/library`, { params });
-    } else {
-      await axios.get(`/api/v1/settings/${provider}/library`, {
-        params: {
-          enable: [...activeLibraries, libraryId].join(','),
-        },
-      });
+      if (onComplete) {
+        onComplete();
+      }
+    } finally {
+      setIsSyncing(false);
+      mutate();
     }
-
-    if (onComplete) {
-      onComplete();
-    }
-
-    setIsSyncing(false);
-    mutate();
   };
 
   const startScan = async (): Promise<void> => {
@@ -132,7 +144,6 @@ function useMediaServerSettings<T extends Provider>(
     syncData,
     mutateSync,
     isSyncing,
-    setIsSyncing,
     syncLibraries,
     toggleLibrary,
     startScan,

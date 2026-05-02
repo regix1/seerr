@@ -12,6 +12,7 @@ type ScanProvider = 'Plex' | 'Jellyfin' | 'Emby';
 
 interface ScanStatus {
   running: boolean;
+  lastRunAt?: number;
   lastRunDuplicatesSkipped?: number;
   lastRunCompleted?: boolean;
 }
@@ -26,32 +27,39 @@ function useScanCompleteToast(
 ): void {
   const intl = useIntl();
   const { addToast } = useToasts();
-  const prevRunningRef = useRef<boolean | undefined>(undefined);
+  const previousRunAtRef = useRef<number | undefined>(undefined);
+  const initializedRef = useRef(false);
 
   useEffect(() => {
-    const currentRunning = syncStatus?.running ?? false;
+    const lastRunAt = syncStatus?.lastRunAt;
 
-    if (prevRunningRef.current === true && currentRunning === false) {
-      const duplicates = syncStatus?.lastRunDuplicatesSkipped ?? 0;
-      if (!syncStatus?.lastRunCompleted || duplicates === 0) {
-        prevRunningRef.current = currentRunning;
-        return;
-      }
+    if (!initializedRef.current) {
+      previousRunAtRef.current = lastRunAt;
+      initializedRef.current = true;
+      return;
+    }
+
+    if (
+      lastRunAt &&
+      lastRunAt !== previousRunAtRef.current &&
+      !syncStatus?.running &&
+      syncStatus.lastRunCompleted
+    ) {
       addToast(
         intl.formatMessage(messages.scancomplete, {
           provider,
-          duplicates,
+          duplicates: syncStatus.lastRunDuplicatesSkipped ?? 0,
         }),
         {
           autoDismiss: true,
           appearance: 'success',
         }
       );
+      previousRunAtRef.current = lastRunAt;
     }
-
-    prevRunningRef.current = currentRunning;
   }, [
     syncStatus?.running,
+    syncStatus?.lastRunAt,
     syncStatus?.lastRunCompleted,
     syncStatus?.lastRunDuplicatesSkipped,
     provider,
