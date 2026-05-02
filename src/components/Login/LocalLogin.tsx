@@ -4,7 +4,6 @@ import useSettings from '@app/hooks/useSettings';
 import defineMessages from '@app/utils/defineMessages';
 import { ArrowLeftOnRectangleIcon } from '@heroicons/react/24/outline';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/solid';
-import { MediaServerType } from '@server/constants/server';
 import axios from 'axios';
 import { Field, Form, Formik } from 'formik';
 import Link from 'next/link';
@@ -50,6 +49,10 @@ const LocalLogin = ({ revalidate }: LocalLoginProps) => {
   const passwordResetEnabled =
     settings.currentSettings.applicationUrl &&
     settings.currentSettings.emailEnabled;
+  const localLoginHintProviders = [
+    settings.currentSettings.jellyfinLoginEnabled ? 'Jellyfin' : undefined,
+    settings.currentSettings.embyLoginEnabled ? 'Emby' : undefined,
+  ].filter(Boolean);
 
   return (
     <Formik
@@ -115,17 +118,10 @@ const LocalLogin = ({ revalidate }: LocalLoginProps) => {
                     typeof errors.email === 'string' && (
                       <div className="error">{errors.email}</div>
                     )}
-                  {(settings.currentSettings.mediaServerType ===
-                    MediaServerType.JELLYFIN ||
-                    settings.currentSettings.mediaServerType ===
-                      MediaServerType.EMBY) && (
+                  {localLoginHintProviders.length > 0 && (
                     <div className="mt-1 text-xs text-gray-400">
                       {intl.formatMessage(messages.jellyfinLocalLoginHint, {
-                        mediaServerName:
-                          settings.currentSettings.mediaServerType ===
-                          MediaServerType.JELLYFIN
-                            ? 'Jellyfin'
-                            : 'Emby',
+                        mediaServerName: localLoginHintProviders.join(' or '),
                       })}
                     </div>
                   )}

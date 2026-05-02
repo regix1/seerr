@@ -108,15 +108,6 @@ router.get('/settings/public', async (req, res) => {
   const settings = getSettings();
   const fullPublic = settings.fullPublicSettings;
 
-  logger.debug('Serving /settings/public', {
-    label: 'Settings',
-    mediaServerType: fullPublic?.mediaServerType,
-    plexLoginEnabled: fullPublic?.plexLoginEnabled,
-    jellyfinLoginEnabled: fullPublic?.jellyfinLoginEnabled,
-    localLogin: fullPublic?.localLogin,
-    initialized: fullPublic?.initialized,
-  });
-
   if (!(req.user?.settings?.notificationTypes.webpush ?? true)) {
     return res
       .status(200)

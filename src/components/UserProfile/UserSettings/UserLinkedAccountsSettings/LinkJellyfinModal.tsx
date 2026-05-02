@@ -34,12 +34,14 @@ interface LinkJellyfinModalProps {
   show: boolean;
   onClose: () => void;
   onSave: () => void;
+  serverType?: 'jellyfin' | 'emby';
 }
 
 const LinkJellyfinModal: React.FC<LinkJellyfinModalProps> = ({
   show,
   onClose,
   onSave,
+  serverType,
 }) => {
   const intl = useIntl();
   const settings = useSettings();
@@ -56,10 +58,14 @@ const LinkJellyfinModal: React.FC<LinkJellyfinModalProps> = ({
   });
 
   const applicationName = settings.currentSettings.applicationTitle;
-  const mediaServerName =
-    settings.currentSettings.mediaServerType === MediaServerType.EMBY
-      ? 'Emby'
-      : 'Jellyfin';
+  // When serverType is explicitly provided, use it; otherwise fall back to
+  // the legacy mediaServerType setting for backwards-compatible behaviour.
+  const resolvedServerType =
+    serverType ??
+    (settings.currentSettings.mediaServerType === MediaServerType.EMBY
+      ? 'emby'
+      : 'jellyfin');
+  const mediaServerName = resolvedServerType === 'emby' ? 'Emby' : 'Jellyfin';
 
   return (
     <Transition
@@ -82,7 +88,7 @@ const LinkJellyfinModal: React.FC<LinkJellyfinModalProps> = ({
           try {
             setError(null);
             await axios.post(
-              `/api/v1/user/${user?.id}/settings/linked-accounts/jellyfin`,
+              `/api/v1/user/${user?.id}/settings/linked-accounts/${resolvedServerType}`,
               {
                 username,
                 password,

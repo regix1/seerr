@@ -2,6 +2,7 @@ import { UserType } from '@server/constants/user';
 import type { PermissionCheckOptions } from '@server/lib/permissions';
 import { hasPermission, Permission } from '@server/lib/permissions';
 import type { NotificationAgentKey } from '@server/lib/settings';
+import axios from 'axios';
 import { useRouter } from 'next/router';
 import type { MutatorCallback } from 'swr';
 import useSWR from 'swr';
@@ -9,11 +10,59 @@ import useSWR from 'swr';
 export { Permission, UserType };
 export type { PermissionCheckOptions };
 
+export interface MediaServerLoginPayload {
+  username: string;
+  password: string;
+  hostname?: string;
+  port?: number;
+  urlBase?: string;
+  useSsl?: boolean;
+  email?: string;
+}
+
+export interface PlexLoginPayload {
+  authToken: string;
+}
+
+/**
+ * POST credentials to `/api/v1/auth/plex`. Returns the authenticated user payload.
+ */
+export const loginWithPlex = async (
+  payload: PlexLoginPayload
+): Promise<User> => {
+  const response = await axios.post<User>('/api/v1/auth/plex', payload);
+  return response.data;
+};
+
+/**
+ * POST credentials to `/api/v1/auth/jellyfin`. Returns the authenticated user payload.
+ * Requires `settings.main.jellyfinLoginEnabled === true` server-side.
+ */
+export const loginWithJellyfin = async (
+  payload: MediaServerLoginPayload
+): Promise<User> => {
+  const response = await axios.post<User>('/api/v1/auth/jellyfin', payload);
+  return response.data;
+};
+
+/**
+ * POST credentials to `/api/v1/auth/emby`. Returns the authenticated user payload.
+ * Requires `settings.main.embyLoginEnabled === true` server-side.
+ */
+export const loginWithEmby = async (
+  payload: MediaServerLoginPayload
+): Promise<User> => {
+  const response = await axios.post<User>('/api/v1/auth/emby', payload);
+  return response.data;
+};
+
 export interface User {
   id: number;
   warnings: string[];
   plexUsername?: string | null;
   jellyfinUsername?: string | null;
+  embyUserId?: string | null;
+  embyUsername?: string | null;
   username?: string;
   displayName: string;
   email: string;

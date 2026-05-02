@@ -18,6 +18,7 @@ import type { AvailableCacheIds } from '@server/lib/cache';
 import cacheManager from '@server/lib/cache';
 import ImageProxy from '@server/lib/imageproxy';
 import { Permission } from '@server/lib/permissions';
+import { embyFullScanner } from '@server/lib/scanners/emby';
 import { jellyfinFullScanner } from '@server/lib/scanners/jellyfin';
 import { plexFullScanner } from '@server/lib/scanners/plex';
 import type { JobId, Library, MainSettings } from '@server/lib/settings';
@@ -29,7 +30,6 @@ import { ApiError } from '@server/types/error';
 import { appDataPath } from '@server/utils/appDataVolume';
 import { getAppVersion } from '@server/utils/appVersion';
 import { dnsCache } from '@server/utils/dnsCache';
-import { getHostname } from '@server/utils/getHostname';
 import type { DnsEntries, DnsStats } from 'dns-caching';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
@@ -90,6 +90,7 @@ settingsRoutes.post('/main', async (req, res) => {
     'mediaServerType',
     'plexLoginEnabled',
     'jellyfinLoginEnabled',
+    'embyLoginEnabled',
     'partialRequestsEnabled',
     'enableSpecialEpisodes',
     'locale',
@@ -314,8 +315,8 @@ settingsRoutes.post('/jellyfin', async (req, res, next) => {
 
     const tempJellyfinSettings = { ...settings.jellyfin, ...req.body };
 
-    const jellyfinClient = new JellyfinAPI(
-      getHostname(tempJellyfinSettings),
+    const jellyfinClient = JellyfinAPI.forJellyfin(
+      tempJellyfinSettings,
       tempJellyfinSettings.apiKey,
       admin.jellyfinDeviceId ?? ''
     );
@@ -368,8 +369,8 @@ settingsRoutes.get('/jellyfin/library', async (req, res, next) => {
       where: { id: 1 },
       order: { id: 'ASC' },
     });
-    const jellyfinClient = new JellyfinAPI(
-      getHostname(),
+    const jellyfinClient = JellyfinAPI.forJellyfin(
+      settings.jellyfin,
       settings.jellyfin.apiKey,
       admin.jellyfinDeviceId ?? ''
     );
@@ -430,8 +431,8 @@ settingsRoutes.get('/jellyfin/users', async (req, res) => {
     where: { id: 1 },
     order: { id: 'ASC' },
   });
-  const jellyfinClient = new JellyfinAPI(
-    getHostname(),
+  const jellyfinClient = JellyfinAPI.forJellyfin(
+    settings.jellyfin,
     settings.jellyfin.apiKey,
     admin.jellyfinDeviceId ?? ''
   );
@@ -460,6 +461,160 @@ settingsRoutes.post('/jellyfin/sync', (req, res) => {
   }
   return res.status(200).json(jellyfinFullScanner.status());
 });
+
+// ---------------------------------------------------------------------------
+// Emby routes
+// ---------------------------------------------------------------------------
+settingsRoutes.get('/emby', (_req, res) => {
+  const settings = getSettings();
+  res.status(200).json(settings.emby);
+});
+
+settingsRoutes.post('/emby', async (req, res, next) => {
+  const userRepository = getRepository(User);
+  const settings = getSettings();
+
+  try {
+    const admin = await userRepository.findOneOrFail({
+      where: { id: 1 },
+      select: ['id', 'embyDeviceId'],
+      order: { id: 'ASC' },
+    });
+
+    const allowedEmbyFields = [
+      'ip',
+      'port',
+      'useSsl',
+      'urlBase',
+      'externalHostname',
+      'forgotPasswordUrl',
+      'apiKey',
+    ] as const;
+
+    const tempEmbySettings = {
+      ...settings.emby,
+      ...pick(req.body, allowedEmbyFields),
+    };
+
+    const embyClient = JellyfinAPI.forEmby(
+      tempEmbySettings,
+      tempEmbySettings.apiKey,
+      admin.embyDeviceId ?? ''
+    );
+
+    const result = await embyClient.getSystemInfo();
+
+    if (!result?.Id) {
+      throw new ApiError(result?.status, ApiErrorCode.InvalidUrl);
+    }
+
+    Object.assign(settings.emby, pick(req.body, allowedEmbyFields));
+    settings.emby.serverId = result.Id;
+    settings.emby.name = result.ServerName;
+    await settings.save();
+  } catch (e) {
+    logger.error('Something went wrong testing Emby connection', {
+      label: 'API',
+      errorMessage: (e as Error).message,
+    });
+    return next({
+      status: e instanceof ApiError ? e.statusCode : 500,
+      message: e instanceof ApiError ? e.errorCode : ApiErrorCode.Unknown,
+    });
+  }
+
+  return res.status(200).json(settings.emby);
+});
+
+settingsRoutes.get('/emby/library', async (req, res, next) => {
+  const settings = getSettings();
+
+  if (req.query.sync) {
+    const userRepository = getRepository(User);
+    const admin = await userRepository.findOneOrFail({
+      select: ['id', 'embyDeviceId', 'embyUserId'],
+      where: { id: 1 },
+      order: { id: 'ASC' },
+    });
+    const embyClient = JellyfinAPI.forEmby(
+      settings.emby,
+      settings.emby.apiKey,
+      admin.embyDeviceId ?? ''
+    );
+
+    embyClient.setUserId(admin.embyUserId ?? '');
+
+    const libraries = await embyClient.getLibraries();
+
+    if (libraries.length === 0) {
+      return next({ status: 404, message: ApiErrorCode.SyncErrorNoLibraries });
+    }
+
+    settings.emby.libraries = libraries.map((library) => {
+      const existing = settings.emby.libraries.find(
+        (l) => l.id === library.key && l.name === library.title
+      );
+
+      return {
+        id: library.key,
+        name: library.title,
+        enabled: existing?.enabled ?? false,
+        type: library.type,
+      };
+    });
+  }
+
+  const enabledLibraries = req.query.enable
+    ? (req.query.enable as string).split(',')
+    : [];
+  settings.emby.libraries = settings.emby.libraries.map((library) => ({
+    ...library,
+    enabled: enabledLibraries.includes(library.id),
+  }));
+  await settings.save();
+  return res.status(200).json(settings.emby.libraries);
+});
+
+settingsRoutes.get('/emby/users', async (_req, res) => {
+  const settings = getSettings();
+
+  const userRepository = getRepository(User);
+  const admin = await userRepository.findOneOrFail({
+    select: ['id', 'embyDeviceId', 'embyUserId'],
+    where: { id: 1 },
+    order: { id: 'ASC' },
+  });
+  const embyClient = JellyfinAPI.forEmby(
+    settings.emby,
+    settings.emby.apiKey,
+    admin.embyDeviceId ?? ''
+  );
+
+  embyClient.setUserId(admin.embyUserId ?? '');
+  const resp = await embyClient.getUsers();
+  const users = resp.users.map((user) => ({
+    username: user.Name,
+    id: user.Id,
+    thumb: `/avatarproxy/${user.Id}?provider=emby`,
+    email: user.Name,
+  }));
+
+  return res.status(200).json(users);
+});
+
+settingsRoutes.get('/emby/sync', (_req, res) => {
+  return res.status(200).json(embyFullScanner.status());
+});
+
+settingsRoutes.post('/emby/sync', (req, res) => {
+  if (req.body.cancel) {
+    embyFullScanner.cancel();
+  } else if (req.body.start) {
+    embyFullScanner.run();
+  }
+  return res.status(200).json(embyFullScanner.status());
+});
+
 settingsRoutes.get('/tautulli', (_req, res) => {
   const settings = getSettings();
 

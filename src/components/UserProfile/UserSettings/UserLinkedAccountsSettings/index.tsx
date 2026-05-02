@@ -11,7 +11,6 @@ import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import PlexOAuth from '@app/utils/plex';
 import { TrashIcon } from '@heroicons/react/24/solid';
-import { MediaServerType } from '@server/constants/server';
 import axios from 'axios';
 import { useRouter } from 'next/router';
 import { useMemo, useState } from 'react';
@@ -63,6 +62,7 @@ const UserLinkedAccountsSettings = () => {
     user ? `/api/v1/user/${user?.id}/settings/password` : null
   );
   const [showJellyfinModal, setShowJellyfinModal] = useState(false);
+  const [showEmbyModal, setShowEmbyModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const applicationName = settings.currentSettings.applicationTitle;
@@ -70,41 +70,30 @@ const UserLinkedAccountsSettings = () => {
   const accounts: LinkedAccount[] = useMemo(() => {
     const accounts: LinkedAccount[] = [];
     if (!user) return accounts;
-    // Use column-presence (via linkedProviders or username fallback) so a
-    // dual-linked user sees both providers simultaneously.
+    // Each provider is derived independently from its own columns.
     const hasPlexLinked =
       user.linkedProviders?.includes('plex') ?? !!user.plexUsername;
     const hasJellyfinLinked =
-      user.linkedProviders?.includes('jellyfin') ||
-      user.linkedProviders?.includes('emby') ||
-      !!user.jellyfinUsername;
-    if (hasPlexLinked && !user.plexUsername) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[UserLinkedAccountsSettings] User ${user.id} has plexId set but missing plexUsername — skipping linked-account entry.`
-      );
-    }
+      user.linkedProviders?.includes('jellyfin') ?? !!user.jellyfinUsername;
+    const hasEmbyLinked =
+      user.linkedProviders?.includes('emby') ?? !!user.embyUsername;
     if (hasPlexLinked && user.plexUsername)
       accounts.push({
         type: LinkedAccountType.Plex,
         username: user.plexUsername,
       });
-    if (hasJellyfinLinked && !user.jellyfinUsername) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[UserLinkedAccountsSettings] User ${user.id} has jellyfinUserId set but missing jellyfinUsername — skipping linked-account entry.`
-      );
-    }
     if (hasJellyfinLinked && user.jellyfinUsername)
       accounts.push({
-        type:
-          settings.currentSettings.mediaServerType === MediaServerType.EMBY
-            ? LinkedAccountType.Emby
-            : LinkedAccountType.Jellyfin,
+        type: LinkedAccountType.Jellyfin,
         username: user.jellyfinUsername,
       });
+    if (hasEmbyLinked && user.embyUsername)
+      accounts.push({
+        type: LinkedAccountType.Emby,
+        username: user.embyUsername,
+      });
     return accounts;
-  }, [user, settings.currentSettings.mediaServerType]);
+  }, [user]);
 
   const linkPlexAccount = async () => {
     setError(null);
@@ -146,19 +135,20 @@ const UserLinkedAccountsSettings = () => {
         accounts.some((a) => a.type === LinkedAccountType.Plex),
     },
     {
-      name:
-        settings.currentSettings.mediaServerType === MediaServerType.EMBY
-          ? 'Emby'
-          : 'Jellyfin',
+      name: 'Jellyfin',
       action: () => setShowJellyfinModal(true),
-      // Linkable iff Jellyfin/Emby login is enabled AND the user has not already linked one
+      // Linkable iff Jellyfin login is enabled AND the user has not already linked Jellyfin
       hide:
         !settings.currentSettings.jellyfinLoginEnabled ||
-        accounts.some(
-          (a) =>
-            a.type === LinkedAccountType.Jellyfin ||
-            a.type === LinkedAccountType.Emby
-        ),
+        accounts.some((a) => a.type === LinkedAccountType.Jellyfin),
+    },
+    {
+      name: 'Emby',
+      action: () => setShowEmbyModal(true),
+      // Linkable iff Emby login is enabled AND the user has not already linked Emby
+      hide:
+        !settings.currentSettings.embyLoginEnabled ||
+        accounts.some((a) => a.type === LinkedAccountType.Emby),
     },
   ].filter((l) => !l.hide);
 
@@ -259,7 +249,11 @@ const UserLinkedAccountsSettings = () => {
                 <ConfirmButton
                   onClick={() => {
                     deleteRequest(
-                      acct.type === LinkedAccountType.Plex ? 'plex' : 'jellyfin'
+                      acct.type === LinkedAccountType.Plex
+                        ? 'plex'
+                        : acct.type === LinkedAccountType.Emby
+                          ? 'emby'
+                          : 'jellyfin'
                     );
                   }}
                   confirmText={intl.formatMessage(globalMessages.areyousure)}
@@ -286,6 +280,16 @@ const UserLinkedAccountsSettings = () => {
           setShowJellyfinModal(false);
           revalidateUser();
         }}
+        serverType="jellyfin"
+      />
+      <LinkJellyfinModal
+        show={showEmbyModal}
+        onClose={() => setShowEmbyModal(false)}
+        onSave={() => {
+          setShowEmbyModal(false);
+          revalidateUser();
+        }}
+        serverType="emby"
       />
     </>
   );

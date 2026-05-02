@@ -35,6 +35,7 @@ interface ProcessOptions {
   mediaAddedAt?: Date;
   ratingKey?: string;
   jellyfinMediaId?: string;
+  embyMediaId?: string;
   imdbId?: string;
   serviceId?: number;
   externalServiceId?: number;
@@ -98,6 +99,7 @@ class BaseScanner<T> {
       mediaAddedAt,
       ratingKey,
       jellyfinMediaId,
+      embyMediaId,
       imdbId,
       serviceId,
       externalServiceId,
@@ -146,6 +148,14 @@ class BaseScanner<T> {
         ) {
           existing[is4k ? 'jellyfinMediaId4k' : 'jellyfinMediaId'] =
             jellyfinMediaId;
+          changedExisting = true;
+        }
+
+        if (
+          embyMediaId &&
+          existing[is4k ? 'embyMediaId4k' : 'embyMediaId'] !== embyMediaId
+        ) {
+          existing[is4k ? 'embyMediaId4k' : 'embyMediaId'] = embyMediaId;
           changedExisting = true;
         }
 
@@ -232,6 +242,12 @@ class BaseScanner<T> {
             is4k && this.enable4kMovie ? jellyfinMediaId : undefined;
         }
 
+        if (embyMediaId) {
+          newMedia.embyMediaId = !is4k ? embyMediaId : undefined;
+          newMedia.embyMediaId4k =
+            is4k && this.enable4kMovie ? embyMediaId : undefined;
+        }
+
         await mediaRepository.save(newMedia);
         this.log(`Saved new media: ${title}`);
       }
@@ -256,6 +272,7 @@ class BaseScanner<T> {
       mediaAddedAt,
       ratingKey,
       jellyfinMediaId,
+      embyMediaId,
       serviceId,
       externalServiceId,
       externalServiceSlug,
@@ -316,6 +333,19 @@ class BaseScanner<T> {
           media.jellyfinMediaId4k !== jellyfinMediaId
         ) {
           media.jellyfinMediaId4k = jellyfinMediaId;
+        }
+
+        if (media && season.episodes > 0 && media.embyMediaId !== embyMediaId) {
+          media.embyMediaId = embyMediaId;
+        }
+
+        if (
+          media &&
+          season.episodes4k > 0 &&
+          this.enable4kShow &&
+          media.embyMediaId4k !== embyMediaId
+        ) {
+          media.embyMediaId4k = embyMediaId;
         }
 
         if (existingSeason) {
@@ -554,6 +584,22 @@ class BaseScanner<T> {
                 sn.status4k === MediaStatus.AVAILABLE
             )
               ? jellyfinMediaId
+              : undefined,
+          embyMediaId: newSeasons.some(
+            (sn) =>
+              sn.status === MediaStatus.PARTIALLY_AVAILABLE ||
+              sn.status === MediaStatus.AVAILABLE
+          )
+            ? embyMediaId
+            : undefined,
+          embyMediaId4k:
+            this.enable4kShow &&
+            newSeasons.some(
+              (sn) =>
+                sn.status4k === MediaStatus.PARTIALLY_AVAILABLE ||
+                sn.status4k === MediaStatus.AVAILABLE
+            )
+              ? embyMediaId
               : undefined,
           status: isAllStandardSeasonsAvailable
             ? MediaStatus.AVAILABLE

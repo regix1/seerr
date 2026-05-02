@@ -11,7 +11,8 @@ const messages = defineMessages('components.Settings', {
   menuGeneralSettings: 'General',
   menuUsers: 'Users',
   menuPlexSettings: 'Plex',
-  menuJellyfinSettings: '{mediaServerName}',
+  menuJellyfinSettings: 'Jellyfin',
+  menuEmbySettings: 'Emby',
   menuServices: 'Services',
   menuNetwork: 'Network',
   menuNotifications: 'Notifications',
@@ -45,9 +46,22 @@ const SettingsLayout = ({ children }: SettingsLayoutProps) => {
       regex: /^\/settings\/plex/,
     },
     {
-      text: getAvailableMediaServerName(),
+      text: intl.formatMessage(messages.menuJellyfinSettings),
       route: '/settings/jellyfin',
       regex: /^\/settings\/jellyfin/,
+      hidden: !(
+        settings.currentSettings.jellyfinLoginEnabled ||
+        settings.currentSettings.mediaServerType === MediaServerType.JELLYFIN
+      ),
+    },
+    {
+      text: intl.formatMessage(messages.menuEmbySettings),
+      route: '/settings/emby',
+      regex: /^\/settings\/emby/,
+      hidden: !(
+        settings.currentSettings.embyLoginEnabled ||
+        settings.currentSettings.mediaServerType === MediaServerType.EMBY
+      ),
     },
     {
       text: intl.formatMessage(messages.menuServices),
@@ -95,17 +109,6 @@ const SettingsLayout = ({ children }: SettingsLayoutProps) => {
       <div className="mt-10 text-white">{children}</div>
     </>
   );
-  function getAvailableMediaServerName() {
-    const mediaServerName =
-      settings.currentSettings.mediaServerType === MediaServerType.JELLYFIN
-        ? 'Jellyfin'
-        : settings.currentSettings.mediaServerType === MediaServerType.EMBY
-          ? 'Emby'
-          : 'Jellyfin / Emby';
-    return intl.formatMessage(messages.menuJellyfinSettings, {
-      mediaServerName,
-    });
-  }
 };
 
 export default SettingsLayout;

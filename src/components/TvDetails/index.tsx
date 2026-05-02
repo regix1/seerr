@@ -54,7 +54,6 @@ import {
   MediaStatus,
   MediaType,
 } from '@server/constants/media';
-import { MediaServerType } from '@server/constants/server';
 import type { Crew } from '@server/models/common';
 import type { TvDetails as TvDetailsType } from '@server/models/Tv';
 import axios from 'axios';
@@ -188,7 +187,7 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
     })
   ) {
     mediaLinks.push({
-      text: getAvailableMediaServerName(),
+      text: getAvailableMediaServerName(plexUrl),
       url: plexUrl,
       svg: <PlayIcon />,
     });
@@ -202,7 +201,7 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
     })
   ) {
     mediaLinks.push({
-      text: getAvailable4kMediaServerName(),
+      text: getAvailableMediaServerName(plexUrl4k, true),
       url: plexUrl4k,
       svg: <PlayIcon />,
     });
@@ -329,28 +328,32 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
       (provider) => provider.iso_3166_1 === streamingRegion
     )?.flatrate ?? [];
 
-  function getAvailableMediaServerName() {
-    if (settings.currentSettings.mediaServerType === MediaServerType.EMBY) {
-      return intl.formatMessage(messages.play, { mediaServerName: 'Emby' });
+  function getMediaServerNameForUrl(url?: string, is4k = false) {
+    if (
+      url &&
+      url ===
+        (is4k ? data?.mediaInfo?.embyMediaUrl4k : data?.mediaInfo?.embyMediaUrl)
+    ) {
+      return 'Emby';
     }
 
-    if (settings.currentSettings.mediaServerType === MediaServerType.PLEX) {
-      return intl.formatMessage(messages.play, { mediaServerName: 'Plex' });
+    if (
+      url &&
+      url ===
+        (is4k
+          ? data?.mediaInfo?.jellyfinMediaUrl4k
+          : data?.mediaInfo?.jellyfinMediaUrl)
+    ) {
+      return 'Jellyfin';
     }
 
-    return intl.formatMessage(messages.play, { mediaServerName: 'Jellyfin' });
+    return 'Plex';
   }
 
-  function getAvailable4kMediaServerName() {
-    if (settings.currentSettings.mediaServerType === MediaServerType.EMBY) {
-      return intl.formatMessage(messages.play, { mediaServerName: 'Emby' });
-    }
-
-    if (settings.currentSettings.mediaServerType === MediaServerType.PLEX) {
-      return intl.formatMessage(messages.play4k, { mediaServerName: 'Plex' });
-    }
-
-    return intl.formatMessage(messages.play, { mediaServerName: 'Jellyfin' });
+  function getAvailableMediaServerName(url?: string, is4k = false) {
+    return intl.formatMessage(is4k ? messages.play4k : messages.play, {
+      mediaServerName: getMediaServerNameForUrl(url, is4k),
+    });
   }
 
   const onClickWatchlistBtn = async (): Promise<void> => {
@@ -556,6 +559,7 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
               tmdbId={data.mediaInfo?.tmdbId}
               mediaType="tv"
               plexUrl={plexUrl}
+              mediaServerName={getMediaServerNameForUrl(plexUrl)}
               serviceUrl={data.mediaInfo?.serviceUrl}
             />
             {settings.currentSettings.series4kEnabled &&
@@ -580,6 +584,7 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                   tmdbId={data.mediaInfo?.tmdbId}
                   mediaType="tv"
                   plexUrl={plexUrl4k}
+                  mediaServerName={getMediaServerNameForUrl(plexUrl4k, true)}
                   serviceUrl={data.mediaInfo?.serviceUrl4k}
                 />
               )}
@@ -620,19 +625,16 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                 target="_blank"
                 rel="noreferrer"
               >
-                <Badge
-                  badgeType={
-                    settings.currentSettings.mediaServerType ===
-                    MediaServerType.EMBY
-                      ? 'success'
-                      : 'default'
-                  }
-                >
-                  {settings.currentSettings.mediaServerType ===
-                  MediaServerType.EMBY
-                    ? 'Emby'
-                    : 'Jellyfin'}
-                </Badge>
+                <Badge badgeType="default">Jellyfin</Badge>
+              </a>
+            )}
+            {data.mediaInfo?.embyMediaId && (
+              <a
+                href={data.mediaInfo.embyMediaUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Badge badgeType="success">Emby</Badge>
               </a>
             )}
           </div>
@@ -1386,6 +1388,9 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                 jellyfinMediaUrl={
                   data.mediaInfo?.jellyfinMediaUrl ??
                   data.mediaInfo?.jellyfinMediaUrl4k
+                }
+                embyMediaUrl={
+                  data.mediaInfo?.embyMediaUrl ?? data.mediaInfo?.embyMediaUrl4k
                 }
               />
             </div>

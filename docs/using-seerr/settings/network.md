@@ -37,6 +37,12 @@ If you have Seerr behind a reverse proxy, enable this setting to allow Seerr to 
 
 This setting is **disabled** by default.
 
+## Trusted Proxy Environment Variable
+
+Seerr trusts only loopback proxies by default. If your reverse proxy runs outside the same host, set the `TRUST_PROXY` environment variable to the proxy address, CIDR range, or one of Express' named values such as `loopback` or `uniquelocal`.
+
+Only trust proxies that you control. A permissive value can allow clients to spoof `X-Forwarded-For` and bypass IP-based protections.
+
 ## Enable CSRF Protection
 
 :::warning

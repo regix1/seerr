@@ -4,7 +4,6 @@ import Modal from '@app/components/Common/Modal';
 import useSettings from '@app/hooks/useSettings';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
-import { MediaServerType } from '@server/constants/server';
 import type { UserResultsResponse } from '@server/interfaces/api/userInterfaces';
 import axios from 'axios';
 import { useState } from 'react';
@@ -13,6 +12,7 @@ import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 
 interface JellyfinImportProps {
+  provider?: 'jellyfin' | 'emby';
   onCancel?: () => void;
   onComplete?: () => void;
   children?: React.ReactNode;
@@ -33,6 +33,7 @@ const messages = defineMessages('components.UserList', {
 });
 
 const JellyfinImportModal: React.FC<JellyfinImportProps> = ({
+  provider = 'jellyfin',
   onCancel,
   onComplete,
   children,
@@ -42,6 +43,19 @@ const JellyfinImportModal: React.FC<JellyfinImportProps> = ({
   const { addToast } = useToasts();
   const [isImporting, setImporting] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const mediaServerName = provider === 'emby' ? 'Emby' : 'Jellyfin';
+  const usersEndpoint =
+    provider === 'emby'
+      ? '/api/v1/settings/emby/users'
+      : '/api/v1/settings/jellyfin/users';
+  const importEndpoint =
+    provider === 'emby'
+      ? '/api/v1/user/import-from-emby'
+      : '/api/v1/user/import-from-jellyfin';
+  const importPayloadKey =
+    provider === 'emby' ? 'embyUserIds' : 'jellyfinUserIds';
+  const linkedUserIdKey: 'embyUserId' | 'jellyfinUserId' =
+    provider === 'emby' ? 'embyUserId' : 'jellyfinUserId';
   const { data, error } = useSWR<
     {
       id: string;
@@ -50,7 +64,7 @@ const JellyfinImportModal: React.FC<JellyfinImportProps> = ({
       email: string;
       thumb: string;
     }[]
-  >(`/api/v1/settings/jellyfin/users`, {
+  >(usersEndpoint, {
     revalidateOnMount: true,
   });
 
@@ -62,10 +76,9 @@ const JellyfinImportModal: React.FC<JellyfinImportProps> = ({
     setImporting(true);
 
     try {
-      const { data: createdUsers } = await axios.post(
-        '/api/v1/user/import-from-jellyfin',
-        { jellyfinUserIds: selectedUsers }
-      );
+      const { data: createdUsers } = await axios.post(importEndpoint, {
+        [importPayloadKey]: selectedUsers,
+      });
 
       if (!createdUsers.length) {
         throw new Error('No users were imported from Jellyfin.');
@@ -75,10 +88,7 @@ const JellyfinImportModal: React.FC<JellyfinImportProps> = ({
         intl.formatMessage(messages.importedfromJellyfin, {
           userCount: createdUsers.length,
           strong: (msg: React.ReactNode) => <strong>{msg}</strong>,
-          mediaServerName:
-            settings.currentSettings.mediaServerType === MediaServerType.EMBY
-              ? 'Emby'
-              : 'Jellyfin',
+          mediaServerName,
         }),
         {
           autoDismiss: true,
@@ -89,10 +99,7 @@ const JellyfinImportModal: React.FC<JellyfinImportProps> = ({
       addToast(
         intl.formatMessage(messages.importedUsersNoPassword, {
           applicationTitle: settings.currentSettings.applicationTitle,
-          mediaServerName:
-            settings.currentSettings.mediaServerType === MediaServerType.EMBY
-              ? 'Emby'
-              : 'Jellyfin',
+          mediaServerName,
         }),
         {
           autoDismiss: false,
@@ -106,10 +113,7 @@ const JellyfinImportModal: React.FC<JellyfinImportProps> = ({
     } catch {
       addToast(
         intl.formatMessage(messages.importfromJellyfinerror, {
-          mediaServerName:
-            settings.currentSettings.mediaServerType === MediaServerType.EMBY
-              ? 'Emby'
-              : 'Jellyfin',
+          mediaServerName,
         }),
         {
           autoDismiss: true,
@@ -146,10 +150,7 @@ const JellyfinImportModal: React.FC<JellyfinImportProps> = ({
     <Modal
       loading={!data && !error}
       title={intl.formatMessage(messages.importfromJellyfin, {
-        mediaServerName:
-          settings.currentSettings.mediaServerType === MediaServerType.EMBY
-            ? 'Emby'
-            : 'Jellyfin',
+        mediaServerName,
       })}
       onOk={() => {
         importUsers();
@@ -165,11 +166,7 @@ const JellyfinImportModal: React.FC<JellyfinImportProps> = ({
           {settings.currentSettings.newPlexLogin && (
             <Alert
               title={intl.formatMessage(messages.newJellyfinsigninenabled, {
-                mediaServerName:
-                  settings.currentSettings.mediaServerType ===
-                  MediaServerType.EMBY
-                    ? 'Emby'
-                    : 'Jellyfin',
+                mediaServerName,
                 strong: (msg: React.ReactNode) => (
                   <strong className="font-semibold text-white">{msg}</strong>
                 ),
@@ -221,7 +218,7 @@ const JellyfinImportModal: React.FC<JellyfinImportProps> = ({
                         ?.filter(
                           (user) =>
                             !existingUsers?.results.some(
-                              (u) => u.jellyfinUserId === user.id
+                              (u) => u[linkedUserIdKey] === user.id
                             )
                         )
                         .map((user) => (
@@ -293,10 +290,7 @@ const JellyfinImportModal: React.FC<JellyfinImportProps> = ({
       ) : (
         <Alert
           title={intl.formatMessage(messages.noJellyfinuserstoimport, {
-            mediaServerName:
-              settings.currentSettings.mediaServerType === MediaServerType.EMBY
-                ? 'Emby'
-                : 'Jellyfin',
+            mediaServerName,
           })}
           type="info"
         />

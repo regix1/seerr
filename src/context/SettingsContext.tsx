@@ -8,7 +8,7 @@ export interface SettingsContextProps {
   children?: React.ReactNode;
 }
 
-const defaultSettings = {
+const defaultSettings: PublicSettingsResponse = {
   initialized: false,
   applicationTitle: 'Seerr',
   applicationUrl: '',
@@ -32,8 +32,15 @@ const defaultSettings = {
   newPlexLogin: true,
   youtubeUrl: '',
   plexClientIdentifier: '',
+  jellyfinExternalHost: '',
+  jellyfinForgotPasswordUrl: '',
+  jellyfinServerName: '',
+  embyExternalHost: '',
+  embyForgotPasswordUrl: '',
+  embyServerName: '',
   plexLoginEnabled: false,
   jellyfinLoginEnabled: false,
+  embyLoginEnabled: false,
 };
 
 export const SettingsContext = React.createContext<SettingsContextProps>({
@@ -49,7 +56,7 @@ export const SettingsProvider = ({
     { fallbackData: currentSettings }
   );
 
-  let newSettings = defaultSettings;
+  let newSettings: PublicSettingsResponse = defaultSettings;
 
   if (data && !error) {
     newSettings = data;

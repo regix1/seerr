@@ -11,7 +11,7 @@ import defineMessages from '@app/utils/defineMessages';
 import { isValidURL } from '@app/utils/urlValidationHelper';
 import { ArrowDownOnSquareIcon } from '@heroicons/react/24/outline';
 import { ApiErrorCode } from '@server/constants/error';
-import type { JellyfinSettings } from '@server/lib/settings';
+import type { EmbySettings } from '@server/lib/settings';
 import axios from 'axios';
 import { Field, Formik } from 'formik';
 import { FormattedMessage, useIntl } from 'react-intl';
@@ -19,40 +19,32 @@ import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 import * as Yup from 'yup';
 
-const messages = defineMessages('components.Settings', {
-  jellyfinsettings: '{mediaServerName} Settings',
-  jellyfinsettingsDescription:
-    'Configure the settings for your {mediaServerName} server. {mediaServerName} scans your {mediaServerName} libraries to see what content is available.',
-  timeout: 'Timeout',
-  save: 'Save Changes',
-  saving: 'Saving…',
-  jellyfinlibraries: '{mediaServerName} Libraries',
-  jellyfinlibrariesDescription:
-    'The libraries {mediaServerName} scans for titles. Click the button below if no libraries are listed.',
-  jellyfinSettingsFailure:
-    'Something went wrong while saving {mediaServerName} settings.',
-  jellyfinSettingsSuccess: '{mediaServerName} settings saved successfully!',
-  jellyfinSettings: '{mediaServerName} Settings',
-  jellyfinSettingsDescription:
-    'Optionally configure the internal and external endpoints for your {mediaServerName} server. In most cases, the external URL is different to the internal URL. A custom password reset URL can also be set for {mediaServerName} login, in case you would like to redirect to a different password reset page. You can also change the Jellyfin API key, which was automatically generated previously.',
+const messages = defineMessages('components.Settings.SettingsEmby', {
+  embysettings: 'Emby Settings',
+  embysettingsDescription:
+    'Configure the settings for your Emby server. Emby scans your Emby libraries to see what content is available.',
+  embylibraries: 'Emby Libraries',
+  embylibrariesDescription:
+    'The libraries Emby scans for titles. Click the button below if no libraries are listed.',
+  embySettingsFailure: 'Something went wrong while saving Emby settings.',
+  embySettingsSuccess: 'Emby settings saved successfully!',
+  embySettingsDescription2:
+    'Optionally configure the internal and external endpoints for your Emby server. In most cases, the external URL is different to the internal URL. A custom password reset URL can also be set for Emby login, in case you would like to redirect to a different password reset page. You can also change the Emby API key, which was automatically generated previously.',
   externalUrl: 'External URL',
   hostname: 'Hostname or IP Address',
   port: 'Port',
   enablessl: 'Use SSL',
   urlBase: 'URL Base',
-  jellyfinForgotPasswordUrl: 'Forgot Password URL',
+  embyForgotPasswordUrl: 'Forgot Password URL',
   apiKey: 'API key',
-  jellyfinSyncFailedNoLibrariesFound: 'No libraries were found',
-  jellyfinSyncFailedAutomaticGroupedFolders:
-    'Custom authentication with Automatic Library Grouping not supported',
-  jellyfinSyncFailedGenericError:
-    'Something went wrong while syncing libraries',
-  invalidurlerror: 'Unable to connect to {mediaServerName} server.',
+  embySyncFailedNoLibrariesFound: 'No libraries were found',
+  embySyncFailedGenericError: 'Something went wrong while syncing libraries',
+  invalidurlerror: 'Unable to connect to Emby server.',
   syncing: 'Syncing',
-  syncJellyfin: 'Sync Libraries',
-  manualscanJellyfin: 'Manual Library Scan',
-  manualscanDescriptionJellyfin:
-    "Normally, this will only be run once every 24 hours. Seerr will check your {mediaServerName} server's recently added more aggressively. If this is your first time configuring Seerr, a one-time full manual library scan is recommended!",
+  syncEmby: 'Sync Libraries',
+  manualscanEmby: 'Manual Library Scan',
+  manualscanDescriptionEmby:
+    "Normally, this will only be run once every 24 hours. Seerr will check your Emby server's recently added more aggressively. If this is your first time configuring Seerr, a one-time full manual library scan is recommended!",
   notrunning: 'Not Running',
   currentlibrary: 'Current Library: {name}',
   librariesRemaining: 'Libraries Remaining: {count}',
@@ -68,39 +60,40 @@ const messages = defineMessages('components.Settings', {
   scanbackground:
     'Scanning will run in the background. You can continue the setup process in the meantime.',
   bothProvidersBanner:
-    'Libraries from Plex and {server} are scanned independently. Items present on both servers are deduplicated by TMDB ID.',
+    'Libraries from Plex and Emby are scanned independently. Items present on both servers are deduplicated by TMDB ID.',
   crossStatusTitle: 'Plex Last Scan',
   crossStatusNotRun: 'Not yet run',
   crossStatusRunning: 'Currently running ({progress} of {total})',
   crossStatusDone: '{progress} of {total} items',
 });
 
-interface Library {
-  id: string;
-  name: string;
-  enabled: boolean;
-}
-
 interface SyncStatus {
   running: boolean;
   progress: number;
   total: number;
-  currentLibrary?: Library;
-  libraries: Library[];
+  currentLibrary?: {
+    id: string;
+    name: string;
+    enabled: boolean;
+  };
+  libraries: {
+    id: string;
+    name: string;
+    enabled: boolean;
+  }[];
 }
 
-interface SettingsJellyfinProps {
+interface SettingsEmbyProps {
   isSetupSettings?: boolean;
   onComplete?: () => void;
 }
 
-const SettingsJellyfin: React.FC<SettingsJellyfinProps> = ({
+const SettingsEmby: React.FC<SettingsEmbyProps> = ({
   onComplete,
   isSetupSettings,
 }) => {
-  const toasts = useToasts();
-  const intl = useIntl();
   const { addToast } = useToasts();
+  const intl = useIntl();
   const settings = useSettings();
 
   const {
@@ -108,21 +101,23 @@ const SettingsJellyfin: React.FC<SettingsJellyfinProps> = ({
     error,
     mutate: revalidate,
     syncData: dataSync,
-    mutateSync: revalidateSync,
     isSyncing,
-    setIsSyncing,
-  } = useMediaServerSettings({ provider: 'jellyfin' });
+    syncLibraries,
+    toggleLibrary,
+    startScan,
+    cancelScan,
+  } = useMediaServerSettings({ provider: 'emby' });
 
   const showBothProvidersBanner =
     settings.currentSettings.plexLoginEnabled &&
-    settings.currentSettings.jellyfinLoginEnabled;
+    settings.currentSettings.embyLoginEnabled;
 
   const { data: plexSyncData } = useSWR<SyncStatus>(
     showBothProvidersBanner ? '/api/v1/settings/plex/sync' : null,
     { refreshInterval: 10000 }
   );
 
-  const JellyfinSettingsSchema = Yup.object().shape({
+  const EmbySettingsSchema = Yup.object().shape({
     hostname: Yup.string()
       .nullable()
       .required(intl.formatMessage(messages.validationHostnameRequired)),
@@ -149,7 +144,7 @@ const SettingsJellyfin: React.FC<SettingsJellyfinProps> = ({
         intl.formatMessage(messages.validationUrlBaseTrailingSlash),
         (value) => !value || !value.endsWith('/')
       ),
-    jellyfinExternalUrl: Yup.string()
+    embyExternalUrl: Yup.string()
       .nullable()
       .test('valid-url', intl.formatMessage(messages.validationUrl), isValidURL)
       .test(
@@ -157,7 +152,7 @@ const SettingsJellyfin: React.FC<SettingsJellyfinProps> = ({
         intl.formatMessage(messages.validationUrlTrailingSlash),
         (value) => !value || !value.endsWith('/')
       ),
-    jellyfinForgotPasswordUrl: Yup.string()
+    embyForgotPasswordUrl: Yup.string()
       .nullable()
       .test('valid-url', intl.formatMessage(messages.validationUrl), isValidURL)
       .test(
@@ -172,136 +167,33 @@ const SettingsJellyfin: React.FC<SettingsJellyfinProps> = ({
       .filter((library) => library.enabled)
       .map((library) => library.id) ?? [];
 
-  const syncLibraries = async () => {
-    setIsSyncing(true);
-
-    const params: { sync: boolean; enable?: string } = {
-      sync: true,
-    };
-
-    if (activeLibraries.length > 0) {
-      params.enable = activeLibraries.join(',');
-    }
-
-    try {
-      await axios.get('/api/v1/settings/jellyfin/library', {
-        params,
-      });
-      setIsSyncing(false);
-      revalidate();
-    } catch (e) {
-      if (e?.response?.data?.message === 'SYNC_ERROR_GROUPED_FOLDERS') {
-        toasts.addToast(
-          intl.formatMessage(
-            messages.jellyfinSyncFailedAutomaticGroupedFolders
-          ),
-          {
-            autoDismiss: true,
-            appearance: 'warning',
-          }
-        );
-      } else if (e?.response?.data?.message === 'SYNC_ERROR_NO_LIBRARIES') {
-        toasts.addToast(
-          intl.formatMessage(messages.jellyfinSyncFailedNoLibrariesFound),
-          {
-            autoDismiss: true,
-            appearance: 'error',
-          }
-        );
-      } else {
-        toasts.addToast(
-          intl.formatMessage(messages.jellyfinSyncFailedGenericError),
-          {
-            autoDismiss: true,
-            appearance: 'error',
-          }
-        );
-      }
-      setIsSyncing(false);
-      revalidate();
-    }
-  };
-
-  const startScan = async () => {
-    await axios.post('/api/v1/settings/jellyfin/sync', {
-      start: true,
-    });
-    revalidateSync();
-  };
-
-  const cancelScan = async () => {
-    await axios.post('/api/v1/settings/jellyfin/sync', {
-      cancel: true,
-    });
-    revalidateSync();
-  };
-
-  const toggleLibrary = async (libraryId: string) => {
-    setIsSyncing(true);
-    if (activeLibraries.includes(libraryId)) {
-      const params: { enable?: string } = {};
-
-      if (activeLibraries.length > 1) {
-        params.enable = activeLibraries
-          .filter((id) => id !== libraryId)
-          .join(',');
-      }
-
-      await axios.get('/api/v1/settings/jellyfin/library', {
-        params,
-      });
-    } else {
-      await axios.get('/api/v1/settings/jellyfin/library', {
-        params: {
-          enable: [...activeLibraries, libraryId].join(','),
-        },
-      });
-    }
-    if (onComplete) {
-      onComplete();
-    }
-    setIsSyncing(false);
-    revalidate();
-  };
-
   if (!data && !error) {
     return <LoadingSpinner />;
   }
-
-  const mediaServerFormatValues = {
-    mediaServerName: 'Jellyfin',
-  };
-
-  const serverLabel = 'Jellyfin';
 
   return (
     <>
       {showBothProvidersBanner && (
         <div className="section">
           <Alert
-            title={intl.formatMessage(messages.bothProvidersBanner, {
-              server: serverLabel,
-            })}
+            title={intl.formatMessage(messages.bothProvidersBanner)}
             type="info"
           />
         </div>
       )}
       <div className="mb-6">
         <h3 className="heading">
-          {intl.formatMessage(
-            messages.jellyfinlibraries,
-            mediaServerFormatValues
-          )}
+          {intl.formatMessage(messages.embylibraries)}
         </h3>
         <p className="description">
-          {intl.formatMessage(
-            messages.jellyfinlibrariesDescription,
-            mediaServerFormatValues
-          )}
+          {intl.formatMessage(messages.embylibrariesDescription)}
         </p>
       </div>
       <div className="section">
-        <Button onClick={() => syncLibraries()} disabled={isSyncing}>
+        <Button
+          onClick={() => syncLibraries(activeLibraries)}
+          disabled={isSyncing}
+        >
           <svg
             className={`${isSyncing ? 'animate-spin' : ''} mr-1 h-5 w-5`}
             fill="currentColor"
@@ -316,28 +208,27 @@ const SettingsJellyfin: React.FC<SettingsJellyfinProps> = ({
           </svg>
           {isSyncing
             ? intl.formatMessage(messages.syncing)
-            : intl.formatMessage(messages.syncJellyfin)}
+            : intl.formatMessage(messages.syncEmby)}
         </Button>
         <ul className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
           {data?.libraries.map((library) => (
             <LibraryItem
               name={library.name}
               isEnabled={library.enabled}
-              key={`setting-library-${library.id}`}
-              onToggle={() => toggleLibrary(library.id)}
+              key={`setting-emby-library-${library.id}`}
+              onToggle={() =>
+                toggleLibrary(library.id, activeLibraries, onComplete)
+              }
             />
           ))}
         </ul>
       </div>
       <div className="mb-6 mt-10">
         <h3 className="heading">
-          <FormattedMessage {...messages.manualscanJellyfin} />
+          <FormattedMessage {...messages.manualscanEmby} />
         </h3>
         <p className="description">
-          {intl.formatMessage(
-            messages.manualscanDescriptionJellyfin,
-            mediaServerFormatValues
-          )}
+          {intl.formatMessage(messages.manualscanDescriptionEmby)}
         </p>
       </div>
       <div className="section">
@@ -345,7 +236,7 @@ const SettingsJellyfin: React.FC<SettingsJellyfinProps> = ({
           <div className="relative mb-6 h-8 w-full overflow-hidden rounded-full bg-gray-600">
             {dataSync?.running && (
               <div
-                className="h-8 bg-indigo-600 transition-all duration-200 ease-in-out"
+                className="h-8 bg-green-600 transition-all duration-200 ease-in-out"
                 style={{
                   width: `${Math.round(
                     (dataSync.progress / dataSync.total) * 100
@@ -470,17 +361,9 @@ const SettingsJellyfin: React.FC<SettingsJellyfinProps> = ({
         </div>
       )}
       <div className="mb-6 mt-10">
-        <h3 className="heading">
-          {intl.formatMessage(
-            messages.jellyfinSettings,
-            mediaServerFormatValues
-          )}
-        </h3>
+        <h3 className="heading">{intl.formatMessage(messages.embysettings)}</h3>
         <p className="description">
-          {intl.formatMessage(
-            messages.jellyfinSettingsDescription,
-            mediaServerFormatValues
-          )}
+          {intl.formatMessage(messages.embySettingsDescription2)}
         </p>
       </div>
       <Formik
@@ -489,56 +372,38 @@ const SettingsJellyfin: React.FC<SettingsJellyfinProps> = ({
           port: data?.port ?? 8096,
           useSsl: data?.useSsl,
           urlBase: data?.urlBase || '',
-          jellyfinExternalUrl: data?.externalHostname || '',
-          jellyfinForgotPasswordUrl: data?.jellyfinForgotPasswordUrl || '',
+          embyExternalUrl: data?.externalHostname || '',
+          embyForgotPasswordUrl: data?.forgotPasswordUrl || '',
           apiKey: data?.apiKey,
         }}
-        validationSchema={JellyfinSettingsSchema}
+        validationSchema={EmbySettingsSchema}
         onSubmit={async (values) => {
           try {
-            await axios.post('/api/v1/settings/jellyfin', {
+            await axios.post('/api/v1/settings/emby', {
               ip: values.hostname,
               port: Number(values.port),
               useSsl: values.useSsl,
               urlBase: values.urlBase,
-              externalHostname: values.jellyfinExternalUrl,
-              jellyfinForgotPasswordUrl: values.jellyfinForgotPasswordUrl,
+              externalHostname: values.embyExternalUrl,
+              forgotPasswordUrl: values.embyForgotPasswordUrl,
               apiKey: values.apiKey,
-            } as JellyfinSettings);
+            } as Partial<EmbySettings>);
 
-            addToast(
-              intl.formatMessage(
-                messages.jellyfinSettingsSuccess,
-                mediaServerFormatValues
-              ),
-              {
-                autoDismiss: true,
-                appearance: 'success',
-              }
-            );
+            addToast(intl.formatMessage(messages.embySettingsSuccess), {
+              autoDismiss: true,
+              appearance: 'success',
+            });
           } catch (e) {
             if (e?.response?.data?.message === ApiErrorCode.InvalidUrl) {
-              addToast(
-                intl.formatMessage(
-                  messages.invalidurlerror,
-                  mediaServerFormatValues
-                ),
-                {
-                  autoDismiss: true,
-                  appearance: 'error',
-                }
-              );
+              addToast(intl.formatMessage(messages.invalidurlerror), {
+                autoDismiss: true,
+                appearance: 'error',
+              });
             } else {
-              addToast(
-                intl.formatMessage(
-                  messages.jellyfinSettingsFailure,
-                  mediaServerFormatValues
-                ),
-                {
-                  autoDismiss: true,
-                  appearance: 'error',
-                }
-              );
+              addToast(intl.formatMessage(messages.embySettingsFailure), {
+                autoDismiss: true,
+                appearance: 'error',
+              });
             }
           } finally {
             revalidate();
@@ -665,7 +530,7 @@ const SettingsJellyfin: React.FC<SettingsJellyfinProps> = ({
                 </>
               )}
               <div className="form-row">
-                <label htmlFor="jellyfinExternalUrl" className="text-label">
+                <label htmlFor="embyExternalUrl" className="text-label">
                   {intl.formatMessage(messages.externalUrl)}
                 </label>
                 <div className="form-input-area">
@@ -673,36 +538,32 @@ const SettingsJellyfin: React.FC<SettingsJellyfinProps> = ({
                     <Field
                       type="text"
                       inputMode="url"
-                      id="jellyfinExternalUrl"
-                      name="jellyfinExternalUrl"
+                      id="embyExternalUrl"
+                      name="embyExternalUrl"
                     />
                   </div>
-                  {errors.jellyfinExternalUrl &&
-                    touched.jellyfinExternalUrl && (
-                      <div className="error">{errors.jellyfinExternalUrl}</div>
-                    )}
+                  {errors.embyExternalUrl && touched.embyExternalUrl && (
+                    <div className="error">{errors.embyExternalUrl}</div>
+                  )}
                 </div>
               </div>
               <div className="form-row">
-                <label
-                  htmlFor="jellyfinForgotPasswordUrl"
-                  className="text-label"
-                >
-                  {intl.formatMessage(messages.jellyfinForgotPasswordUrl)}
+                <label htmlFor="embyForgotPasswordUrl" className="text-label">
+                  {intl.formatMessage(messages.embyForgotPasswordUrl)}
                 </label>
                 <div className="form-input-area">
                   <div className="form-input-field">
                     <Field
                       type="text"
                       inputMode="url"
-                      id="jellyfinForgotPasswordUrl"
-                      name="jellyfinForgotPasswordUrl"
+                      id="embyForgotPasswordUrl"
+                      name="embyForgotPasswordUrl"
                     />
                   </div>
-                  {errors.jellyfinForgotPasswordUrl &&
-                    touched.jellyfinForgotPasswordUrl && (
+                  {errors.embyForgotPasswordUrl &&
+                    touched.embyForgotPasswordUrl && (
                       <div className="error">
-                        {errors.jellyfinForgotPasswordUrl}
+                        {errors.embyForgotPasswordUrl}
                       </div>
                     )}
                 </div>
@@ -735,4 +596,4 @@ const SettingsJellyfin: React.FC<SettingsJellyfinProps> = ({
   );
 };
 
-export default SettingsJellyfin;
+export default SettingsEmby;

@@ -4,21 +4,19 @@ import useSettings from '@app/hooks/useSettings';
 import type { User } from '@app/hooks/useUser';
 import { Permission } from '@app/hooks/useUser';
 import defineMessages from '@app/utils/defineMessages';
-import { MediaServerType } from '@server/constants/server';
 import type { PublicSettingsResponse } from '@server/interfaces/api/settingsInterfaces';
 import { useIntl } from 'react-intl';
 
 const getWatchlistMediaName = (
   currentSettings: PublicSettingsResponse
 ): string => {
-  const { plexLoginEnabled, jellyfinLoginEnabled, mediaServerType } =
-    currentSettings;
-  const jfLabel =
-    mediaServerType === MediaServerType.JELLYFIN ? 'Jellyfin' : 'Emby';
-  if (plexLoginEnabled && jellyfinLoginEnabled) return `Plex / ${jfLabel}`;
-  if (plexLoginEnabled) return 'Plex';
-  if (jellyfinLoginEnabled) return jfLabel;
-  return 'Plex'; // fallback
+  const providers = [
+    currentSettings.plexLoginEnabled ? 'Plex' : undefined,
+    currentSettings.jellyfinLoginEnabled ? 'Jellyfin' : undefined,
+    currentSettings.embyLoginEnabled ? 'Emby' : undefined,
+  ].filter(Boolean);
+
+  return providers.length ? providers.join(' / ') : 'Plex';
 };
 
 export const messages = defineMessages('components.PermissionEdit', {

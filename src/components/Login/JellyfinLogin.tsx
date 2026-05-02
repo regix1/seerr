@@ -54,6 +54,7 @@ const JellyfinLogin: React.FC<JellyfinLoginProps> = ({
           ? ServerType.EMBY
           : 'Media Server',
   };
+  const provider = serverType === MediaServerType.EMBY ? 'emby' : 'jellyfin';
 
   const LoginSchema = Yup.object().shape({
     username: Yup.string().required(
@@ -61,9 +62,14 @@ const JellyfinLogin: React.FC<JellyfinLoginProps> = ({
     ),
     password: Yup.string(),
   });
-  const baseUrl = settings.currentSettings.jellyfinExternalHost;
-  const jellyfinForgotPasswordUrl =
-    settings.currentSettings.jellyfinForgotPasswordUrl;
+  const baseUrl =
+    provider === 'emby'
+      ? settings.currentSettings.embyExternalHost
+      : settings.currentSettings.jellyfinExternalHost;
+  const forgotPasswordUrl =
+    provider === 'emby'
+      ? settings.currentSettings.embyForgotPasswordUrl
+      : settings.currentSettings.jellyfinForgotPasswordUrl;
 
   return (
     <div>
@@ -77,7 +83,7 @@ const JellyfinLogin: React.FC<JellyfinLoginProps> = ({
         onSubmit={async (values) => {
           let succeeded = false;
           try {
-            await axios.post('/api/v1/auth/jellyfin', {
+            await axios.post(`/api/v1/auth/${provider}`, {
               username: values.username,
               password: values.password,
               email: values.username,
@@ -174,14 +180,9 @@ const JellyfinLogin: React.FC<JellyfinLoginProps> = ({
                       {baseUrl && (
                         <a
                           href={
-                            jellyfinForgotPasswordUrl
-                              ? `${jellyfinForgotPasswordUrl}`
-                              : `${baseUrl}/web/index.html#!/${
-                                  settings.currentSettings.mediaServerType ===
-                                  MediaServerType.EMBY
-                                    ? 'startup/'
-                                    : ''
-                                }forgotpassword.html`
+                            forgotPasswordUrl
+                              ? `${forgotPasswordUrl}`
+                              : `${baseUrl}/web/index.html#!/forgotpassword.html`
                           }
                           target="_blank"
                           rel="noreferrer"

@@ -15,7 +15,6 @@ import { User } from '@server/entity/User';
 import type { RadarrSettings, SonarrSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
-import { getHostname } from '@server/utils/getHostname';
 
 class AvailabilitySync {
   public running = false;
@@ -25,19 +24,28 @@ class AvailabilitySync {
   private jellyfinClient?: JellyfinAPI;
   private jellyfinSeasonsCache: Record<string, JellyfinLibraryItem[]>;
 
+  private embyClient?: JellyfinAPI;
+  private embySeasonsCache: Record<string, JellyfinLibraryItem[]>;
+
   private sonarrSeasonsCache: Record<string, SonarrSeason[]>;
   private radarrServers: RadarrSettings[];
   private sonarrServers: SonarrSettings[];
 
   async run() {
     const settings = getSettings();
-    const { mediaServerType, plexLoginEnabled, jellyfinLoginEnabled } =
-      getSettings().main;
+    const {
+      mediaServerType,
+      plexLoginEnabled,
+      jellyfinLoginEnabled,
+      embyLoginEnabled,
+    } = settings.main;
     this.running = true;
     this.plexClient = undefined;
     this.jellyfinClient = undefined;
+    this.embyClient = undefined;
     this.plexSeasonsCache = {};
     this.jellyfinSeasonsCache = {};
+    this.embySeasonsCache = {};
     this.sonarrSeasonsCache = {};
     this.radarrServers = settings.radarr.filter((server) => server.syncEnabled);
     this.sonarrServers = settings.sonarr.filter((server) => server.syncEnabled);
@@ -59,6 +67,7 @@ class AvailabilitySync {
 
         if (plexAdmin && plexAdmin.plexToken && settings.plex.ip) {
           this.plexClient = new PlexAPI({ plexToken: plexAdmin.plexToken });
+          logger.info('Plex: running', { label: 'AvailabilitySync' });
         } else {
           logger.warn(
             'Plex client not initialized: admin token or hostname missing.',
@@ -72,11 +81,9 @@ class AvailabilitySync {
       // Build jellyfinClient independently when jellyfinLoginEnabled and jellyfin hostname is configured
       if (
         jellyfinLoginEnabled ||
-        mediaServerType === MediaServerType.JELLYFIN ||
-        mediaServerType === MediaServerType.EMBY
+        mediaServerType === MediaServerType.JELLYFIN
       ) {
-        const jellyfinHostname = getHostname();
-        if (jellyfinHostname && settings.jellyfin.apiKey) {
+        if (settings.jellyfin.ip && settings.jellyfin.apiKey) {
           const jellyfinAdmin = await userRepository.findOne({
             where: { id: 1 },
             select: ['id', 'jellyfinUserId', 'jellyfinDeviceId'],
@@ -84,8 +91,8 @@ class AvailabilitySync {
           });
 
           if (jellyfinAdmin) {
-            this.jellyfinClient = new JellyfinAPI(
-              jellyfinHostname,
+            this.jellyfinClient = JellyfinAPI.forJellyfin(
+              settings.jellyfin,
               settings.jellyfin.apiKey,
               jellyfinAdmin.jellyfinDeviceId
             );
@@ -94,6 +101,7 @@ class AvailabilitySync {
 
             try {
               await this.jellyfinClient.getSystemInfo();
+              logger.info('Jellyfin: running', { label: 'AvailabilitySync' });
             } catch (e) {
               logger.error('Jellyfin sync initialization interrupted.', {
                 label: 'AvailabilitySync',
@@ -111,8 +119,46 @@ class AvailabilitySync {
         }
       }
 
-      // If neither client is available, abort
-      if (!this.plexClient && !this.jellyfinClient) {
+      // Build embyClient independently when embyLoginEnabled and emby hostname is configured
+      if (embyLoginEnabled || mediaServerType === MediaServerType.EMBY) {
+        if (settings.emby.ip && settings.emby.apiKey) {
+          const embyAdmin = await userRepository.findOne({
+            where: { id: 1 },
+            select: ['id', 'embyUserId', 'embyDeviceId'],
+            order: { id: 'ASC' },
+          });
+
+          if (embyAdmin) {
+            this.embyClient = JellyfinAPI.forEmby(
+              settings.emby,
+              settings.emby.apiKey,
+              embyAdmin.embyDeviceId
+            );
+
+            this.embyClient.setUserId(embyAdmin.embyUserId ?? '');
+
+            try {
+              await this.embyClient.getSystemInfo();
+              logger.info('Emby: running', { label: 'AvailabilitySync' });
+            } catch (e) {
+              logger.error('Emby sync initialization interrupted.', {
+                label: 'AvailabilitySync',
+                status: e.statusCode,
+                error: e.name,
+                errorMessage: e.errorCode,
+              });
+              this.embyClient = undefined;
+            }
+          } else {
+            logger.warn('Emby admin is not configured.', {
+              label: 'AvailabilitySync',
+            });
+          }
+        }
+      }
+
+      // If no clients are available, abort
+      if (!this.plexClient && !this.jellyfinClient && !this.embyClient) {
         logger.error(
           'No media server client could be initialized. Aborting availability sync.',
           {
@@ -195,6 +241,33 @@ class AvailabilitySync {
             }
           }
 
+          // emby — runs independently when embyClient is available
+          if (this.embyClient) {
+            const { existsInEmby } = await this.mediaExistsInEmby(media, false);
+            const { existsInEmby: existsInEmby4k } =
+              await this.mediaExistsInEmby(media, true);
+
+            if (existsInEmby || existsInRadarr) {
+              movieExists = true;
+              logger.info(
+                `The non-4K movie [TMDB ID ${media.tmdbId}] still exists. Preventing removal.`,
+                {
+                  label: 'AvailabilitySync',
+                }
+              );
+            }
+
+            if (existsInEmby4k || existsInRadarr4k) {
+              movieExists4k = true;
+              logger.info(
+                `The 4K movie [TMDB ID ${media.tmdbId}] still exists. Preventing removal.`,
+                {
+                  label: 'AvailabilitySync',
+                }
+              );
+            }
+          }
+
           if (!movieExists && media.status === MediaStatus.AVAILABLE) {
             await this.mediaUpdater(media, false);
           }
@@ -210,7 +283,7 @@ class AvailabilitySync {
           let showExists = false;
           let showExists4k = false;
 
-          // Sonarr is checked first so plex/jellyfin blocks can reference its results
+          // Sonarr is checked first so plex/jellyfin/emby blocks can reference its results
           const { existsInSonarr, seasonsMap: sonarrSeasonsMap } =
             await this.mediaExistsInSonarr(media, false);
           const {
@@ -292,8 +365,42 @@ class AvailabilitySync {
             }
           }
 
+          // emby — run independently when embyClient is available
+          let embySeasonsMap: Map<number, boolean> = new Map();
+          let embySeasonsMap4k: Map<number, boolean> = new Map();
+
+          if (this.embyClient) {
+            const embyResult = await this.mediaExistsInEmby(media, false);
+            const existsInEmby = embyResult.existsInEmby;
+            embySeasonsMap = embyResult.seasonsMap ?? new Map();
+
+            const embyResult4k = await this.mediaExistsInEmby(media, true);
+            const existsInEmby4k = embyResult4k.existsInEmby;
+            embySeasonsMap4k = embyResult4k.seasonsMap ?? new Map();
+
+            if (existsInEmby || existsInSonarr) {
+              showExists = true;
+              logger.info(
+                `The non-4K show [TMDB ID ${media.tmdbId}] still exists. Preventing removal.`,
+                {
+                  label: 'AvailabilitySync',
+                }
+              );
+            }
+
+            if (existsInEmby4k || existsInSonarr4k) {
+              showExists4k = true;
+              logger.info(
+                `The 4K show [TMDB ID ${media.tmdbId}] still exists. Preventing removal.`,
+                {
+                  label: 'AvailabilitySync',
+                }
+              );
+            }
+          }
+
           // Here we will create a final map that will cross compare
-          // with plex, jellyfin, and sonarr. Filtered seasons will go through
+          // with plex, jellyfin, emby, and sonarr. Filtered seasons will go through
           // each season and assume the season does not exist. If any server or
           // Sonarr finds that season, we will change the final seasons value
           // to true.
@@ -319,17 +426,19 @@ class AvailabilitySync {
               filteredSeasonsMap4k.set(season.seasonNumber, false)
             );
 
-          // Merge all sources: plex + jellyfin + sonarr (both run when both clients present)
+          // Merge all sources: plex + jellyfin + emby + sonarr (each runs when its client is present)
           const finalSeasons = new Map([
             ...filteredSeasonsMap,
             ...plexSeasonsMap,
             ...jellyfinSeasonsMap,
+            ...embySeasonsMap,
             ...sonarrSeasonsMap,
           ]);
           const finalSeasons4k = new Map([
             ...filteredSeasonsMap4k,
             ...plexSeasonsMap4k,
             ...jellyfinSeasonsMap4k,
+            ...embySeasonsMap4k,
             ...sonarrSeasonsMap4k,
           ]);
 
@@ -378,6 +487,15 @@ class AvailabilitySync {
         label: 'Availability Sync',
       });
     } finally {
+      if (this.plexClient) {
+        logger.info('Plex: done', { label: 'AvailabilitySync' });
+      }
+      if (this.jellyfinClient) {
+        logger.info('Jellyfin: done', { label: 'AvailabilitySync' });
+      }
+      if (this.embyClient) {
+        logger.info('Emby: done', { label: 'AvailabilitySync' });
+      }
       logger.info(`Availability sync complete.`, {
         label: 'Availability Sync',
       });
@@ -477,14 +595,18 @@ class AvailabilitySync {
             : null;
       }
 
+      // Clear emby media-id field only when the emby client was active (i.e. checked emby)
+      if (this.embyClient) {
+        media[is4k ? 'embyMediaId4k' : 'embyMediaId'] = isMediaProcessing
+          ? media[is4k ? 'embyMediaId4k' : 'embyMediaId']
+          : null;
+      }
+
       // Derive the server name(s) that were checked for logging
       const checkedServers = [
         this.plexClient ? 'plex' : null,
-        this.jellyfinClient
-          ? getSettings().main.mediaServerType === MediaServerType.JELLYFIN
-            ? 'jellyfin'
-            : 'emby'
-          : null,
+        this.jellyfinClient ? 'jellyfin' : null,
+        this.embyClient ? 'emby' : null,
       ]
         .filter(Boolean)
         .join(' and ');
@@ -560,11 +682,8 @@ class AvailabilitySync {
       // Derive the server name(s) that were checked for logging
       const checkedServers = [
         this.plexClient ? 'plex' : null,
-        this.jellyfinClient
-          ? getSettings().main.mediaServerType === MediaServerType.JELLYFIN
-            ? 'jellyfin'
-            : 'emby'
-          : null,
+        this.jellyfinClient ? 'jellyfin' : null,
+        this.embyClient ? 'emby' : null,
       ]
         .filter(Boolean)
         .join(' and ');
@@ -1064,6 +1183,110 @@ class AvailabilitySync {
     }
 
     return seasonExistsInJellyfin;
+  }
+
+  // Emby
+  private async mediaExistsInEmby(
+    media: Media,
+    is4k: boolean
+  ): Promise<{ existsInEmby: boolean; seasonsMap?: Map<number, boolean> }> {
+    if (!this.embyClient) return { existsInEmby: false };
+    const embyClient = this.embyClient;
+    const ratingKey = media.embyMediaId;
+    const ratingKey4k = media.embyMediaId4k;
+    let existsInEmby = false;
+    let preventSeasonSearch = false;
+
+    try {
+      let embyMedia: JellyfinLibraryItem | undefined;
+
+      if (ratingKey && !is4k) {
+        embyMedia = await embyClient.getItemData(ratingKey);
+
+        if (media.mediaType === 'tv' && embyMedia !== undefined) {
+          this.embySeasonsCache[ratingKey] =
+            await embyClient.getSeasons(ratingKey);
+        }
+      }
+
+      if (ratingKey4k && is4k) {
+        embyMedia = await embyClient.getItemData(ratingKey4k);
+
+        if (media.mediaType === 'tv' && embyMedia !== undefined) {
+          this.embySeasonsCache[ratingKey4k] =
+            await embyClient.getSeasons(ratingKey4k);
+        }
+      }
+
+      if (embyMedia) {
+        existsInEmby = true;
+      }
+    } catch (ex) {
+      if (!ex.message.includes('404') && !ex.message.includes('500')) {
+        existsInEmby = true;
+        preventSeasonSearch = true;
+        logger.debug(
+          `Failure retrieving the ${is4k ? '4K' : 'non-4K'} ${
+            media.mediaType === 'tv' ? 'show' : 'movie'
+          } [TMDB ID ${media.tmdbId}] from Emby.`,
+          {
+            errorMessage: ex.message,
+            label: 'AvailabilitySync',
+          }
+        );
+      }
+    }
+
+    if (media.mediaType === 'tv') {
+      const seasonsMap: Map<number, boolean> = new Map();
+
+      if (!preventSeasonSearch) {
+        const filteredSeasons = media.seasons.filter(
+          (season) =>
+            season[is4k ? 'status4k' : 'status'] === MediaStatus.AVAILABLE ||
+            season[is4k ? 'status4k' : 'status'] ===
+              MediaStatus.PARTIALLY_AVAILABLE
+        );
+
+        for (const season of filteredSeasons) {
+          const seasonExists = await this.seasonExistsInEmby(
+            media,
+            season,
+            is4k
+          );
+
+          if (seasonExists) {
+            seasonsMap.set(season.seasonNumber, true);
+          }
+        }
+      }
+
+      return { existsInEmby, seasonsMap };
+    }
+
+    return { existsInEmby };
+  }
+
+  private async seasonExistsInEmby(
+    media: Media,
+    season: Season,
+    is4k: boolean
+  ): Promise<boolean> {
+    const ratingKey = media.embyMediaId;
+    const ratingKey4k = media.embyMediaId4k;
+    let embySeasons: JellyfinLibraryItem[] | undefined;
+
+    if (ratingKey && !is4k) {
+      embySeasons = this.embySeasonsCache[ratingKey];
+    }
+
+    if (ratingKey4k && is4k) {
+      embySeasons = this.embySeasonsCache[ratingKey4k];
+    }
+
+    return !!embySeasons?.find(
+      (embySeason) => embySeason.IndexNumber === season.seasonNumber
+    );
   }
 }
 

@@ -45,7 +45,7 @@ const messages = defineMessages('components.Login', {
   servertype: 'Server Type',
   back: 'Go back',
   urlBaseHelp:
-    'If you set a Base URL in Jellyfin (Dashboard > Networking), enter it here (e.g. /jellyfin). Leave blank otherwise.',
+    'If you set a Base URL in {mediaServerName}, enter it here (e.g. /jellyfin or /emby). Leave blank otherwise.',
 });
 
 interface JellyfinSetupProps {
@@ -119,7 +119,12 @@ function JellyfinSetup({
       validationSchema={LoginSchema}
       onSubmit={async (values) => {
         try {
-          await axios.post('/api/v1/auth/jellyfin', {
+          const authEndpoint =
+            serverType === MediaServerType.EMBY
+              ? '/api/v1/auth/emby'
+              : '/api/v1/auth/jellyfin';
+
+          await axios.post(authEndpoint, {
             username: values.username,
             password: values.password,
             hostname: values.hostname,
@@ -236,7 +241,12 @@ function JellyfinSetup({
             >
               {intl.formatMessage(messages.urlBase)}
               <span className="label-tip">
-                <Tooltip content={intl.formatMessage(messages.urlBaseHelp)}>
+                <Tooltip
+                  content={intl.formatMessage(
+                    messages.urlBaseHelp,
+                    mediaServerFormatValues
+                  )}
+                >
                   <span className="tooltip-trigger">
                     <InformationCircleIcon className="h-4 w-4" />
                   </span>

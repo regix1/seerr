@@ -22,9 +22,9 @@ export const runMigrations = async (
     }
     await fs.writeFile(BACKUP_PATH, JSON.stringify(settings, undefined, ' '));
 
-    const migrations = (await fs.readdir(migrationsDir)).filter((file) =>
-      /^\d{4}_.+\.(js|ts)$/.test(file)
-    );
+    const migrations = (await fs.readdir(migrationsDir))
+      .filter((file) => /^\d{4}_.+\.(js|ts)$/.test(file))
+      .sort((a, b) => a.localeCompare(b));
 
     const settingsBefore = JSON.stringify(migrated);
 

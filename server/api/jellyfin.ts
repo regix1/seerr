@@ -3,6 +3,7 @@ import ExternalAPI from '@server/api/externalapi';
 import { ApiErrorCode } from '@server/constants/error';
 import { MediaServerType } from '@server/constants/server';
 import availabilitySync from '@server/lib/availabilitySync';
+import type { EmbySettings, JellyfinSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { ApiError } from '@server/types/error';
@@ -130,16 +131,19 @@ class JellyfinAPI extends ExternalAPI {
   constructor(
     jellyfinHost: string,
     authToken?: string | null,
-    deviceId?: string | null
+    deviceId?: string | null,
+    mediaServerType?: MediaServerType
   ) {
     const settings = getSettings();
+    const resolvedMediaServerType =
+      mediaServerType ?? settings.main.mediaServerType;
     const safeDeviceId =
       deviceId && deviceId.length > 0
         ? deviceId
         : Buffer.from('BOT_seerr').toString('base64');
 
     const version =
-      settings.main.mediaServerType === MediaServerType.EMBY
+      resolvedMediaServerType === MediaServerType.EMBY
         ? '1.0.0'
         : getAppVersion();
 
@@ -160,16 +164,50 @@ class JellyfinAPI extends ExternalAPI {
       }
     );
 
-    this.mediaServerType = settings.main.mediaServerType;
+    this.mediaServerType = resolvedMediaServerType;
+  }
 
-    logger.debug('JellyfinAPI instance created', {
-      label: 'Jellyfin',
-      host: jellyfinHost,
-      mediaServerType:
-        MediaServerType[this.mediaServerType] ?? this.mediaServerType,
-      hasAuthToken: !!authToken,
-      deviceId: safeDeviceId,
-    });
+  /**
+   * Compute the hostname URL for a Jellyfin or Emby settings block.
+   * Mirrors the format used by `getHostname` in @server/utils/getHostname.
+   */
+  private static computeUrl(settings: {
+    useSsl?: boolean;
+    ip: string;
+    port: number;
+    urlBase?: string;
+  }): string {
+    const useSsl = settings.useSsl ?? false;
+    const urlBase = settings.urlBase ?? '';
+    return `${useSsl ? 'https' : 'http'}://${settings.ip}:${
+      settings.port
+    }${urlBase}`;
+  }
+
+  /**
+   * Build a JellyfinAPI client targeting a Jellyfin server.
+   */
+  public static forJellyfin(
+    settings: JellyfinSettings,
+    userToken?: string | null,
+    deviceId?: string | null
+  ): JellyfinAPI {
+    const url = JellyfinAPI.computeUrl(settings);
+    return new JellyfinAPI(url, userToken, deviceId, MediaServerType.JELLYFIN);
+  }
+
+  /**
+   * Build a JellyfinAPI client targeting an Emby server.
+   * Emby and Jellyfin share the MediaBrowser API so the same client class works for both,
+   * but version handshake / branding differ — distinguished via MediaServerType.
+   */
+  public static forEmby(
+    settings: EmbySettings,
+    userToken?: string | null,
+    deviceId?: string | null
+  ): JellyfinAPI {
+    const url = JellyfinAPI.computeUrl(settings);
+    return new JellyfinAPI(url, userToken, deviceId, MediaServerType.EMBY);
   }
 
   public async login(
@@ -341,7 +379,8 @@ class JellyfinAPI extends ExternalAPI {
           key: Item.Id,
           title: Item.Name,
           type: Item.CollectionType === 'movies' ? 'movie' : 'show',
-          agent: 'jellyfin',
+          agent:
+            this.mediaServerType === MediaServerType.EMBY ? 'emby' : 'jellyfin',
         };
       });
   }

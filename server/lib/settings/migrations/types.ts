@@ -15,6 +15,7 @@ export type LegacySettings = AllSettings & {
     blocklistedTagsLimit?: number;
   };
   jellyfin: AllSettings['jellyfin'] & { hostname?: string };
+  emby?: AllSettings['emby'];
   notifications: AllSettings['notifications'] & {
     agents: AllSettings['notifications']['agents'] & { lunasea?: unknown };
   };

@@ -6,6 +6,7 @@ import Button from '@app/components/Common/Button';
 import ImageFader from '@app/components/Common/ImageFader';
 import PageTitle from '@app/components/Common/PageTitle';
 import LanguagePicker from '@app/components/Layout/LanguagePicker';
+import SettingsEmby from '@app/components/Settings/SettingsEmby';
 import SettingsJellyfin from '@app/components/Settings/SettingsJellyfin';
 import SettingsPlex from '@app/components/Settings/SettingsPlex';
 import SettingsServices from '@app/components/Settings/SettingsServices';
@@ -75,7 +76,7 @@ const Setup = () => {
     try {
       const endpointMap: Record<MediaServerType, string> = {
         [MediaServerType.JELLYFIN]: '/api/v1/settings/jellyfin',
-        [MediaServerType.EMBY]: '/api/v1/settings/jellyfin',
+        [MediaServerType.EMBY]: '/api/v1/settings/emby',
         [MediaServerType.PLEX]: '/api/v1/settings/plex',
         [MediaServerType.NOT_CONFIGURED]: '',
       };
@@ -268,6 +269,8 @@ const Setup = () => {
             <div className="p-2">
               {mediaServerType === MediaServerType.PLEX ? (
                 <SettingsPlex onComplete={handleComplete} />
+              ) : mediaServerType === MediaServerType.EMBY ? (
+                <SettingsEmby isSetupSettings onComplete={handleComplete} />
               ) : (
                 <SettingsJellyfin isSetupSettings onComplete={handleComplete} />
               )}

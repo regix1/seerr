@@ -2,7 +2,6 @@ import JellyfinAPI from '@server/api/jellyfin';
 import PlexTvAPI from '@server/api/plextv';
 import TautulliAPI from '@server/api/tautulli';
 import { MediaType } from '@server/constants/media';
-import { MediaServerType } from '@server/constants/server';
 import { UserType } from '@server/constants/user';
 import dataSource, { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
@@ -21,7 +20,6 @@ import { Permission, hasPermission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
-import { getHostname } from '@server/utils/getHostname';
 import { normalizeJellyfinGuid } from '@server/utils/jellyfin';
 import { isOwnProfileOrAdmin } from '@server/utils/profileMiddleware';
 import { Router } from 'express';
@@ -78,7 +76,7 @@ router.get('/', async (req, res, next) => {
 
     if (q) {
       query = query.where(
-        'LOWER(user.username) LIKE :q OR LOWER(user.email) LIKE :q OR LOWER(user.plexUsername) LIKE :q OR LOWER(user.jellyfinUsername) LIKE :q',
+        'LOWER(user.username) LIKE :q OR LOWER(user.email) LIKE :q OR LOWER(user.plexUsername) LIKE :q OR LOWER(user.jellyfinUsername) LIKE :q OR LOWER(user.embyUsername) LIKE :q',
         { q: `%${q}%` }
       );
     }
@@ -99,8 +97,12 @@ router.get('/', async (req, res, next) => {
           .addSelect(
             `CASE WHEN (user.username IS NULL OR user.username = '') THEN (
                 CASE WHEN (user.plexUsername IS NULL OR user.plexUsername = '') THEN (
-                  CASE WHEN (user.jellyfinUsername IS NULL OR user.jellyfinUsername = '') THEN
-                    "user"."email"
+                  CASE WHEN (user.jellyfinUsername IS NULL OR user.jellyfinUsername = '') THEN (
+                    CASE WHEN (user.embyUsername IS NULL OR user.embyUsername = '') THEN
+                      "user"."email"
+                    ELSE
+                      LOWER(user.embyUsername)
+                    END)
                   ELSE
                     LOWER(user.jellyfinUsername)
                   END)
@@ -719,9 +721,8 @@ router.post(
         order: { id: 'ASC' },
       });
 
-      const hostname = getHostname();
-      const jellyfinClient = new JellyfinAPI(
-        hostname,
+      const jellyfinClient = JellyfinAPI.forJellyfin(
+        settings.jellyfin,
         settings.jellyfin.apiKey,
         admin.jellyfinDeviceId ?? ''
       );
@@ -778,10 +779,7 @@ router.post(
             // Only flip userType when the row was LOCAL; PLEX-originated rows
             // keep userType=PLEX as the originating provider.
             if (user.userType === UserType.LOCAL) {
-              user.userType =
-                settings.main.mediaServerType === MediaServerType.JELLYFIN
-                  ? UserType.JELLYFIN
-                  : UserType.EMBY;
+              user.userType = UserType.JELLYFIN;
             }
             await userRepository.save(user);
           }
@@ -795,10 +793,92 @@ router.post(
             email: jellyfinUser?.Name,
             permissions: settings.main.defaultPermissions,
             avatar: `/avatarproxy/${jellyfinUser?.Id}`,
-            userType:
-              settings.main.mediaServerType === MediaServerType.JELLYFIN
-                ? UserType.JELLYFIN
-                : UserType.EMBY,
+            userType: UserType.JELLYFIN,
+          });
+
+          await userRepository.save(newUser);
+          createdUsers.push(newUser);
+        }
+      }
+      return res.status(201).json(User.filterMany(createdUsers));
+    } catch (e) {
+      next({ status: 500, message: e.message });
+    }
+  }
+);
+
+router.post(
+  '/import-from-emby',
+  isAuthenticated(Permission.MANAGE_USERS),
+  async (req, res, next) => {
+    try {
+      const settings = getSettings();
+      const userRepository = getRepository(User);
+      const body = req.body as { embyUserIds: string[] };
+
+      const admin = await userRepository.findOneOrFail({
+        where: { id: 1 },
+        select: ['id', 'embyDeviceId', 'embyUserId'],
+        order: { id: 'ASC' },
+      });
+
+      const embyClient = JellyfinAPI.forEmby(
+        settings.emby,
+        settings.emby.apiKey,
+        admin.embyDeviceId ?? ''
+      );
+      embyClient.setUserId(admin.embyUserId ?? '');
+
+      const createdUsers: User[] = [];
+      const embyUsers = await embyClient.getUsers();
+
+      const embyUsersById = new Map(
+        embyUsers.users.map((user) => [normalizeJellyfinGuid(user.Id), user])
+      );
+
+      for (const rawEmbyUserId of body.embyUserIds) {
+        const embyUserId = normalizeJellyfinGuid(rawEmbyUserId);
+        if (!embyUserId) {
+          continue;
+        }
+
+        const embyUser = embyUsersById.get(embyUserId);
+        const candidateEmail = (embyUser as { Email?: string } | undefined)
+          ?.Email;
+        const user = await userRepository
+          .createQueryBuilder('user')
+          .where('user.embyUserId = :eid', { eid: embyUserId })
+          .orWhere(candidateEmail ? 'LOWER(user.email) = :email' : '1 = 0', {
+            email: candidateEmail?.toLowerCase(),
+          })
+          .getOne();
+
+        if (user) {
+          if (user.embyUserId == null && embyUser?.Id) {
+            user.embyUsername = embyUser.Name;
+            user.embyUserId = embyUser.Id;
+            user.embyDeviceId = Buffer.from(
+              `BOT_seerr_${embyUser.Name ?? ''}`
+            ).toString('base64');
+            if (!user.avatar) {
+              user.avatar = `/avatarproxy/${embyUser.Id}?provider=emby`;
+            }
+            if (user.userType === UserType.LOCAL) {
+              user.userType = UserType.EMBY;
+            }
+            await userRepository.save(user);
+          }
+        } else {
+          const newUser = new User({
+            embyUsername: embyUser?.Name,
+            embyUserId: embyUser?.Id,
+            embyDeviceId: Buffer.from(
+              `BOT_seerr_${embyUser?.Name ?? ''}`
+            ).toString('base64'),
+            email: embyUser?.Name,
+            permissions: settings.main.defaultPermissions,
+            avatar: `/avatarproxy/${embyUser?.Id}?provider=emby`,
+            userType: UserType.EMBY,
           });
 
           await userRepository.save(newUser);

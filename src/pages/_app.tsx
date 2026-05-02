@@ -249,6 +249,7 @@ CoreApp.getInitialProps = async (initialProps) => {
     mediaServerType: MediaServerType.NOT_CONFIGURED,
     plexLoginEnabled: false,
     jellyfinLoginEnabled: false,
+    embyLoginEnabled: false,
     partialRequestsEnabled: true,
     enableSpecialEpisodes: false,
     cacheImages: false,
@@ -259,6 +260,12 @@ CoreApp.getInitialProps = async (initialProps) => {
     newPlexLogin: true,
     youtubeUrl: '',
     plexClientIdentifier: '',
+    jellyfinExternalHost: '',
+    jellyfinForgotPasswordUrl: '',
+    jellyfinServerName: '',
+    embyExternalHost: '',
+    embyForgotPasswordUrl: '',
+    embyServerName: '',
   };
 
   if (ctx.res) {

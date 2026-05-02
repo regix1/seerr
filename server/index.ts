@@ -65,6 +65,10 @@ app
     // Run Overseerr to Seerr migration
     await checkOverseerrMerge();
 
+    // Load settings before TypeORM migrations so settings migrations can
+    // write legacy markers consumed by DB data migrations.
+    const settings = await getSettings().load();
+
     const dbConnection = dataSource.isInitialized
       ? dataSource
       : await dataSource.initialize();
@@ -80,8 +84,6 @@ app
       }
     }
 
-    // Load Settings
-    const settings = await getSettings().load();
     restartFlag.initializeSettings(settings);
 
     initI18n();

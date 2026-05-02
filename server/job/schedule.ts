@@ -4,6 +4,7 @@ import availabilitySync from '@server/lib/availabilitySync';
 import downloadTracker from '@server/lib/downloadtracker';
 import ImageProxy from '@server/lib/imageproxy';
 import refreshToken from '@server/lib/refreshToken';
+import { embyFullScanner, embyRecentScanner } from '@server/lib/scanners/emby';
 import {
   jellyfinFullScanner,
   jellyfinRecentScanner,
@@ -32,8 +33,12 @@ export const scheduledJobs: ScheduledJob[] = [];
 
 export const startJobs = (): void => {
   const jobs = getSettings().jobs;
-  const { mediaServerType, plexLoginEnabled, jellyfinLoginEnabled } =
-    getSettings().main;
+  const {
+    mediaServerType,
+    plexLoginEnabled,
+    jellyfinLoginEnabled,
+    embyLoginEnabled,
+  } = getSettings().main;
 
   if (plexLoginEnabled || mediaServerType === MediaServerType.PLEX) {
     // Run recently added plex scan every 5 minutes
@@ -108,11 +113,7 @@ export const startJobs = (): void => {
     });
   }
 
-  if (
-    jellyfinLoginEnabled ||
-    mediaServerType === MediaServerType.JELLYFIN ||
-    mediaServerType === MediaServerType.EMBY
-  ) {
+  if (jellyfinLoginEnabled || mediaServerType === MediaServerType.JELLYFIN) {
     // Run recently added jellyfin sync every 5 minutes
     scheduledJobs.push({
       id: 'jellyfin-recently-added-scan',
@@ -148,6 +149,43 @@ export const startJobs = (): void => {
       }),
       running: () => jellyfinFullScanner.status().running,
       cancelFn: () => jellyfinFullScanner.cancel(),
+    });
+  }
+
+  if (embyLoginEnabled || mediaServerType === MediaServerType.EMBY) {
+    scheduledJobs.push({
+      id: 'emby-recently-added-scan',
+      name: 'Emby Recently Added Scan',
+      type: 'process',
+      interval: 'minutes',
+      cronSchedule: jobs['emby-recently-added-scan'].schedule,
+      job: schedule.scheduleJob(
+        jobs['emby-recently-added-scan'].schedule,
+        () => {
+          logger.info('Starting scheduled job: Emby Recently Added Scan', {
+            label: 'Jobs',
+          });
+          embyRecentScanner.run();
+        }
+      ),
+      running: () => embyRecentScanner.status().running,
+      cancelFn: () => embyRecentScanner.cancel(),
+    });
+
+    scheduledJobs.push({
+      id: 'emby-full-scan',
+      name: 'Emby Full Library Scan',
+      type: 'process',
+      interval: 'hours',
+      cronSchedule: jobs['emby-full-scan'].schedule,
+      job: schedule.scheduleJob(jobs['emby-full-scan'].schedule, () => {
+        logger.info('Starting scheduled job: Emby Full Scan', {
+          label: 'Jobs',
+        });
+        embyFullScanner.run();
+      }),
+      running: () => embyFullScanner.status().running,
+      cancelFn: () => embyFullScanner.cancel(),
     });
   }
 

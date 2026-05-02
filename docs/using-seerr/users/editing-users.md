@@ -14,7 +14,7 @@ You can also click the check boxes and click the **Bulk Edit** button to set use
 
 ### Display Name
 
-You can optionally set a "friendly name" for any user. This name will be used in lieu of their media server (Jellyfin/Emby/Plex) username (for users imported from the media server) or their email address (for manually-created local users).
+You can optionally set a "friendly name" for any user. This name will be used in lieu of their media server username from Jellyfin, Emby, or Plex (for users imported from a media server) or their email address (for manually-created local users).
 
 ### Email
 
@@ -23,7 +23,7 @@ This field is read-only for users imported from Plex.
 :::
 You can optionally set a proper email address for any user. This email address will be used for notifications, local sign-in and password resets.
 
-By default, users imported from Jellyfin/Emby will use their media server username as their email address.
+By default, users imported from Jellyfin or Emby will use their media server username as their email address.
 
 :::warning
 You cannot leave this field blank.

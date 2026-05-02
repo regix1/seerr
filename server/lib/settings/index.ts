@@ -56,6 +56,19 @@ export interface JellyfinSettings {
   serverId: string;
   apiKey: string;
 }
+
+export interface EmbySettings {
+  name: string;
+  ip: string;
+  port: number;
+  useSsl?: boolean;
+  urlBase?: string;
+  externalHostname?: string;
+  forgotPasswordUrl?: string;
+  libraries: Library[];
+  serverId: string;
+  apiKey: string;
+}
 export interface TautulliSettings {
   hostname?: string;
   port?: number;
@@ -151,9 +164,13 @@ export interface MainSettings {
   blocklistLanguage: string;
   blocklistedTags: string;
   blocklistedTagsLimit: number;
+  /**
+   * @deprecated Use plexLoginEnabled / jellyfinLoginEnabled / embyLoginEnabled. Kept for back-compat reads only.
+   */
   mediaServerType: number;
   plexLoginEnabled?: boolean;
   jellyfinLoginEnabled?: boolean;
+  embyLoginEnabled?: boolean;
   partialRequestsEnabled: boolean;
   enableSpecialEpisodes: boolean;
   locale: string;
@@ -206,6 +223,9 @@ interface FullPublicSettings extends PublicSettings {
   jellyfinExternalHost?: string;
   jellyfinForgotPasswordUrl?: string;
   jellyfinServerName?: string;
+  embyExternalHost?: string;
+  embyForgotPasswordUrl?: string;
+  embyServerName?: string;
   partialRequestsEnabled: boolean;
   enableSpecialEpisodes: boolean;
   cacheImages: boolean;
@@ -219,6 +239,7 @@ interface FullPublicSettings extends PublicSettings {
   plexClientIdentifier: string;
   plexLoginEnabled: boolean;
   jellyfinLoginEnabled: boolean;
+  embyLoginEnabled: boolean;
 }
 
 export interface NotificationAgentConfig {
@@ -367,6 +388,8 @@ export type JobId =
   | 'download-sync-reset'
   | 'jellyfin-recently-added-scan'
   | 'jellyfin-full-scan'
+  | 'emby-recently-added-scan'
+  | 'emby-full-scan'
   | 'image-cache-cleanup'
   | 'availability-sync'
   | 'process-blocklisted-tags';
@@ -379,6 +402,7 @@ export interface AllSettings {
   main: MainSettings;
   plex: PlexSettings;
   jellyfin: JellyfinSettings;
+  emby: EmbySettings;
   tautulli: TautulliSettings;
   radarr: RadarrSettings[];
   sonarr: SonarrSettings[];
@@ -429,6 +453,7 @@ class Settings {
         mediaServerType: MediaServerType.NOT_CONFIGURED,
         plexLoginEnabled: true,
         jellyfinLoginEnabled: true,
+        embyLoginEnabled: false,
         partialRequestsEnabled: true,
         enableSpecialEpisodes: false,
         locale: 'en',
@@ -449,6 +474,18 @@ class Settings {
         urlBase: '',
         externalHostname: '',
         jellyfinForgotPasswordUrl: '',
+        libraries: [],
+        serverId: '',
+        apiKey: '',
+      },
+      emby: {
+        name: '',
+        ip: '',
+        port: 8096,
+        useSsl: false,
+        urlBase: '',
+        externalHostname: '',
+        forgotPasswordUrl: '',
         libraries: [],
         serverId: '',
         apiKey: '',
@@ -603,6 +640,12 @@ class Settings {
         'jellyfin-full-scan': {
           schedule: '0 0 3 * * *',
         },
+        'emby-recently-added-scan': {
+          schedule: '0 */5 * * * *',
+        },
+        'emby-full-scan': {
+          schedule: '0 0 3 * * *',
+        },
         'image-cache-cleanup': {
           schedule: '0 0 5 * * *',
         },
@@ -662,6 +705,14 @@ class Settings {
     this.data.jellyfin = mergeSettings(this.data.jellyfin, data);
   }
 
+  get emby(): EmbySettings {
+    return this.data.emby;
+  }
+
+  set emby(data: EmbySettings) {
+    this.data.emby = mergeSettings(this.data.emby, data);
+  }
+
   get tautulli(): TautulliSettings {
     return this.data.tautulli;
   }
@@ -716,6 +767,10 @@ class Settings {
       mediaServerLogin: this.data.main.mediaServerLogin,
       jellyfinExternalHost: this.data.jellyfin.externalHostname,
       jellyfinForgotPasswordUrl: this.data.jellyfin.jellyfinForgotPasswordUrl,
+      jellyfinServerName: this.data.jellyfin.name,
+      embyExternalHost: this.data.emby.externalHostname,
+      embyForgotPasswordUrl: this.data.emby.forgotPasswordUrl,
+      embyServerName: this.data.emby.name,
       movie4kEnabled: this.data.radarr.some(
         (radarr) => radarr.is4k && radarr.isDefault
       ),
@@ -740,6 +795,7 @@ class Settings {
       plexClientIdentifier: this.data.clientId,
       plexLoginEnabled: this.data.main.plexLoginEnabled ?? true,
       jellyfinLoginEnabled: this.data.main.jellyfinLoginEnabled ?? true,
+      embyLoginEnabled: this.data.main.embyLoginEnabled ?? false,
     };
   }
 

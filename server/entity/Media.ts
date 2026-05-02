@@ -282,6 +282,12 @@ class Media {
   @Column({ nullable: true, type: 'varchar' })
   public jellyfinMediaId4k?: string | null;
 
+  @Column({ nullable: true, type: 'varchar' })
+  public embyMediaId?: string | null;
+
+  @Column({ nullable: true, type: 'varchar' })
+  public embyMediaId4k?: string | null;
+
   public serviceUrl?: string;
   public serviceUrl4k?: string;
   public downloadStatus?: DownloadingItem[] = [];
@@ -292,6 +298,9 @@ class Media {
 
   public jellyfinMediaUrl?: string;
   public jellyfinMediaUrl4k?: string;
+
+  public embyMediaUrl?: string;
+  public embyMediaUrl4k?: string;
 
   public iOSPlexUrl?: string;
   public iOSPlexUrl4k?: string;
@@ -314,6 +323,8 @@ class Media {
     this.ratingKey4k = null;
     this.jellyfinMediaId = null;
     this.jellyfinMediaId4k = null;
+    this.embyMediaId = null;
+    this.embyMediaId4k = null;
   }
 
   @AfterLoad()
@@ -321,45 +332,40 @@ class Media {
     const { machineId, webAppUrl } = getSettings().plex;
     const { externalUrl: tautulliUrl } = getSettings().tautulli;
 
-    if (getSettings().main.mediaServerType == MediaServerType.PLEX) {
-      if (this.ratingKey) {
-        this.mediaUrl = `${
-          webAppUrl ? webAppUrl : 'https://app.plex.tv/desktop'
-        }#!/server/${machineId}/details?key=%2Flibrary%2Fmetadata%2F${
-          this.ratingKey
-        }`;
+    if (this.ratingKey) {
+      this.mediaUrl = `${
+        webAppUrl ? webAppUrl : 'https://app.plex.tv/desktop'
+      }#!/server/${machineId}/details?key=%2Flibrary%2Fmetadata%2F${
+        this.ratingKey
+      }`;
 
-        this.iOSPlexUrl = `plex://preplay/?metadataKey=%2Flibrary%2Fmetadata%2F${this.ratingKey}&server=${machineId}`;
+      this.iOSPlexUrl = `plex://preplay/?metadataKey=%2Flibrary%2Fmetadata%2F${this.ratingKey}&server=${machineId}`;
 
-        if (tautulliUrl) {
-          this.tautulliUrl = `${tautulliUrl}/info?rating_key=${this.ratingKey}`;
-        }
-      }
-
-      if (this.ratingKey4k) {
-        this.mediaUrl4k = `${
-          webAppUrl ? webAppUrl : 'https://app.plex.tv/desktop'
-        }#!/server/${machineId}/details?key=%2Flibrary%2Fmetadata%2F${
-          this.ratingKey4k
-        }`;
-
-        this.iOSPlexUrl4k = `plex://preplay/?metadataKey=%2Flibrary%2Fmetadata%2F${this.ratingKey4k}&server=${machineId}`;
-
-        if (tautulliUrl) {
-          this.tautulliUrl4k = `${tautulliUrl}/info?rating_key=${this.ratingKey4k}`;
-        }
+      if (tautulliUrl) {
+        this.tautulliUrl = `${tautulliUrl}/info?rating_key=${this.ratingKey}`;
       }
     }
 
-    // Always compute Jellyfin/Emby URLs when Jellyfin fields are present,
+    if (this.ratingKey4k) {
+      this.mediaUrl4k = `${
+        webAppUrl ? webAppUrl : 'https://app.plex.tv/desktop'
+      }#!/server/${machineId}/details?key=%2Flibrary%2Fmetadata%2F${
+        this.ratingKey4k
+      }`;
+
+      this.iOSPlexUrl4k = `plex://preplay/?metadataKey=%2Flibrary%2Fmetadata%2F${this.ratingKey4k}&server=${machineId}`;
+
+      if (tautulliUrl) {
+        this.tautulliUrl4k = `${tautulliUrl}/info?rating_key=${this.ratingKey4k}`;
+      }
+    }
+
+    // Always compute Jellyfin URLs when Jellyfin fields are present,
     // regardless of which server is the primary mediaServerType.
-    // This allows both mediaUrl (Plex) and jellyfinMediaUrl (Jellyfin/Emby)
+    // This allows both mediaUrl (Plex) and jellyfinMediaUrl (Jellyfin)
     // to be non-null simultaneously on the same media row.
     if (this.jellyfinMediaId || this.jellyfinMediaId4k) {
-      const pageName =
-        getSettings().main.mediaServerType == MediaServerType.EMBY
-          ? 'item'
-          : 'details';
+      const pageName = 'details';
       const { serverId, externalHostname } = getSettings().jellyfin;
       const jellyfinHost =
         externalHostname && externalHostname.length > 0
@@ -371,7 +377,10 @@ class Media {
         this.jellyfinMediaUrl = jellyfinUrl;
         // Backward compat: also populate mediaUrl when Plex is not the primary
         // server (single-Jellyfin/Emby installs expect mediaUrl to be set).
-        if (getSettings().main.mediaServerType !== MediaServerType.PLEX) {
+        if (
+          getSettings().main.mediaServerType !== MediaServerType.PLEX &&
+          !this.mediaUrl
+        ) {
           this.mediaUrl = jellyfinUrl;
         }
       }
@@ -379,8 +388,41 @@ class Media {
         const jellyfinUrl4k = `${jellyfinHost}/web/index.html#!/${pageName}?id=${this.jellyfinMediaId4k}&context=home&serverId=${serverId}`;
         this.jellyfinMediaUrl4k = jellyfinUrl4k;
         // Backward compat: also populate mediaUrl4k when Plex is not the primary server.
-        if (getSettings().main.mediaServerType !== MediaServerType.PLEX) {
+        if (
+          getSettings().main.mediaServerType !== MediaServerType.PLEX &&
+          !this.mediaUrl4k
+        ) {
           this.mediaUrl4k = jellyfinUrl4k;
+        }
+      }
+    }
+
+    if (this.embyMediaId || this.embyMediaId4k) {
+      const { serverId, externalHostname } = getSettings().emby;
+      const embyHost =
+        externalHostname && externalHostname.length > 0
+          ? externalHostname
+          : getHostname(getSettings().emby);
+
+      if (this.embyMediaId) {
+        const embyUrl = `${embyHost}/web/index.html#!/item?id=${this.embyMediaId}&context=home&serverId=${serverId}`;
+        this.embyMediaUrl = embyUrl;
+        if (
+          getSettings().main.mediaServerType === MediaServerType.EMBY &&
+          !this.mediaUrl
+        ) {
+          this.mediaUrl = embyUrl;
+        }
+      }
+
+      if (this.embyMediaId4k) {
+        const embyUrl4k = `${embyHost}/web/index.html#!/item?id=${this.embyMediaId4k}&context=home&serverId=${serverId}`;
+        this.embyMediaUrl4k = embyUrl4k;
+        if (
+          getSettings().main.mediaServerType === MediaServerType.EMBY &&
+          !this.mediaUrl4k
+        ) {
+          this.mediaUrl4k = embyUrl4k;
         }
       }
     }

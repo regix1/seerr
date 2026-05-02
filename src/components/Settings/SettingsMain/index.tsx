@@ -89,8 +89,11 @@ const messages = defineMessages('components.Settings.SettingsMain', {
   jellyfinLoginEnabledLabel: 'Enable Jellyfin Login',
   jellyfinLoginEnabledTip:
     'Allow users to sign in with their Jellyfin account.',
+  embyLoginEnabledLabel: 'Enable Emby Login',
+  embyLoginEnabledTip: 'Allow users to sign in with their Emby account.',
   configurePlexServer: 'Configure Plex server',
-  configureJellyfinServer: 'Configure Jellyfin/Emby server',
+  configureJellyfinServer: 'Configure Jellyfin server',
+  configureEmbyServer: 'Configure Emby server',
 });
 
 const SettingsMain = () => {
@@ -202,6 +205,7 @@ const SettingsMain = () => {
             localLogin: data?.localLogin,
             plexLoginEnabled: data?.plexLoginEnabled,
             jellyfinLoginEnabled: data?.jellyfinLoginEnabled,
+            embyLoginEnabled: data?.embyLoginEnabled,
           }}
           enableReinitialize
           validationSchema={MainSettingsSchema}
@@ -227,6 +231,7 @@ const SettingsMain = () => {
                 localLogin: values.localLogin,
                 plexLoginEnabled: values.plexLoginEnabled,
                 jellyfinLoginEnabled: values.jellyfinLoginEnabled,
+                embyLoginEnabled: values.embyLoginEnabled,
               });
               mutate('/api/v1/settings/public');
               mutate('/api/v1/status');
@@ -718,15 +723,46 @@ const SettingsMain = () => {
                     />
                     {values.jellyfinLoginEnabled &&
                       currentSettings.mediaServerType !==
-                        MediaServerType.JELLYFIN &&
-                      currentSettings.mediaServerType !==
-                        MediaServerType.EMBY && (
+                        MediaServerType.JELLYFIN && (
                         <Link
                           href="/settings/jellyfin"
                           className="mt-2 block text-sm text-indigo-500 hover:text-indigo-400"
                         >
                           {intl.formatMessage(messages.configureJellyfinServer)}{' '}
                           →
+                        </Link>
+                      )}
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label htmlFor="embyLoginEnabled" className="checkbox-label">
+                    <span className="mr-2">
+                      {intl.formatMessage(messages.embyLoginEnabledLabel)}
+                    </span>
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.embyLoginEnabledTip)}
+                    </span>
+                  </label>
+                  <div className="form-input-area">
+                    <Field
+                      type="checkbox"
+                      id="embyLoginEnabled"
+                      name="embyLoginEnabled"
+                      onChange={() => {
+                        setFieldValue(
+                          'embyLoginEnabled',
+                          !values.embyLoginEnabled
+                        );
+                      }}
+                    />
+                    {values.embyLoginEnabled &&
+                      currentSettings.mediaServerType !==
+                        MediaServerType.EMBY && (
+                        <Link
+                          href="/settings/emby"
+                          className="mt-2 block text-sm text-indigo-500 hover:text-indigo-400"
+                        >
+                          {intl.formatMessage(messages.configureEmbyServer)} →
                         </Link>
                       )}
                   </div>

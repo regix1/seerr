@@ -9,7 +9,7 @@ sidebar_position: 1
 The user account created during Seerr setup is the "Owner" account, which cannot be deleted or modified by other users. This account's credentials are used to authenticate with your media server and configure Seerr settings.
 
 :::note
-In case of Jellyfin/Emby, the owner account is also used for API access to your media server. This account should have a valid authentication token for your media server.
+For Jellyfin and Emby, the owner account is also used for API access to the configured media server. This account should have a valid authentication token for each provider you configure.
 :::
 
 :::tip

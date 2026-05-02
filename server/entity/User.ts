@@ -1,5 +1,4 @@
 import { MediaRequestStatus, MediaType } from '@server/constants/media';
-import { MediaServerType } from '@server/constants/server';
 import { UserType } from '@server/constants/user';
 import { getRepository } from '@server/datasource';
 import { Watchlist } from '@server/entity/Watchlist';
@@ -48,6 +47,8 @@ export class User {
     'resetPasswordGuid',
     'jellyfinDeviceId',
     'jellyfinAuthToken',
+    'embyDeviceId',
+    'embyAuthToken',
     'plexToken',
     'settings',
   ];
@@ -98,6 +99,18 @@ export class User {
 
   @Column({ type: 'varchar', nullable: true, select: false })
   public jellyfinAuthToken?: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  public embyUserId?: string | null;
+
+  @Column({ type: 'varchar', nullable: true, select: false })
+  public embyDeviceId?: string | null;
+
+  @Column({ type: 'varchar', nullable: true, select: false })
+  public embyAuthToken?: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  public embyUsername?: string | null;
 
   @Column({ type: 'varchar', nullable: true, select: false })
   public plexToken?: string | null;
@@ -270,32 +283,23 @@ export class User {
   @AfterLoad()
   public setDisplayName(): void {
     this.displayName =
-      this.username || this.plexUsername || this.jellyfinUsername || this.email;
+      this.username ||
+      this.plexUsername ||
+      this.jellyfinUsername ||
+      this.embyUsername ||
+      this.email;
 
     const providers: ('plex' | 'jellyfin' | 'emby')[] = [];
     if (this.plexId != null && this.plexUsername) {
       providers.push('plex');
     }
     if (this.jellyfinUserId != null && this.jellyfinUsername) {
-      const type =
-        getSettings().main.mediaServerType === MediaServerType.EMBY
-          ? 'emby'
-          : 'jellyfin';
-      providers.push(type);
+      providers.push('jellyfin');
+    }
+    if (this.embyUserId != null && this.embyUsername) {
+      providers.push('emby');
     }
     this.linkedProviders = providers;
-
-    logger.debug('User.linkedProviders derived (@AfterLoad)', {
-      label: 'User',
-      userId: this.id,
-      hasPlexId: this.plexId != null,
-      hasJellyfinUserId: this.jellyfinUserId != null,
-      mediaServerType:
-        MediaServerType[getSettings().main.mediaServerType] ??
-        getSettings().main.mediaServerType,
-      linkedProviders: providers,
-      userType: this.userType,
-    });
   }
 
   public async getQuota(): Promise<QuotaResponse> {

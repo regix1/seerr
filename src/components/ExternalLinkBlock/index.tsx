@@ -8,9 +8,7 @@ import TmdbLogo from '@app/assets/services/tmdb.svg';
 import TraktLogo from '@app/assets/services/trakt.svg';
 import TvdbLogo from '@app/assets/services/tvdb.svg';
 import useLocale from '@app/hooks/useLocale';
-import useSettings from '@app/hooks/useSettings';
 import { MediaType } from '@server/constants/media';
-import { MediaServerType } from '@server/constants/server';
 
 type ExternalLinkType = 'movie' | 'tv' | 'person';
 
@@ -22,6 +20,7 @@ interface ExternalLinkBlockProps {
   rtUrl?: string;
   mediaUrl?: string;
   jellyfinMediaUrl?: string;
+  embyMediaUrl?: string;
 }
 
 const ExternalLinkBlock = ({
@@ -32,8 +31,8 @@ const ExternalLinkBlock = ({
   rtUrl,
   mediaUrl,
   jellyfinMediaUrl,
+  embyMediaUrl,
 }: ExternalLinkBlockProps) => {
-  const settings = useSettings();
   const { locale } = useLocale();
 
   return (
@@ -55,11 +54,17 @@ const ExternalLinkBlock = ({
           target="_blank"
           rel="noreferrer"
         >
-          {settings.currentSettings.mediaServerType === MediaServerType.EMBY ? (
-            <EmbyLogo />
-          ) : (
-            <JellyfinLogo />
-          )}
+          <JellyfinLogo />
+        </a>
+      )}
+      {embyMediaUrl && (
+        <a
+          href={embyMediaUrl}
+          className="w-12 opacity-50 transition duration-300 hover:opacity-100"
+          target="_blank"
+          rel="noreferrer"
+        >
+          <EmbyLogo />
         </a>
       )}
       {tmdbId && (

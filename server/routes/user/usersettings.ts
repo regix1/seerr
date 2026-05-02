@@ -1,7 +1,6 @@
 import JellyfinAPI from '@server/api/jellyfin';
 import PlexTvAPI from '@server/api/plextv';
 import { ApiErrorCode } from '@server/constants/error';
-import { MediaServerType } from '@server/constants/server';
 import { UserType } from '@server/constants/user';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
@@ -15,7 +14,6 @@ import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
 import { ApiError } from '@server/types/error';
-import { getHostname } from '@server/utils/getHostname';
 import {
   isOwnProfile,
   isOwnProfileOrAdmin,
@@ -26,6 +24,19 @@ import { Not } from 'typeorm';
 import { canMakePermissionsChange } from '.';
 
 const userSettingsRoutes = Router({ mergeParams: true });
+
+const resolveUserTypeAfterUnlink = (user: User): UserType => {
+  if (user.plexId) {
+    return UserType.PLEX;
+  }
+  if (user.jellyfinUserId) {
+    return UserType.JELLYFIN;
+  }
+  if (user.embyUserId) {
+    return UserType.EMBY;
+  }
+  return UserType.LOCAL;
+};
 
 userSettingsRoutes.get<{ id: string }, UserSettingsGeneralResponse>(
   '/main',
@@ -354,10 +365,10 @@ userSettingsRoutes.delete<{ id: string }>(
         });
       }
 
-      user.userType = UserType.LOCAL;
       user.plexId = null;
       user.plexUsername = null;
       user.plexToken = null;
+      user.userType = resolveUserTypeAfterUnlink(user);
       await userRepository.save(user);
 
       return res.status(204).send();
@@ -393,12 +404,15 @@ userSettingsRoutes.post<{ username: string; password: string }>(
       });
     }
 
-    const hostname = getHostname();
     const deviceId = Buffer.from(
       req.user?.id === 1 ? 'BOT_seerr' : `BOT_seerr_${req.user.username ?? ''}`
     ).toString('base64');
 
-    const jellyfinserver = new JellyfinAPI(hostname, undefined, deviceId);
+    const jellyfinserver = JellyfinAPI.forJellyfin(
+      settings.jellyfin,
+      undefined,
+      deviceId
+    );
 
     const ip = req.ip;
     let clientIp: string | undefined;
@@ -438,10 +452,7 @@ userSettingsRoutes.post<{ username: string; password: string }>(
       // Only flip userType when the row was LOCAL; PLEX-originated rows
       // keep userType=PLEX as the originating provider.
       if (user.userType === UserType.LOCAL) {
-        user.userType =
-          settings.main.mediaServerType === MediaServerType.EMBY
-            ? UserType.EMBY
-            : UserType.JELLYFIN;
+        user.userType = UserType.JELLYFIN;
       }
       await userRepository.save(user);
 
@@ -502,11 +513,147 @@ userSettingsRoutes.delete<{ id: string }>(
         });
       }
 
-      user.userType = UserType.LOCAL;
       user.jellyfinUserId = null;
       user.jellyfinUsername = null;
       user.jellyfinAuthToken = null;
       user.jellyfinDeviceId = null;
+      user.userType = resolveUserTypeAfterUnlink(user);
+      await userRepository.save(user);
+
+      return res.status(204).send();
+    } catch (e) {
+      return res.status(500).json({ message: e.message });
+    }
+  }
+);
+
+userSettingsRoutes.post<{ username: string; password: string }>(
+  '/linked-accounts/emby',
+  isOwnProfile(),
+  async (req, res) => {
+    const settings = getSettings();
+    const userRepository = getRepository(User);
+
+    if (!req.user) {
+      return res.status(401).json({ code: ApiErrorCode.Unauthorized });
+    }
+
+    if (!settings.main.embyLoginEnabled) {
+      return res.status(500).json({ message: 'Emby login is disabled' });
+    }
+
+    if (
+      await userRepository.exist({
+        where: { embyUsername: req.body.username },
+      })
+    ) {
+      return res.status(422).json({
+        message: 'The specified account is already linked to a Seerr user',
+      });
+    }
+
+    const deviceId = Buffer.from(
+      req.user?.id === 1 ? 'BOT_seerr' : `BOT_seerr_${req.user.username ?? ''}`
+    ).toString('base64');
+
+    const embyserver = JellyfinAPI.forEmby(settings.emby, undefined, deviceId);
+
+    const clientIp = req.ip
+      ? net.isIPv4(req.ip)
+        ? req.ip
+        : net.isIPv6(req.ip) && req.ip.startsWith('::ffff:')
+          ? req.ip.substring(7)
+          : req.ip
+      : undefined;
+
+    try {
+      const account = await embyserver.login(
+        req.body.username,
+        req.body.password,
+        clientIp
+      );
+
+      if (
+        await userRepository.exist({
+          where: { embyUserId: account.User.Id },
+        })
+      ) {
+        return res.status(422).json({
+          message: 'The specified account is already linked to a Seerr user',
+        });
+      }
+
+      const user = req.user;
+      user.embyUserId = account.User.Id;
+      user.embyUsername = account.User.Name;
+      user.embyAuthToken = account.AccessToken;
+      user.embyDeviceId = deviceId;
+      if (user.userType === UserType.LOCAL) {
+        user.userType = UserType.EMBY;
+      }
+      await userRepository.save(user);
+
+      return res.status(204).send();
+    } catch (e) {
+      logger.error('Failed to link Emby account to user.', {
+        label: 'API',
+        ip: req.ip,
+        error: e,
+      });
+      if (
+        e instanceof ApiError &&
+        e.errorCode === ApiErrorCode.InvalidCredentials
+      ) {
+        return res.status(401).json({ code: e.errorCode });
+      }
+
+      return res.status(500).send();
+    }
+  }
+);
+
+userSettingsRoutes.delete<{ id: string }>(
+  '/linked-accounts/emby',
+  isOwnProfileOrAdmin(),
+  async (req, res) => {
+    const settings = getSettings();
+    const userRepository = getRepository(User);
+
+    if (!settings.main.embyLoginEnabled) {
+      return res.status(500).json({ message: 'Emby login is disabled' });
+    }
+
+    try {
+      const user = await userRepository
+        .createQueryBuilder('user')
+        .addSelect('user.password')
+        .where({
+          id: Number(req.params.id),
+        })
+        .getOne();
+
+      if (!user) {
+        return res.status(404).json({ message: 'User not found.' });
+      }
+
+      if (user.id === 1) {
+        return res.status(400).json({
+          message:
+            'Cannot unlink media server accounts for the primary administrator.',
+        });
+      }
+
+      if (!user.email || !user.password) {
+        return res.status(400).json({
+          message: 'User does not have a local email or password set.',
+        });
+      }
+
+      user.embyUserId = null;
+      user.embyUsername = null;
+      user.embyAuthToken = null;
+      user.embyDeviceId = null;
+      user.userType = resolveUserTypeAfterUnlink(user);
       await userRepository.save(user);
 
       return res.status(204).send();

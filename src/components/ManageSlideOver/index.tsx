@@ -60,7 +60,7 @@ const messages = defineMessages('components.ManageSlideOver', {
   manageModalNoRequests: 'No requests.',
   manageModalClearMedia: 'Clear Data',
   manageModalClearMediaWarning:
-    '* This will irreversibly remove all data for this {mediaType}, including any requests. If this item exists in your {mediaServerName} library, the media information will be recreated during the next scan.',
+    '* This will irreversibly remove all data for this {mediaType}, including any requests. If this item exists in any configured media server library, the media information will be recreated during the next scan.',
   manageModalRemoveMediaWarning:
     '* This will irreversibly remove this {mediaType} from {arr}, including all files.',
   openarr: 'Open in {arr}',
@@ -764,14 +764,6 @@ const ManageSlideOver = ({
                       mediaType: intl.formatMessage(
                         mediaType === 'movie' ? messages.movie : messages.tvshow
                       ),
-                      mediaServerName:
-                        settings.currentSettings.mediaServerType ===
-                        MediaServerType.EMBY
-                          ? 'Emby'
-                          : settings.currentSettings.mediaServerType ===
-                              MediaServerType.PLEX
-                            ? 'Plex'
-                            : 'Jellyfin',
                     })}
                   </div>
                 </div>

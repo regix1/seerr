@@ -8,7 +8,6 @@ import IssueComment from '@app/components/IssueDetails/IssueComment';
 import IssueDescription from '@app/components/IssueDetails/IssueDescription';
 import { issueOptions } from '@app/components/IssueModal/constants';
 import useDeepLinks from '@app/hooks/useDeepLinks';
-import useSettings from '@app/hooks/useSettings';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
@@ -23,7 +22,6 @@ import {
 import { ArrowPathIcon } from '@heroicons/react/24/solid';
 import { IssueStatus } from '@server/constants/issue';
 import { MediaType } from '@server/constants/media';
-import { MediaServerType } from '@server/constants/server';
 import type Issue from '@server/entity/Issue';
 import type { MovieDetails } from '@server/models/Movie';
 import type { TvDetails } from '@server/models/Tv';
@@ -75,17 +73,16 @@ const messages = defineMessages('components.IssueDetails', {
 
 const getPlayButtonLabel = (
   intl: ReturnType<typeof useIntl>,
-  mediaServerType: number,
-  serverFlavor: 'plex' | 'jellyfin',
+  serverFlavor: 'plex' | 'jellyfin' | 'emby',
   is4k = false
 ): string => {
   const messageKey = is4k ? messages.play4konplex : messages.playonplex;
-  if (serverFlavor === 'plex') {
-    return intl.formatMessage(messageKey, { mediaServerName: 'Plex' });
-  }
-  // jellyfin flavor — resolve Jellyfin vs Emby
   const mediaServerName =
-    mediaServerType === MediaServerType.EMBY ? 'Emby' : 'Jellyfin';
+    serverFlavor === 'emby'
+      ? 'Emby'
+      : serverFlavor === 'jellyfin'
+        ? 'Jellyfin'
+        : 'Plex';
   return intl.formatMessage(messageKey, { mediaServerName });
 };
 
@@ -117,6 +114,8 @@ const IssueDetails = () => {
 
   const jellyfinMediaUrl = data?.mediaInfo?.jellyfinMediaUrl;
   const jellyfinMediaUrl4k = data?.mediaInfo?.jellyfinMediaUrl4k;
+  const embyMediaUrl = data?.mediaInfo?.embyMediaUrl;
+  const embyMediaUrl4k = data?.mediaInfo?.embyMediaUrl4k;
 
   const CommentSchema = Yup.object().shape({
     message: Yup.string().required(),
@@ -125,7 +124,6 @@ const IssueDetails = () => {
   const issueOption = issueOptions.find(
     (opt) => opt.issueType === issueData?.issueType
   );
-  const settings = useSettings();
 
   if (!data && !error) {
     return <LoadingSpinner />;
@@ -400,13 +398,7 @@ const IssueDetails = () => {
                   buttonType="ghost"
                 >
                   <PlayIcon />
-                  <span>
-                    {getPlayButtonLabel(
-                      intl,
-                      settings.currentSettings.mediaServerType,
-                      'plex'
-                    )}
-                  </span>
+                  <span>{getPlayButtonLabel(intl, 'plex')}</span>
                 </Button>
               )}
               {jellyfinMediaUrl && (
@@ -419,13 +411,20 @@ const IssueDetails = () => {
                   buttonType="ghost"
                 >
                   <PlayIcon />
-                  <span>
-                    {getPlayButtonLabel(
-                      intl,
-                      settings.currentSettings.mediaServerType,
-                      'jellyfin'
-                    )}
-                  </span>
+                  <span>{getPlayButtonLabel(intl, 'jellyfin')}</span>
+                </Button>
+              )}
+              {embyMediaUrl && (
+                <Button
+                  as="a"
+                  href={embyMediaUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full"
+                  buttonType="ghost"
+                >
+                  <PlayIcon />
+                  <span>{getPlayButtonLabel(intl, 'emby')}</span>
                 </Button>
               )}
               {issueData?.media.serviceUrl &&
@@ -459,14 +458,7 @@ const IssueDetails = () => {
                   buttonType="ghost"
                 >
                   <PlayIcon />
-                  <span>
-                    {getPlayButtonLabel(
-                      intl,
-                      settings.currentSettings.mediaServerType,
-                      'plex',
-                      true
-                    )}
-                  </span>
+                  <span>{getPlayButtonLabel(intl, 'plex', true)}</span>
                 </Button>
               )}
               {jellyfinMediaUrl4k && (
@@ -479,14 +471,20 @@ const IssueDetails = () => {
                   buttonType="ghost"
                 >
                   <PlayIcon />
-                  <span>
-                    {getPlayButtonLabel(
-                      intl,
-                      settings.currentSettings.mediaServerType,
-                      'jellyfin',
-                      true
-                    )}
-                  </span>
+                  <span>{getPlayButtonLabel(intl, 'jellyfin', true)}</span>
+                </Button>
+              )}
+              {embyMediaUrl4k && (
+                <Button
+                  as="a"
+                  href={embyMediaUrl4k}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full"
+                  buttonType="ghost"
+                >
+                  <PlayIcon />
+                  <span>{getPlayButtonLabel(intl, 'emby', true)}</span>
                 </Button>
               )}
               {issueData?.media.serviceUrl4k &&
@@ -690,13 +688,7 @@ const IssueDetails = () => {
                 buttonType="ghost"
               >
                 <PlayIcon />
-                <span>
-                  {getPlayButtonLabel(
-                    intl,
-                    settings.currentSettings.mediaServerType,
-                    'plex'
-                  )}
-                </span>
+                <span>{getPlayButtonLabel(intl, 'plex')}</span>
               </Button>
             )}
             {jellyfinMediaUrl && (
@@ -709,13 +701,20 @@ const IssueDetails = () => {
                 buttonType="ghost"
               >
                 <PlayIcon />
-                <span>
-                  {getPlayButtonLabel(
-                    intl,
-                    settings.currentSettings.mediaServerType,
-                    'jellyfin'
-                  )}
-                </span>
+                <span>{getPlayButtonLabel(intl, 'jellyfin')}</span>
+              </Button>
+            )}
+            {embyMediaUrl && (
+              <Button
+                as="a"
+                href={embyMediaUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full"
+                buttonType="ghost"
+              >
+                <PlayIcon />
+                <span>{getPlayButtonLabel(intl, 'emby')}</span>
               </Button>
             )}
             {issueData?.media.serviceUrl && hasPermission(Permission.ADMIN) && (
@@ -748,14 +747,7 @@ const IssueDetails = () => {
                 buttonType="ghost"
               >
                 <PlayIcon />
-                <span>
-                  {getPlayButtonLabel(
-                    intl,
-                    settings.currentSettings.mediaServerType,
-                    'plex',
-                    true
-                  )}
-                </span>
+                <span>{getPlayButtonLabel(intl, 'plex', true)}</span>
               </Button>
             )}
             {jellyfinMediaUrl4k && (
@@ -768,14 +760,20 @@ const IssueDetails = () => {
                 buttonType="ghost"
               >
                 <PlayIcon />
-                <span>
-                  {getPlayButtonLabel(
-                    intl,
-                    settings.currentSettings.mediaServerType,
-                    'jellyfin',
-                    true
-                  )}
-                </span>
+                <span>{getPlayButtonLabel(intl, 'jellyfin', true)}</span>
+              </Button>
+            )}
+            {embyMediaUrl4k && (
+              <Button
+                as="a"
+                href={embyMediaUrl4k}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full"
+                buttonType="ghost"
+              >
+                <PlayIcon />
+                <span>{getPlayButtonLabel(intl, 'emby', true)}</span>
               </Button>
             )}
             {issueData?.media.serviceUrl4k &&

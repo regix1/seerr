@@ -25,6 +25,9 @@ export interface PublicSettingsResponse {
   jellyfinExternalHost?: string;
   jellyfinServerName?: string;
   jellyfinForgotPasswordUrl?: string;
+  embyExternalHost?: string;
+  embyServerName?: string;
+  embyForgotPasswordUrl?: string;
   initialized: boolean;
   applicationTitle: string;
   applicationUrl: string;
@@ -37,6 +40,7 @@ export interface PublicSettingsResponse {
   discoverRegion: string;
   streamingRegion: string;
   originalLanguage: string;
+  /** @deprecated Use plexLoginEnabled / jellyfinLoginEnabled / embyLoginEnabled. Kept for back-compat reads only. */
   mediaServerType: number;
   partialRequestsEnabled: boolean;
   enableSpecialEpisodes: boolean;
@@ -50,6 +54,7 @@ export interface PublicSettingsResponse {
   plexClientIdentifier: string;
   plexLoginEnabled: boolean;
   jellyfinLoginEnabled: boolean;
+  embyLoginEnabled: boolean;
 }
 
 export interface CacheItem {

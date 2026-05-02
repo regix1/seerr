@@ -28,7 +28,6 @@ import {
   PencilIcon,
   UserPlusIcon,
 } from '@heroicons/react/24/solid';
-import { MediaServerType } from '@server/constants/server';
 import type { UserResultsResponse } from '@server/interfaces/api/userInterfaces';
 import { hasPermission } from '@server/lib/permissions';
 import axios from 'axios';
@@ -147,6 +146,7 @@ const UserList = () => {
   const [isDeleting, setDeleting] = useState(false);
   const [showPlexImportModal, setShowPlexImportModal] = useState(false);
   const [showJellyfinImportModal, setShowJellyfinImportModal] = useState(false);
+  const [showEmbyImportModal, setShowEmbyImportModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
     user?: User;
@@ -627,6 +627,30 @@ const UserList = () => {
         </Transition>
       )}
 
+      {settings.currentSettings.embyLoginEnabled && (
+        <Transition
+          as="div"
+          enter="transition-opacity duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="transition-opacity duration-300"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+          show={showEmbyImportModal}
+        >
+          <JellyfinImportModal
+            provider="emby"
+            onCancel={() => setShowEmbyImportModal(false)}
+            onComplete={() => {
+              setShowEmbyImportModal(false);
+              revalidate();
+            }}
+          >
+            {data.pageInfo.results}
+          </JellyfinImportModal>
+        </Transition>
+      )}
+
       <div className="flex flex-col justify-between lg:flex-row lg:items-end">
         <Header>{intl.formatMessage(messages.userlist)}</Header>
         <div className="mt-2 flex flex-grow flex-col lg:flex-grow-0 lg:flex-row">
@@ -661,14 +685,23 @@ const UserList = () => {
               >
                 <InboxArrowDownIcon />
                 <span>
-                  {settings.currentSettings.mediaServerType ===
-                  MediaServerType.EMBY
-                    ? intl.formatMessage(messages.importfrommediaserver, {
-                        mediaServerName: 'Emby',
-                      })
-                    : intl.formatMessage(messages.importfrommediaserver, {
-                        mediaServerName: 'Jellyfin',
-                      })}
+                  {intl.formatMessage(messages.importfrommediaserver, {
+                    mediaServerName: 'Jellyfin',
+                  })}
+                </span>
+              </Button>
+            )}
+            {settings.currentSettings.embyLoginEnabled && (
+              <Button
+                className="flex-grow lg:mr-2"
+                buttonType="primary"
+                onClick={() => setShowEmbyImportModal(true)}
+              >
+                <InboxArrowDownIcon />
+                <span>
+                  {intl.formatMessage(messages.importfrommediaserver, {
+                    mediaServerName: 'Emby',
+                  })}
                 </span>
               </Button>
             )}

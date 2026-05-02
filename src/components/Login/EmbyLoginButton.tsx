@@ -1,44 +1,44 @@
-import JellyfinWordmark from '@app/assets/services/jellyfin.svg';
+import EmbyWordmark from '@app/assets/services/emby.svg';
 import Button from '@app/components/Common/Button';
 import defineMessages from '@app/utils/defineMessages';
 import { useIntl } from 'react-intl';
 
 const messages = defineMessages('components.Login', {
-  signinWithJellyfin: 'Sign in with Jellyfin',
+  signinWithEmby: 'Sign in with Emby',
 });
 
-interface JellyfinLoginButtonProps {
+interface EmbyLoginButtonProps {
   onClick: () => void;
   large?: boolean;
   disabled?: boolean;
 }
 
-const JellyfinLoginButton = ({
+const EmbyLoginButton = ({
   onClick,
   large,
   disabled,
-}: JellyfinLoginButtonProps) => {
+}: EmbyLoginButtonProps) => {
   const intl = useIntl();
-  const ariaLabel = intl.formatMessage(messages.signinWithJellyfin);
+  const ariaLabel = intl.formatMessage(messages.signinWithEmby);
 
   return (
     <Button
-      className="relative flex-1 border-jellyfin-500 bg-jellyfin-500/30 hover:border-jellyfin-500 hover:bg-jellyfin-500/70 disabled:opacity-50"
+      className="relative flex-1 border-emby-500 bg-emby-500/30 hover:border-emby-500 hover:bg-emby-500/70 disabled:opacity-50"
       onClick={onClick}
       disabled={disabled}
       aria-label={ariaLabel}
-      data-testid="jellyfin-login-button"
+      data-testid="emby-login-button"
     >
       {large ? (
         <span className="flex items-center justify-center">
-          <JellyfinWordmark className="mr-2 h-5 shrink-0" />
+          <EmbyWordmark className="mr-2 h-5 shrink-0" />
           <span>{ariaLabel}</span>
         </span>
       ) : (
-        <JellyfinWordmark className="h-5" />
+        <EmbyWordmark className="h-5" />
       )}
     </Button>
   );
 };
 
-export default JellyfinLoginButton;
+export default EmbyLoginButton;

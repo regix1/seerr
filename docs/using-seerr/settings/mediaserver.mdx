@@ -1,6 +1,6 @@
 ---
 title: Mediaserver Settings
-description: Configure your Jellyfin, Emby, or Plex server settings.
+description: Configure your Jellyfin, Emby, and Plex server settings simultaneously.
 sidebar_position: 3
 ---
 
@@ -8,6 +8,23 @@ sidebar_position: 3
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+
+Seerr can be connected to Plex, Jellyfin, and Emby at the same time. Configure each provider from its own settings tab, enable sign-in for the providers you want to expose, and run library scans independently for each server.
+
+When the same movie or series exists on more than one media server, Seerr deduplicates it by media metadata and stores each provider's IDs on the same media record. A single Seerr user can also link Plex, Jellyfin, and Emby accounts simultaneously.
+
+:::note Legacy setting
+The `mediaServerType` setting shown in older documentation is deprecated. New installs should leave it unset and use the per-provider login flags (`plexLoginEnabled`, `jellyfinLoginEnabled`, `embyLoginEnabled`) in **Settings > General** instead.
+:::
+
+## Configuring Multiple Media Servers
+
+1. Open **Settings** and configure each provider on its own **Plex**, **Jellyfin**, or **Emby** tab.
+2. Use **Sync Libraries** on each configured provider, then enable the libraries Seerr should scan.
+3. Enable provider sign-in from **Settings > General** using the independent `plexLoginEnabled`, `jellyfinLoginEnabled`, and `embyLoginEnabled` flags for each provider you want to expose to users.
+4. Run a manual full scan on each provider after first setup. Scheduled full and recently added scans will continue to run independently for each provider.
+
+Users can link all three provider accounts to a single Seerr account via **Profile > Linked Accounts**. This is optional — users may log in with any single enabled provider.
 
 <Tabs groupId="media-server-type" queryString>
     <TabItem value="jellyfin" label="Jellyfin">

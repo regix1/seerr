@@ -105,12 +105,33 @@ components:
         plexUsername:
           type: string
           readOnly: true
+        jellyfinUsername:
+          type: string
+          readOnly: true
+        jellyfinUserId:
+          type: string
+          readOnly: true
+        embyUsername:
+          type: string
+          readOnly: true
+        embyUserId:
+          type: string
+          readOnly: true
         plexToken:
           type: string
           readOnly: true
         jellyfinAuthToken:
           type: string
           readOnly: true
+        embyAuthToken:
+          type: string
+          readOnly: true
+        linkedProviders:
+          type: array
+          readOnly: true
+          items:
+            type: string
+            enum: [plex, jellyfin, emby]
         userType:
           type: integer
           example: 1
@@ -248,6 +269,15 @@ components:
         newPlexLogin:
           type: boolean
           example: true
+        plexLoginEnabled:
+          type: boolean
+          example: true
+        jellyfinLoginEnabled:
+          type: boolean
+          example: true
+        embyLoginEnabled:
+          type: boolean
+          example: false
         defaultPermissions:
           type: number
           example: 32
@@ -496,27 +526,69 @@ components:
           type: string
           example: 'Main Server'
           readOnly: true
-        hostname:
+        ip:
           type: string
-          example: 'http://my.jellyfin.host'
+          example: 'jellyfin.example.com'
+        port:
+          type: number
+          example: 8096
+        useSsl:
+          type: boolean
+          example: false
+        urlBase:
+          type: string
+          example: '/jellyfin'
         externalHostname:
           type: string
           example: 'http://my.jellyfin.host'
         jellyfinForgotPasswordUrl:
           type: string
           example: 'http://my.jellyfin.host/web/index.html#!/forgotpassword.html'
-        adminUser:
+        apiKey:
           type: string
-          example: 'admin'
-        adminPass:
-          type: string
-          example: 'mypassword'
+          writeOnly: true
         libraries:
           type: array
           readOnly: true
           items:
             $ref: '#/components/schemas/JellyfinLibrary'
-        serverID:
+        serverId:
+          type: string
+          readOnly: true
+    EmbySettings:
+      type: object
+      properties:
+        name:
+          type: string
+          example: 'Main Server'
+          readOnly: true
+        ip:
+          type: string
+          example: 'emby.example.com'
+        port:
+          type: number
+          example: 8096
+        useSsl:
+          type: boolean
+          example: false
+        urlBase:
+          type: string
+          example: '/emby'
+        externalHostname:
+          type: string
+          example: 'http://my.emby.host'
+        forgotPasswordUrl:
+          type: string
+          example: 'http://my.emby.host/web/index.html#!/forgotpassword.html'
+        apiKey:
+          type: string
+          writeOnly: true
+        libraries:
+          type: array
+          readOnly: true
+          items:
+            $ref: '#/components/schemas/JellyfinLibrary'
+        serverId:
           type: string
           readOnly: true
     MetadataSettings:
@@ -718,6 +790,98 @@ components:
           format: uuid
           description: Instance Plex OAuth client identifier
           example: 6919275e-142a-48d8-be6b-93594cbd4626
+        applicationTitle:
+          type: string
+          example: Seerr
+        applicationUrl:
+          type: string
+          example: https://seerr.example.com
+        hideAvailable:
+          type: boolean
+          example: false
+        hideBlocklisted:
+          type: boolean
+          example: false
+        localLogin:
+          type: boolean
+          example: true
+        mediaServerLogin:
+          type: boolean
+          example: true
+        mediaServerType:
+          type: number
+          example: 1
+          deprecated: true
+        jellyfinExternalHost:
+          type: string
+          nullable: true
+        jellyfinForgotPasswordUrl:
+          type: string
+          nullable: true
+        jellyfinServerName:
+          type: string
+          nullable: true
+        embyExternalHost:
+          type: string
+          nullable: true
+        embyForgotPasswordUrl:
+          type: string
+          nullable: true
+        embyServerName:
+          type: string
+          nullable: true
+        movie4kEnabled:
+          type: boolean
+          example: false
+        series4kEnabled:
+          type: boolean
+          example: false
+        discoverRegion:
+          type: string
+          example: US
+        streamingRegion:
+          type: string
+          example: US
+        originalLanguage:
+          type: string
+          example: en
+        partialRequestsEnabled:
+          type: boolean
+          example: false
+        enableSpecialEpisodes:
+          type: boolean
+          example: false
+        cacheImages:
+          type: boolean
+          example: false
+        vapidPublic:
+          type: string
+        enablePushRegistration:
+          type: boolean
+          example: false
+        locale:
+          type: string
+          example: en
+        emailEnabled:
+          type: boolean
+          example: false
+        userEmailRequired:
+          type: boolean
+          example: false
+        newPlexLogin:
+          type: boolean
+          example: true
+        youtubeUrl:
+          type: string
+        plexLoginEnabled:
+          type: boolean
+          example: true
+        jellyfinLoginEnabled:
+          type: boolean
+          example: true
+        embyLoginEnabled:
+          type: boolean
+          example: false
     MovieResult:
       type: object
       required:
@@ -1291,10 +1455,66 @@ components:
           type: number
           readOnly: true
           nullable: true
+        imdbId:
+          type: string
+          readOnly: true
+          nullable: true
         status:
           type: number
           example: 0
           description: Availability of the media. 1 = `UNKNOWN`, 2 = `PENDING`, 3 = `PROCESSING`, 4 = `PARTIALLY_AVAILABLE`, 5 = `AVAILABLE`, 6 = `DELETED`
+        status4k:
+          type: number
+          example: 0
+          description: 4K availability of the media.
+        ratingKey:
+          type: string
+          readOnly: true
+          nullable: true
+        ratingKey4k:
+          type: string
+          readOnly: true
+          nullable: true
+        jellyfinMediaId:
+          type: string
+          readOnly: true
+          nullable: true
+        jellyfinMediaId4k:
+          type: string
+          readOnly: true
+          nullable: true
+        embyMediaId:
+          type: string
+          readOnly: true
+          nullable: true
+        embyMediaId4k:
+          type: string
+          readOnly: true
+          nullable: true
+        mediaUrl:
+          type: string
+          readOnly: true
+          nullable: true
+        mediaUrl4k:
+          type: string
+          readOnly: true
+          nullable: true
+        jellyfinMediaUrl:
+          type: string
+          readOnly: true
+          nullable: true
+        jellyfinMediaUrl4k:
+          type: string
+          readOnly: true
+          nullable: true
+        embyMediaUrl:
+          type: string
+          readOnly: true
+          nullable: true
+        embyMediaUrl4k:
+          type: string
+          readOnly: true
+          nullable: true
         requests:
           type: array
           readOnly: true
@@ -2361,6 +2581,31 @@ paths:
                       type: string
                     email:
                       type: string
+  /settings/emby/users:
+    get:
+      summary: Get Emby Users
+      description: Returns a list of Emby users in a JSON array.
+      tags:
+        - settings
+        - users
+      responses:
+        '200':
+          description: Emby users returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    username:
+                      type: string
+                    id:
+                      type: string
+                    thumb:
+                      type: string
+                    email:
+                      type: string
   /settings/jellyfin/sync:
     get:
       summary: Get status of full Jellyfin library sync
@@ -2410,6 +2655,136 @@ paths:
       responses:
         '200':
           description: Status of Jellyfin sync
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  running:
+                    type: boolean
+                    example: false
+                  progress:
+                    type: number
+                    example: 0
+                  total:
+                    type: number
+                    example: 100
+                  currentLibrary:
+                    $ref: '#/components/schemas/JellyfinLibrary'
+                  libraries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/JellyfinLibrary'
+  /settings/emby:
+    get:
+      summary: Get Emby settings
+      description: Retrieves current Emby settings.
+      tags:
+        - settings
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmbySettings'
+    post:
+      summary: Update Emby settings
+      description: Updates Emby settings with the provided values.
+      tags:
+        - settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmbySettings'
+      responses:
+        '200':
+          description: 'Values were successfully updated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmbySettings'
+  /settings/emby/library:
+    get:
+      summary: Get Emby libraries
+      description: Returns a list of Emby libraries in a JSON array.
+      tags:
+        - settings
+      parameters:
+        - in: query
+          name: sync
+          description: Syncs the current libraries with the current Emby server
+          schema:
+            type: string
+            nullable: true
+        - in: query
+          name: enable
+          explode: false
+          allowReserved: true
+          description: Comma separated list of libraries to enable. Any libraries not passed will be disabled!
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: 'Emby libraries returned'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/JellyfinLibrary'
+  /settings/emby/sync:
+    get:
+      summary: Get status of full Emby library sync
+      description: Returns sync progress in a JSON array.
+      tags:
+        - settings
+      responses:
+        '200':
+          description: Status of Emby sync
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  running:
+                    type: boolean
+                    example: false
+                  progress:
+                    type: number
+                    example: 0
+                  total:
+                    type: number
+                    example: 100
+                  currentLibrary:
+                    $ref: '#/components/schemas/JellyfinLibrary'
+                  libraries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/JellyfinLibrary'
+    post:
+      summary: Start full Emby library sync
+      description: Runs a full Emby library sync and returns sync progress.
+      tags:
+        - settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cancel:
+                  type: boolean
+                  example: false
+                start:
+                  type: boolean
+                  example: false
+      responses:
+        '200':
+          description: Status of Emby sync
           content:
             application/json:
               schema:
@@ -3969,7 +4344,7 @@ paths:
   /auth/jellyfin:
     post:
       summary: Sign in using a Jellyfin username and password
-      description: Takes the user's username and password to log the user in. Generates a session cookie for use in further requests. If the user does not exist, and there are no other users, then a user will be created with full admin privileges. If a user logs in with access to the Jellyfin server, they will also have an account created, but without any permissions.
+      description: Takes the user's username and password to log the user in against the configured Jellyfin server. Generates a session cookie for use in further requests. Requires `jellyfinLoginEnabled` to be `true` in main settings (returns 401 otherwise). If the user does not exist, and there are no other users, then a user will be created with full admin privileges. If a user logs in with access to the Jellyfin server, they will also have an account created, but without any permissions. If a different provider's user already exists with the same email, the Jellyfin identity is silently merged onto that existing row (the user's `userType` is preserved).
       security: []
       tags:
         - auth
@@ -3980,6 +4355,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
+        '401':
+          description: Jellyfin login is disabled in server settings.
+        '409':
+          description: Email is already linked to a different Jellyfin account.
       requestBody:
         required: true
         content:
@@ -3993,10 +4372,56 @@ paths:
                   type: string
                 hostname:
                   type: string
+                port:
+                  type: number
+                urlBase:
+                  type: string
+                useSsl:
+                  type: boolean
                 email:
                   type: string
-                serverType:
+              required:
+                - username
+                - password
+  /auth/emby:
+    post:
+      summary: Sign in using an Emby username and password
+      description: Takes the user's username and password to log the user in against the configured Emby server. Generates a session cookie for use in further requests. Requires `embyLoginEnabled` to be `true` in main settings (returns 401 otherwise). If the user does not exist, and there are no other users, then a user will be created with full admin privileges. If a user logs in with access to the Emby server, they will also have an account created, but without any permissions. If a different provider's user already exists with the same email, the Emby identity is silently merged onto that existing row (the user's `userType` is preserved).
+      security: []
+      tags:
+        - auth
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Emby login is disabled in server settings.
+        '409':
+          description: Email is already linked to a different Emby account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                hostname:
+                  type: string
+                port:
                   type: number
+                urlBase:
+                  type: string
+                useSsl:
+                  type: boolean
+                email:
+                  type: string
               required:
                 - username
                 - password
@@ -4270,6 +4695,35 @@ paths:
               type: object
               properties:
                 jellyfinUserIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: A list of the newly created users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+  /user/import-from-emby:
+    post:
+      summary: Import all users from Emby
+      description: |
+        Fetches and imports users from the Emby server.
+
+        Requires the `MANAGE_USERS` permission.
+      tags:
+        - users
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                embyUserIds:
                   type: array
                   items:
                     type: string
@@ -5125,6 +5579,56 @@ paths:
     delete:
       summary: Remove the linked Jellyfin account for a user
       description: Removes the linked Jellyfin account for a specific user. Requires `MANAGE_USERS` permission if editing other users.
+      tags:
+        - users
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: number
+      responses:
+        '204':
+          description: Unlinking account succeeded
+        '400':
+          description: Unlink request invalid
+        '404':
+          description: User does not exist
+  /user/{userId}/settings/linked-accounts/emby:
+    post:
+      summary: Link the provided Emby account to the current user
+      description: Logs in to Emby with the provided credentials, then links the associated Emby account with the user's account. Users can only link external accounts to their own account.
+      tags:
+        - users
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  example: 'Mr User'
+                password:
+                  type: string
+                  example: 'supersecret'
+      responses:
+        '204':
+          description: Linking account succeeded
+        '403':
+          description: Invalid credentials
+        '422':
+          description: Account already linked to a user
+    delete:
+      summary: Remove the linked Emby account for a user
+      description: Removes the linked Emby account for a specific user. Requires `MANAGE_USERS` permission if editing other users.
       tags:
         - users
       parameters:
