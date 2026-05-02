@@ -32,6 +32,7 @@ import type {
   Library,
 } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
+import { ApiError } from '@server/types/error';
 import { uniqWith } from 'lodash';
 
 export interface MediaServerSyncStatus extends StatusBase {
@@ -551,24 +552,41 @@ export class MediaServerScanner
       );
       completed = true;
     } catch (e) {
-      const errorMessage = e instanceof Error ? e.message : String(e);
-      const httpStatus =
-        e instanceof Object && 'response' in e
-          ? (e as { response?: { status?: number; data?: unknown } }).response
-              ?.status
-          : undefined;
-      const responseData =
-        e instanceof Object && 'response' in e
-          ? (e as { response?: { status?: number; data?: unknown } }).response
-              ?.data
-          : undefined;
-      const requestUrl =
-        e instanceof Object && 'config' in e
-          ? (e as { config?: { url?: string } }).config?.url
-          : undefined;
+      let errorMessage: string;
+      let httpStatus: number | undefined;
+      let errorCode: string | undefined;
+      let requestUrl: string | undefined;
+      let responseData: unknown;
+
+      if (e instanceof ApiError) {
+        // ApiError is thrown by JellyfinAPI after it has already logged the
+        // axios details. Extract the structured fields from it directly.
+        errorMessage = e.message;
+        httpStatus = e.statusCode;
+        errorCode = e.errorCode;
+      } else {
+        // Fallback: raw axios error or unknown shape
+        errorMessage = e instanceof Error ? e.message : String(e);
+        httpStatus =
+          e instanceof Object && 'response' in e
+            ? (e as { response?: { status?: number; data?: unknown } }).response
+                ?.status
+            : undefined;
+        responseData =
+          e instanceof Object && 'response' in e
+            ? (e as { response?: { status?: number; data?: unknown } }).response
+                ?.data
+            : undefined;
+        requestUrl =
+          e instanceof Object && 'config' in e
+            ? (e as { config?: { url?: string } }).config?.url
+            : undefined;
+      }
+
       this.log('Sync interrupted', 'error', {
         errorMessage,
         ...(httpStatus !== undefined && { httpStatus }),
+        ...(errorCode !== undefined && { errorCode }),
         ...(requestUrl !== undefined && { requestUrl }),
         ...(responseData !== undefined && { responseData }),
       });

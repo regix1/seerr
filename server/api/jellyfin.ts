@@ -575,11 +575,17 @@ class JellyfinAPI extends ExternalAPI {
         this.mediaServerType === MediaServerType.EMBY
           ? `/Users/${this.userId}/Items`
           : `/Items`;
+
+      // Emby's BaseItemKind enum has no "Others" entry and rejects unknown values with HTTP 500.
+      // collapseBoxSetItems is also a Jellyfin-specific parameter not supported by Emby.
+      const queryString =
+        this.mediaServerType === MediaServerType.EMBY
+          ? `SortBy=SortName&SortOrder=Ascending&IncludeItemTypes=Series,Movie&Recursive=true&StartIndex=0&ParentId=${id}`
+          : `SortBy=SortName&SortOrder=Ascending&IncludeItemTypes=Series,Movie,Others&Recursive=true&StartIndex=0&ParentId=${id}&collapseBoxSetItems=false`;
+
       const libraryItemsResponse = await this.get<{
         Items: JellyfinLibraryItem[];
-      }>(
-        `${endpoint}?SortBy=SortName&SortOrder=Ascending&IncludeItemTypes=Series,Movie,Others&Recursive=true&StartIndex=0&ParentId=${id}&collapseBoxSetItems=false`
-      );
+      }>(`${endpoint}?${queryString}`);
 
       return libraryItemsResponse.Items.filter(
         (item: JellyfinLibraryItem) => item.LocationType !== 'Virtual'
@@ -595,7 +601,9 @@ class JellyfinAPI extends ExternalAPI {
         { label: 'Jellyfin API', error: status }
       );
 
-      throw new ApiError(status, ApiErrorCode.InvalidAuthToken);
+      const errorCode =
+        status === 401 ? ApiErrorCode.InvalidAuthToken : ApiErrorCode.Unknown;
+      throw new ApiError(status, errorCode, msg);
     }
   }
 
@@ -627,7 +635,9 @@ class JellyfinAPI extends ExternalAPI {
         { label: 'Jellyfin API', error: status }
       );
 
-      throw new ApiError(status, ApiErrorCode.InvalidAuthToken);
+      const errorCode =
+        status === 401 ? ApiErrorCode.InvalidAuthToken : ApiErrorCode.Unknown;
+      throw new ApiError(status, errorCode, msg);
     }
   }
 
