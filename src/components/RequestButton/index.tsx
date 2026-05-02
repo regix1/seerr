@@ -16,6 +16,7 @@ import type { MediaRequest } from '@server/entity/MediaRequest';
 import axios from 'axios';
 import { useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
+import { useToasts } from 'react-toast-notifications';
 import { mutate } from 'swr';
 
 const messages = defineMessages('components.RequestButton', {
@@ -35,6 +36,12 @@ const messages = defineMessages('components.RequestButton', {
     'Approve {requestCount, plural, one {4K Request} other {{requestCount} 4K Requests}}',
   decline4krequests:
     'Decline {requestCount, plural, one {4K Request} other {{requestCount} 4K Requests}}',
+  errorApprovingRequest: 'Failed to approve request.',
+  errorDecliningRequest: 'Failed to decline request.',
+  errorBatchApprovingRequests:
+    'Failed to approve {count, plural, one {request} other {requests}}.',
+  errorBatchDecliningRequests:
+    'Failed to decline {count, plural, one {request} other {requests}}.',
 });
 
 interface ButtonOption {
@@ -63,6 +70,7 @@ const RequestButton = ({
 }: RequestButtonProps) => {
   const intl = useIntl();
   const settings = useSettings();
+  const { addToast } = useToasts();
   const { user, hasPermission } = useUser();
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showRequest4kModal, setShowRequest4kModal] = useState(false);
@@ -96,11 +104,27 @@ const RequestButton = ({
     request: MediaRequest,
     type: 'approve' | 'decline'
   ) => {
-    const response = await axios.post(`/api/v1/request/${request.id}/${type}`);
+    try {
+      const response = await axios.post(
+        `/api/v1/request/${request.id}/${type}`
+      );
 
-    if (response) {
-      onUpdate();
-      mutate('/api/v1/request/count');
+      if (response) {
+        onUpdate();
+        mutate('/api/v1/request/count');
+      }
+    } catch {
+      addToast(
+        intl.formatMessage(
+          type === 'approve'
+            ? messages.errorApprovingRequest
+            : messages.errorDecliningRequest
+        ),
+        {
+          appearance: 'error',
+          autoDismiss: true,
+        }
+      );
     }
   };
 
@@ -112,14 +136,29 @@ const RequestButton = ({
       return;
     }
 
-    await Promise.all(
-      requests.map(async (request) => {
-        return axios.post(`/api/v1/request/${request.id}/${type}`);
-      })
-    );
+    try {
+      await Promise.all(
+        requests.map(async (request) => {
+          return axios.post(`/api/v1/request/${request.id}/${type}`);
+        })
+      );
 
-    onUpdate();
-    mutate('/api/v1/request/count');
+      onUpdate();
+      mutate('/api/v1/request/count');
+    } catch {
+      addToast(
+        intl.formatMessage(
+          type === 'approve'
+            ? messages.errorBatchApprovingRequests
+            : messages.errorBatchDecliningRequests,
+          { count: requests.length }
+        ),
+        {
+          appearance: 'error',
+          autoDismiss: true,
+        }
+      );
+    }
   };
 
   const buttons: ButtonOption[] = [];

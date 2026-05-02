@@ -39,6 +39,8 @@ const messages = defineMessages('components.Setup', {
   librarieserror:
     'Validation failed. Please toggle the libraries again to continue.',
   otherMediaServer: 'Other (Jellyfin / Emby)',
+  errorFinishingSetup:
+    'Setup could not complete. Check the logs and try again.',
 });
 
 const Setup = () => {
@@ -57,16 +59,24 @@ const Setup = () => {
 
   const finishSetup = async () => {
     setIsUpdating(true);
-    const response = await axios.post<{ initialized: boolean }>(
-      '/api/v1/settings/initialize'
-    );
+    try {
+      const response = await axios.post<{ initialized: boolean }>(
+        '/api/v1/settings/initialize'
+      );
 
-    setIsUpdating(false);
-    if (response.data.initialized) {
-      await axios.post('/api/v1/settings/main', { locale });
-      mutate('/api/v1/settings/public');
+      if (response.data.initialized) {
+        await axios.post('/api/v1/settings/main', { locale });
+        mutate('/api/v1/settings/public');
 
-      router.push('/');
+        router.push('/');
+      }
+    } catch {
+      toasts.addToast(intl.formatMessage(messages.errorFinishingSetup), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    } finally {
+      setIsUpdating(false);
     }
   };
 

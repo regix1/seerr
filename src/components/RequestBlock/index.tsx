@@ -22,6 +22,7 @@ import axios from 'axios';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useIntl } from 'react-intl';
+import { useToasts } from 'react-toast-notifications';
 import { mutate } from 'swr';
 
 const messages = defineMessages('components.RequestBlock', {
@@ -38,6 +39,9 @@ const messages = defineMessages('components.RequestBlock', {
   decline: 'Decline Request',
   edit: 'Edit Request',
   delete: 'Delete Request',
+  errorApprovingRequest: 'Failed to approve request.',
+  errorDecliningRequest: 'Failed to decline request.',
+  errorDeletingRequest: 'Failed to delete request.',
 });
 
 interface RequestBlockProps {
@@ -48,6 +52,7 @@ interface RequestBlockProps {
 const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
   const { user, hasPermission } = useUser();
   const intl = useIntl();
+  const { addToast } = useToasts();
   const [isUpdating, setIsUpdating] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const { profile, rootFolder, server, languageProfile } =
@@ -55,25 +60,47 @@ const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
 
   const updateRequest = async (type: 'approve' | 'decline'): Promise<void> => {
     setIsUpdating(true);
-    await axios.post(`/api/v1/request/${request.id}/${type}`);
+    try {
+      await axios.post(`/api/v1/request/${request.id}/${type}`);
 
-    if (onUpdate) {
-      onUpdate();
-      mutate('/api/v1/request/count');
+      if (onUpdate) {
+        onUpdate();
+        mutate('/api/v1/request/count');
+      }
+    } catch {
+      addToast(
+        intl.formatMessage(
+          type === 'approve'
+            ? messages.errorApprovingRequest
+            : messages.errorDecliningRequest
+        ),
+        {
+          appearance: 'error',
+          autoDismiss: true,
+        }
+      );
+    } finally {
+      setIsUpdating(false);
     }
-    setIsUpdating(false);
   };
 
   const deleteRequest = async () => {
     setIsUpdating(true);
-    await axios.delete(`/api/v1/request/${request.id}`);
+    try {
+      await axios.delete(`/api/v1/request/${request.id}`);
 
-    if (onUpdate) {
-      onUpdate();
-      mutate('/api/v1/request/count');
+      if (onUpdate) {
+        onUpdate();
+        mutate('/api/v1/request/count');
+      }
+    } catch {
+      addToast(intl.formatMessage(messages.errorDeletingRequest), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    } finally {
+      setIsUpdating(false);
     }
-
-    setIsUpdating(false);
   };
 
   return (

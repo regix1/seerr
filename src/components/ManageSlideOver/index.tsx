@@ -32,6 +32,7 @@ import type { TvDetails } from '@server/models/Tv';
 import axios from 'axios';
 import Link from 'next/link';
 import { useIntl } from 'react-intl';
+import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 
 const filterDuplicateDownloads = (
@@ -75,6 +76,9 @@ const messages = defineMessages('components.ManageSlideOver', {
   playedby: 'Played By',
   movie: 'movie',
   tvshow: 'series',
+  errorDeletingMedia: 'Failed to delete media.',
+  errorDeletingMediaFile: 'Failed to delete media file.',
+  errorMarkingAvailable: 'Failed to mark as available.',
 });
 
 const isMovie = (movie: MovieDetails | TvDetails): movie is MovieDetails => {
@@ -107,6 +111,7 @@ const ManageSlideOver = ({
 }: ManageSlideOverMovieProps | ManageSlideOverTvProps) => {
   const { user: currentUser, hasPermission } = useUser();
   const intl = useIntl();
+  const { addToast } = useToasts();
   const settings = useSettings();
   const { data: watchData } = useSWR<MediaWatchDataResponse>(
     (settings.currentSettings.plexLoginEnabled ||
@@ -125,20 +130,34 @@ const ManageSlideOver = ({
 
   const deleteMedia = async () => {
     if (data.mediaInfo) {
-      await axios.delete(`/api/v1/media/${data.mediaInfo.id}`);
-      revalidate();
-      onClose();
+      try {
+        await axios.delete(`/api/v1/media/${data.mediaInfo.id}`);
+        revalidate();
+        onClose();
+      } catch {
+        addToast(intl.formatMessage(messages.errorDeletingMedia), {
+          appearance: 'error',
+          autoDismiss: true,
+        });
+      }
     }
   };
 
   const deleteMediaFile = async (is4k = false) => {
     if (data.mediaInfo) {
-      await axios.delete(
-        `/api/v1/media/${data.mediaInfo.id}/file?is4k=${is4k}`
-      );
-      await axios.delete(`/api/v1/media/${data.mediaInfo.id}`);
-      revalidate();
-      onClose();
+      try {
+        await axios.delete(
+          `/api/v1/media/${data.mediaInfo.id}/file?is4k=${is4k}`
+        );
+        await axios.delete(`/api/v1/media/${data.mediaInfo.id}`);
+        revalidate();
+        onClose();
+      } catch {
+        addToast(intl.formatMessage(messages.errorDeletingMediaFile), {
+          appearance: 'error',
+          autoDismiss: true,
+        });
+      }
     }
   };
 
@@ -190,13 +209,20 @@ const ManageSlideOver = ({
 
   const markAvailable = async (is4k = false) => {
     if (data.mediaInfo) {
-      await axios.post(`/api/v1/media/${data.mediaInfo?.id}/available`, {
-        is4k,
-        ...(mediaType === 'tv' && {
-          seasons: data.seasons.filter((season) => season.seasonNumber !== 0),
-        }),
-      });
-      revalidate();
+      try {
+        await axios.post(`/api/v1/media/${data.mediaInfo?.id}/available`, {
+          is4k,
+          ...(mediaType === 'tv' && {
+            seasons: data.seasons.filter((season) => season.seasonNumber !== 0),
+          }),
+        });
+        revalidate();
+      } catch {
+        addToast(intl.formatMessage(messages.errorMarkingAvailable), {
+          appearance: 'error',
+          autoDismiss: true,
+        });
+      }
     }
   };
 

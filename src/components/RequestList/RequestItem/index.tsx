@@ -35,6 +35,8 @@ const messages = defineMessages('components.RequestList.RequestItem', {
   seasons: '{seasonCount, plural, one {Season} other {Seasons}}',
   failedretry: 'Something went wrong while retrying the request.',
   failedmodify: 'Something went wrong while modifying the request.',
+  errordeleterequest: 'Failed to delete request.',
+  errordeletemediafile: 'Failed to delete media file.',
   requested: 'Requested',
   requesteddate: 'Requested',
   modified: 'Modified',
@@ -353,19 +355,33 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
   };
 
   const deleteRequest = async () => {
-    await axios.delete(`/api/v1/request/${request.id}`);
+    try {
+      await axios.delete(`/api/v1/request/${request.id}`);
 
-    revalidateList();
-    mutate('/api/v1/request/count');
+      revalidateList();
+      mutate('/api/v1/request/count');
+    } catch {
+      addToast(intl.formatMessage(messages.errordeleterequest), {
+        autoDismiss: true,
+        appearance: 'error',
+      });
+    }
   };
 
   const deleteMediaFile = async () => {
     if (request.media) {
-      await axios.delete(
-        `/api/v1/media/${request.media.id}/file?is4k=${request.is4k}`
-      );
-      await axios.delete(`/api/v1/media/${request.media.id}`);
-      revalidateList();
+      try {
+        await axios.delete(
+          `/api/v1/media/${request.media.id}/file?is4k=${request.is4k}`
+        );
+        await axios.delete(`/api/v1/media/${request.media.id}`);
+        revalidateList();
+      } catch {
+        addToast(intl.formatMessage(messages.errordeletemediafile), {
+          autoDismiss: true,
+          appearance: 'error',
+        });
+      }
     }
   };
 

@@ -13,12 +13,14 @@ import type { LinkProps } from 'next/link';
 import Link from 'next/link';
 import { Fragment, forwardRef } from 'react';
 import { useIntl } from 'react-intl';
+import { useToasts } from 'react-toast-notifications';
 
 const messages = defineMessages('components.Layout.UserDropdown', {
   myprofile: 'Profile',
   settings: 'Settings',
   requests: 'Requests',
   signout: 'Sign Out',
+  errorLoggingOut: 'Failed to log out. Please try again.',
 });
 
 const ForwardedLink = forwardRef<
@@ -36,13 +38,23 @@ ForwardedLink.displayName = 'ForwardedLink';
 
 const UserDropdown = () => {
   const intl = useIntl();
+  const { addToast } = useToasts();
   const { user, revalidate, hasPermission } = useUser();
 
   const logout = async () => {
-    const response = await axios.post('/api/v1/auth/logout');
+    try {
+      const response = await axios.post<{ status?: string }>(
+        '/api/v1/auth/logout'
+      );
 
-    if (response.data?.status === 'ok') {
-      revalidate();
+      if (response.data?.status === 'ok') {
+        revalidate();
+      }
+    } catch {
+      addToast(intl.formatMessage(messages.errorLoggingOut), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
     }
   };
 

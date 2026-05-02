@@ -105,6 +105,10 @@ const messages: { [messageName: string]: MessageDescriptor } = defineMessages(
       'Every {jobScheduleMinutes, plural, one {minute} other {{jobScheduleMinutes} minutes}}',
     editJobScheduleSelectorSeconds:
       'Every {jobScheduleSeconds, plural, one {second} other {{jobScheduleSeconds} seconds}}',
+    errorRunningJob: 'Failed to run job.',
+    errorCancellingJob: 'Failed to cancel job.',
+    errorFlushingCache: 'Failed to flush cache.',
+    errorFlushingDnsCache: 'Failed to flush DNS cache.',
     imagecache: 'Image Cache',
     imagecacheDescription:
       'When enabled in settings, Seerr will proxy and cache images from pre-configured external sources. Cached images are saved into your config folder. You can find the files in <code>{appDataPath}/cache/images</code>.',
@@ -212,54 +216,82 @@ const SettingsJobs = () => {
   }
 
   const runJob = async (job: Job) => {
-    await axios.post(`/api/v1/settings/jobs/${job.id}/run`);
-    addToast(
-      intl.formatMessage(messages.jobstarted, {
-        jobname: intl.formatMessage(messages[job.id] ?? messages.unknownJob),
-      }),
-      {
-        appearance: 'success',
+    try {
+      await axios.post(`/api/v1/settings/jobs/${job.id}/run`);
+      addToast(
+        intl.formatMessage(messages.jobstarted, {
+          jobname: intl.formatMessage(messages[job.id] ?? messages.unknownJob),
+        }),
+        {
+          appearance: 'success',
+          autoDismiss: true,
+        }
+      );
+    } catch {
+      addToast(intl.formatMessage(messages.errorRunningJob), {
+        appearance: 'error',
         autoDismiss: true,
-      }
-    );
+      });
+    }
     revalidate();
   };
 
   const cancelJob = async (job: Job) => {
-    await axios.post(`/api/v1/settings/jobs/${job.id}/cancel`);
-    addToast(
-      intl.formatMessage(messages.jobcancelled, {
-        jobname: intl.formatMessage(messages[job.id] ?? messages.unknownJob),
-      }),
-      {
+    try {
+      await axios.post(`/api/v1/settings/jobs/${job.id}/cancel`);
+      addToast(
+        intl.formatMessage(messages.jobcancelled, {
+          jobname: intl.formatMessage(messages[job.id] ?? messages.unknownJob),
+        }),
+        {
+          appearance: 'error',
+          autoDismiss: true,
+        }
+      );
+    } catch {
+      addToast(intl.formatMessage(messages.errorCancellingJob), {
         appearance: 'error',
         autoDismiss: true,
-      }
-    );
+      });
+    }
     revalidate();
   };
 
   const flushCache = async (cache: CacheItem) => {
-    await axios.post(`/api/v1/settings/cache/${cache.id}/flush`);
-    addToast(
-      intl.formatMessage(messages.cacheflushed, { cachename: cache.name }),
-      {
-        appearance: 'success',
+    try {
+      await axios.post(`/api/v1/settings/cache/${cache.id}/flush`);
+      addToast(
+        intl.formatMessage(messages.cacheflushed, { cachename: cache.name }),
+        {
+          appearance: 'success',
+          autoDismiss: true,
+        }
+      );
+    } catch {
+      addToast(intl.formatMessage(messages.errorFlushingCache), {
+        appearance: 'error',
         autoDismiss: true,
-      }
-    );
+      });
+    }
     cacheRevalidate();
   };
 
   const flushDnsCache = async (hostname: string) => {
-    await axios.post(`/api/v1/settings/cache/dns/${hostname}/flush`);
-    addToast(
-      intl.formatMessage(messages.dnscacheflushed, { hostname: hostname }),
-      {
-        appearance: 'success',
+    try {
+      await axios.post(`/api/v1/settings/cache/dns/${hostname}/flush`);
+      addToast(
+        intl.formatMessage(messages.dnscacheflushed, { hostname: hostname }),
+        {
+          appearance: 'success',
+          autoDismiss: true,
+        }
+      );
+    } catch {
+      addToast(intl.formatMessage(messages.errorFlushingDnsCache), {
+        appearance: 'error',
         autoDismiss: true,
-      }
-    );
+      });
+    }
     cacheRevalidate();
   };
 

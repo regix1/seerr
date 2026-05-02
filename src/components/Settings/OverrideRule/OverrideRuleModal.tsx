@@ -54,6 +54,7 @@ const messages = defineMessages('components.Settings.OverrideRuleModal', {
   daily: 'Daily',
   ruleCreated: 'Override rule created successfully!',
   ruleUpdated: 'Override rule updated successfully!',
+  errorSavingRule: 'Failed to save override rule.',
 });
 
 type OptionType = {
@@ -240,7 +241,10 @@ const OverrideRuleModal = ({
             }
             onClose();
           } catch {
-            // set error here
+            addToast(intl.formatMessage(messages.errorSavingRule), {
+              appearance: 'error',
+              autoDismiss: true,
+            });
           }
         }}
       >

@@ -35,6 +35,7 @@ const messages = defineMessages('components.RequestCard', {
   seasons: '{seasonCount, plural, one {Season} other {Seasons}}',
   failedretry: 'Something went wrong while retrying the request.',
   failedmodify: 'Something went wrong while modifying the request.',
+  errordeleterequest: 'Failed to delete request.',
   mediaerror: '{mediaType} Not Found',
   tmdbid: 'TMDB ID',
   tvdbid: 'TheTVDB ID',
@@ -287,9 +288,16 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
   };
 
   const deleteRequest = async () => {
-    await axios.delete(`/api/v1/request/${request.id}`);
-    mutate('/api/v1/request?filter=all&take=10&sort=modified&skip=0');
-    mutate('/api/v1/request/count');
+    try {
+      await axios.delete(`/api/v1/request/${request.id}`);
+      mutate('/api/v1/request?filter=all&take=10&sort=modified&skip=0');
+      mutate('/api/v1/request/count');
+    } catch {
+      addToast(intl.formatMessage(messages.errordeleterequest), {
+        autoDismiss: true,
+        appearance: 'error',
+      });
+    }
   };
 
   const retryRequest = async () => {
