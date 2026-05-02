@@ -67,6 +67,7 @@ const messages = defineMessages('components.Settings', {
     'Scanning will run in the background. You can continue the setup process in the meantime.',
   bothProvidersBanner:
     'Libraries from Plex and {server} are scanned independently. Items present on both servers are deduplicated by TMDB ID.',
+  startScanFailed: 'Scan could not start. Check the logs for details.',
 });
 
 interface SettingsJellyfinProps {
@@ -110,6 +111,18 @@ const SettingsJellyfin: React.FC<SettingsJellyfinProps> = ({
     }
   };
 
+  const handleStartScanError = (error: unknown) => {
+    const message =
+      axios.isAxiosError(error) &&
+      typeof error.response?.data === 'object' &&
+      error.response?.data !== null &&
+      'message' in error.response.data &&
+      typeof (error.response.data as { message?: unknown }).message === 'string'
+        ? (error.response.data as { message: string }).message
+        : intl.formatMessage(messages.startScanFailed);
+    addToast(message, { appearance: 'error', autoDismiss: true });
+  };
+
   const {
     data,
     error,
@@ -123,6 +136,7 @@ const SettingsJellyfin: React.FC<SettingsJellyfinProps> = ({
   } = useMediaServerSettings({
     provider: 'jellyfin',
     onLibrarySyncError: handleLibrarySyncError,
+    onStartScanError: handleStartScanError,
   });
 
   useScanCompleteToast('Jellyfin', dataSync);

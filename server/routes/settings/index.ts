@@ -22,6 +22,10 @@ import { Permission } from '@server/lib/permissions';
 import { embyFullScanner } from '@server/lib/scanners/emby';
 import { jellyfinFullScanner } from '@server/lib/scanners/jellyfin';
 import { plexFullScanner } from '@server/lib/scanners/plex';
+import {
+  findAdminScanUser,
+  type ScanProvider,
+} from '@server/lib/scanners/utils/findAdminScanUser';
 import type { JobId, Library, MainSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -44,6 +48,17 @@ import metadataRoutes from './metadata';
 import notificationRoutes from './notifications';
 import radarrRoutes from './radarr';
 import sonarrRoutes from './sonarr';
+
+interface ScanStartError {
+  error: string;
+  message: string;
+}
+
+const PROVIDER_DISPLAY_NAMES: Record<ScanProvider, string> = {
+  plex: 'Plex',
+  jellyfin: 'Jellyfin',
+  emby: 'Emby',
+};
 
 const settingsRoutes = Router();
 
@@ -289,11 +304,19 @@ settingsRoutes.get('/plex/sync', (_req, res) => {
   return res.status(200).json(plexFullScanner.status());
 });
 
-settingsRoutes.post('/plex/sync', (req, res) => {
-  if (req.body.cancel) {
-    plexFullScanner.cancel();
-  } else if (req.body.start) {
+settingsRoutes.post('/plex/sync', async (req, res) => {
+  if (req.body.start) {
+    const { reason } = await findAdminScanUser('plex');
+    if (reason === 'no-admin-creds') {
+      const providerName = PROVIDER_DISPLAY_NAMES['plex'];
+      return res.status(400).json({
+        error: 'NO_ADMIN_CREDENTIALS',
+        message: `${providerName} scan cannot run: no admin user has ${providerName} credentials linked. Have a seerr admin sign in via the ${providerName} login button.`,
+      } satisfies ScanStartError);
+    }
     plexFullScanner.run();
+  } else if (req.body.cancel) {
+    plexFullScanner.cancel();
   }
   return res.status(200).json(plexFullScanner.status());
 });
@@ -588,11 +611,19 @@ settingsRoutes.get('/jellyfin/sync', (_req, res) => {
   return res.status(200).json(jellyfinFullScanner.status());
 });
 
-settingsRoutes.post('/jellyfin/sync', (req, res) => {
-  if (req.body.cancel) {
-    jellyfinFullScanner.cancel();
-  } else if (req.body.start) {
+settingsRoutes.post('/jellyfin/sync', async (req, res) => {
+  if (req.body.start) {
+    const { reason } = await findAdminScanUser('jellyfin');
+    if (reason === 'no-admin-creds') {
+      const providerName = PROVIDER_DISPLAY_NAMES['jellyfin'];
+      return res.status(400).json({
+        error: 'NO_ADMIN_CREDENTIALS',
+        message: `${providerName} scan cannot run: no admin user has ${providerName} credentials linked. Have a seerr admin sign in via the ${providerName} login button.`,
+      } satisfies ScanStartError);
+    }
     jellyfinFullScanner.run();
+  } else if (req.body.cancel) {
+    jellyfinFullScanner.cancel();
   }
   return res.status(200).json(jellyfinFullScanner.status());
 });
@@ -804,11 +835,19 @@ settingsRoutes.get('/emby/sync', (_req, res) => {
   return res.status(200).json(embyFullScanner.status());
 });
 
-settingsRoutes.post('/emby/sync', (req, res) => {
-  if (req.body.cancel) {
-    embyFullScanner.cancel();
-  } else if (req.body.start) {
+settingsRoutes.post('/emby/sync', async (req, res) => {
+  if (req.body.start) {
+    const { reason } = await findAdminScanUser('emby');
+    if (reason === 'no-admin-creds') {
+      const providerName = PROVIDER_DISPLAY_NAMES['emby'];
+      return res.status(400).json({
+        error: 'NO_ADMIN_CREDENTIALS',
+        message: `${providerName} scan cannot run: no admin user has ${providerName} credentials linked. Have a seerr admin sign in via the ${providerName} login button.`,
+      } satisfies ScanStartError);
+    }
     embyFullScanner.run();
+  } else if (req.body.cancel) {
+    embyFullScanner.cancel();
   }
   return res.status(200).json(embyFullScanner.status());
 });

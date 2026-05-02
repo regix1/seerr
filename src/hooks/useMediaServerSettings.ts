@@ -34,6 +34,7 @@ type ProviderSettings<T extends Provider> = T extends 'jellyfin'
 interface UseMediaServerSettingsOptions<T extends Provider> {
   provider: T;
   onLibrarySyncError?: (error: unknown) => void;
+  onStartScanError?: (error: unknown) => void;
 }
 
 interface UseMediaServerSettingsResult<T extends Provider> {
@@ -56,7 +57,7 @@ interface UseMediaServerSettingsResult<T extends Provider> {
 function useMediaServerSettings<T extends Provider>(
   options: UseMediaServerSettingsOptions<T>
 ): UseMediaServerSettingsResult<T> {
-  const { provider, onLibrarySyncError } = options;
+  const { provider, onLibrarySyncError, onStartScanError } = options;
   const [isSyncing, setIsSyncing] = useState(false);
 
   const { data, error, mutate } = useSWR<ProviderSettings<T>>(
@@ -128,8 +129,16 @@ function useMediaServerSettings<T extends Provider>(
   };
 
   const startScan = async (): Promise<void> => {
-    await axios.post(`/api/v1/settings/${provider}/sync`, { start: true });
-    mutateSync();
+    try {
+      await axios.post(`/api/v1/settings/${provider}/sync`, { start: true });
+      mutateSync();
+    } catch (error) {
+      if (onStartScanError) {
+        onStartScanError(error);
+        return;
+      }
+      throw error;
+    }
   };
 
   const cancelScan = async (): Promise<void> => {

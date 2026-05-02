@@ -20,13 +20,13 @@ import type {
 import { MediaServerType } from '@server/constants/server';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
-import { Permission } from '@server/lib/permissions';
 import type {
   ProcessableSeason,
   RunnableScanner,
   StatusBase,
 } from '@server/lib/scanners/baseScanner';
 import BaseScanner from '@server/lib/scanners/baseScanner';
+import { findAdminScanUser } from '@server/lib/scanners/utils/findAdminScanUser';
 import type {
   EmbySettings,
   JellyfinSettings,
@@ -35,7 +35,6 @@ import type {
 import { getSettings } from '@server/lib/settings';
 import { ApiError } from '@server/types/error';
 import { uniqWith } from 'lodash';
-import { IsNull, Not } from 'typeorm';
 
 export interface MediaServerSyncStatus extends StatusBase {
   currentLibrary?: Library;
@@ -471,50 +470,18 @@ export class MediaServerScanner
       );
       this.currentLibrary = this.libraries[0];
 
-      const userRepository = getRepository(User);
-
       const provider =
         this.opts.provider ??
         (this.opts.mediaServerType === MediaServerType.EMBY
           ? 'emby'
           : 'jellyfin');
 
-      const userIdField: 'embyUserId' | 'jellyfinUserId' =
-        provider === 'emby' ? 'embyUserId' : 'jellyfinUserId';
       const deviceIdField: 'embyDeviceId' | 'jellyfinDeviceId' =
         provider === 'emby' ? 'embyDeviceId' : 'jellyfinDeviceId';
 
-      // Prefer owner (id=1) if they have credentials for this provider;
-      // otherwise fall back to any user that does.
-      const selectFields: (keyof User)[] = [
-        'id',
-        'jellyfinUserId',
-        'jellyfinDeviceId',
-        'embyUserId',
-        'embyDeviceId',
-      ];
+      const { user: scanUser, reason } = await findAdminScanUser(provider);
 
-      let scanUser = await userRepository.findOne({
-        where: { id: 1, [userIdField]: Not(IsNull()) },
-        select: selectFields,
-      });
-
-      if (!scanUser) {
-        // Security: only admins are trusted to hold service-level credentials.
-        // Bitwise check is required because TypeORM `where` has no native
-        // support for bitwise operators — filter at the DB level via QueryBuilder.
-        scanUser = await userRepository
-          .createQueryBuilder('user')
-          .select(selectFields.map((f) => `user.${String(f)}`))
-          .where(`user.${userIdField} IS NOT NULL`)
-          .andWhere(`(user.permissions & :adminBit) = :adminBit`, {
-            adminBit: Permission.ADMIN,
-          })
-          .orderBy('user.id', 'ASC')
-          .getOne();
-      }
-
-      if (!scanUser?.[userIdField]) {
+      if (reason === 'no-admin-creds' || !scanUser) {
         this.log(
           `${this.opts.scannerLabel} scan cannot run: no admin user has ${this.opts.scannerLabel} credentials linked. ` +
             `Have a seerr admin sign in via the ${this.opts.scannerLabel} login button to enable scanning.`,
@@ -523,8 +490,18 @@ export class MediaServerScanner
         return;
       }
 
+      const userIdField: 'embyUserId' | 'jellyfinUserId' =
+        provider === 'emby' ? 'embyUserId' : 'jellyfinUserId';
       const userId = scanUser[userIdField] as string;
-      const deviceId = (scanUser[deviceIdField] ?? null) as string | null;
+      const userRepository = getRepository(User);
+      // Load device ID separately since findAdminScanUser only selects credential fields.
+      const scanUserWithDevice = await userRepository.findOne({
+        select: ['id', userIdField, deviceIdField],
+        where: { id: scanUser.id },
+      });
+      const deviceId = (scanUserWithDevice?.[deviceIdField] ?? null) as
+        | string
+        | null;
 
       this.client = this.opts.apiFactory(
         serverSettings,

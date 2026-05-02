@@ -59,6 +59,7 @@ const messages = defineMessages('components.Settings.SettingsEmby', {
     'Scanning will run in the background. You can continue the setup process in the meantime.',
   bothProvidersBanner:
     'Libraries from Plex and Emby are scanned independently. Items present on both servers are deduplicated by TMDB ID.',
+  startScanFailed: 'Scan could not start. Check the logs for details.',
 });
 
 interface SettingsEmbyProps {
@@ -74,6 +75,19 @@ const SettingsEmby: React.FC<SettingsEmbyProps> = ({
   const intl = useIntl();
   const settings = useSettings();
 
+  const handleStartScanError = (scanError: unknown) => {
+    const message =
+      axios.isAxiosError(scanError) &&
+      typeof scanError.response?.data === 'object' &&
+      scanError.response?.data !== null &&
+      'message' in scanError.response.data &&
+      typeof (scanError.response.data as { message?: unknown }).message ===
+        'string'
+        ? (scanError.response.data as { message: string }).message
+        : intl.formatMessage(messages.startScanFailed);
+    addToast(message, { appearance: 'error', autoDismiss: true });
+  };
+
   const {
     data,
     error,
@@ -84,7 +98,10 @@ const SettingsEmby: React.FC<SettingsEmbyProps> = ({
     toggleLibrary,
     startScan,
     cancelScan,
-  } = useMediaServerSettings({ provider: 'emby' });
+  } = useMediaServerSettings({
+    provider: 'emby',
+    onStartScanError: handleStartScanError,
+  });
 
   useScanCompleteToast('Emby', dataSync);
 

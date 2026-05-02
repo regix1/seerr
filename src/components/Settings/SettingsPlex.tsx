@@ -83,6 +83,7 @@ const messages = defineMessages('components.Settings', {
     'Something went wrong while saving Tautulli settings.',
   bothProvidersBanner:
     'Libraries from Plex and {server} are scanned independently. Items present on both servers are deduplicated by TMDB ID.',
+  startScanFailed: 'Scan could not start. Check the logs for details.',
 });
 
 interface Library {
@@ -311,10 +312,22 @@ const SettingsPlex = ({ onComplete }: SettingsPlexProps) => {
   };
 
   const startScan = async () => {
-    await axios.post('/api/v1/settings/plex/sync', {
-      start: true,
-    });
-    revalidateSync();
+    try {
+      await axios.post('/api/v1/settings/plex/sync', {
+        start: true,
+      });
+      revalidateSync();
+    } catch (e) {
+      const message =
+        axios.isAxiosError(e) &&
+        typeof e.response?.data === 'object' &&
+        e.response?.data !== null &&
+        'message' in e.response.data &&
+        typeof (e.response.data as { message?: unknown }).message === 'string'
+          ? (e.response.data as { message: string }).message
+          : intl.formatMessage(messages.startScanFailed);
+      addToast(message, { appearance: 'error', autoDismiss: true });
+    }
   };
 
   const cancelScan = async () => {
