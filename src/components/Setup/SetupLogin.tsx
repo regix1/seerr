@@ -1,6 +1,6 @@
 import Button from '@app/components/Common/Button';
 import PlexLoginButton from '@app/components/Login/PlexLoginButton';
-import JellyfinSetup from '@app/components/Setup/JellyfinSetup';
+import MediaServerSetup from '@app/components/Setup/MediaServerSetup';
 import { useUser } from '@app/hooks/useUser';
 import defineMessages from '@app/utils/defineMessages';
 import { MediaServerType } from '@server/constants/server';
@@ -12,8 +12,7 @@ const messages = defineMessages('components.Setup', {
   welcome: 'Welcome to Seerr',
   signinMessage: 'Get started by signing in',
   signin: 'Sign in to your account',
-  signinWithJellyfin: 'Enter your Jellyfin details',
-  signinWithEmby: 'Enter your Emby details',
+  signinWithMediaServer: 'Enter your media server details',
   signinWithPlex: 'Enter your Plex details',
   back: 'Go back',
 });
@@ -22,12 +21,15 @@ interface LoginWithMediaServerProps {
   serverType: MediaServerType;
   onCancel: () => void;
   onComplete: () => void;
+  /** Called with the detected brand after a successful media-server login. */
+  onDetected?: (detectedType: MediaServerType) => void;
 }
 
 const SetupLogin: React.FC<LoginWithMediaServerProps> = ({
   serverType,
   onCancel,
   onComplete,
+  onDetected,
 }) => {
   const [authToken, setAuthToken] = useState<string | undefined>(undefined);
   const [mediaServerType, setMediaServerType] = useState<MediaServerType>(
@@ -71,12 +73,10 @@ const SetupLogin: React.FC<LoginWithMediaServerProps> = ({
         <FormattedMessage {...messages.signin} />
       </div>
       <div className="mb-2 flex justify-center pb-6 text-sm">
-        {serverType === MediaServerType.JELLYFIN ? (
-          <FormattedMessage {...messages.signinWithJellyfin} />
-        ) : serverType === MediaServerType.EMBY ? (
-          <FormattedMessage {...messages.signinWithEmby} />
-        ) : (
+        {serverType === MediaServerType.PLEX ? (
           <FormattedMessage {...messages.signinWithPlex} />
+        ) : (
+          <FormattedMessage {...messages.signinWithMediaServer} />
         )}
       </div>
       {serverType === MediaServerType.PLEX && (
@@ -97,18 +97,11 @@ const SetupLogin: React.FC<LoginWithMediaServerProps> = ({
           </div>
         </>
       )}
-      {serverType === MediaServerType.JELLYFIN && (
-        <JellyfinSetup
+      {serverType !== MediaServerType.PLEX && (
+        <MediaServerSetup
           revalidate={revalidate}
-          serverType={serverType}
           onCancel={onCancel}
-        />
-      )}
-      {serverType === MediaServerType.EMBY && (
-        <JellyfinSetup
-          revalidate={revalidate}
-          serverType={serverType}
-          onCancel={onCancel}
+          onDetected={onDetected}
         />
       )}
     </div>

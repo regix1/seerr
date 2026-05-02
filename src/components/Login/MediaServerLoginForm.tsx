@@ -25,6 +25,8 @@ const messages = defineMessages('components.Login', {
   signingin: 'Signing In…',
   signin: 'Sign In',
   forgotpassword: 'Forgot Password?',
+  brandmismatch:
+    'Detected as {detectedBrand} — signing in via {detectedBrand}.',
 });
 
 interface MediaServerLoginFormProps {
@@ -71,13 +73,41 @@ const MediaServerLoginForm: React.FC<MediaServerLoginFormProps> = ({
         validateOnBlur={false}
         onSubmit={async (values) => {
           let succeeded = false;
+          const payload = {
+            username: values.username,
+            password: values.password,
+            email: values.username,
+          };
           try {
-            await axios.post(apiPath, {
-              username: values.username,
-              password: values.password,
-              email: values.username,
-            });
-            succeeded = true;
+            try {
+              await axios.post(apiPath, payload);
+              succeeded = true;
+            } catch (firstError) {
+              const responseData = firstError?.response?.data as
+                | {
+                    errorCode?: string;
+                    detectedBrand?: 'jellyfin' | 'emby';
+                  }
+                | undefined;
+              if (
+                firstError?.response?.status === 400 &&
+                responseData?.errorCode === ApiErrorCode.ServerBrandMismatch &&
+                responseData?.detectedBrand
+              ) {
+                const detectedBrand = responseData.detectedBrand;
+                toasts.addToast(
+                  intl.formatMessage(messages.brandmismatch, {
+                    detectedBrand:
+                      detectedBrand === 'emby' ? 'Emby' : 'Jellyfin',
+                  }),
+                  { autoDismiss: true, appearance: 'info' }
+                );
+                await axios.post(`/api/v1/auth/${detectedBrand}`, payload);
+                succeeded = true;
+              } else {
+                throw firstError;
+              }
+            }
           } catch (e) {
             let errorMessage = messages.loginerror;
             switch (e?.response?.data?.message) {

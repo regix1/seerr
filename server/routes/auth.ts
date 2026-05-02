@@ -323,6 +323,23 @@ authRoutes.post('/jellyfin', async (req, res, next) => {
       clientIp
     );
 
+    // Brand-mismatch detection: the auth succeeded but the server is actually Emby.
+    // Return 400 so the frontend can silently re-dispatch to /auth/emby.
+    const detectedBrandJf = await jellyfinserver.getServerProductName();
+    if (detectedBrandJf === 'emby') {
+      return res.status(400).json({
+        message: 'Server is actually Emby. Re-dispatching to /auth/emby.',
+        errorCode: ApiErrorCode.ServerBrandMismatch,
+        detectedBrand: 'emby',
+      });
+    }
+    if (detectedBrandJf === null) {
+      logger.warn(
+        'Could not determine server brand after Jellyfin auth; proceeding as Jellyfin.',
+        { label: 'Auth', ip: req.ip }
+      );
+    }
+
     // Look up by jellyfinUserId first
     // User-accepted: silent email-match merge enables one seerr account to hold Plex + Jellyfin + Emby identities.
     user = await userRepository.findOne({
@@ -634,6 +651,24 @@ authRoutes.post('/emby', async (req, res, next) => {
       body.password,
       clientIp
     );
+
+    // Brand-mismatch detection: the auth succeeded but the server is actually Jellyfin.
+    // Return 400 so the frontend can silently re-dispatch to /auth/jellyfin.
+    const detectedBrandEmby = await embyserver.getServerProductName();
+    if (detectedBrandEmby === 'jellyfin') {
+      return res.status(400).json({
+        message:
+          'Server is actually Jellyfin. Re-dispatching to /auth/jellyfin.',
+        errorCode: ApiErrorCode.ServerBrandMismatch,
+        detectedBrand: 'jellyfin',
+      });
+    }
+    if (detectedBrandEmby === null) {
+      logger.warn(
+        'Could not determine server brand after Emby auth; proceeding as Emby.',
+        { label: 'Auth', ip: req.ip }
+      );
+    }
 
     // Look up by embyUserId first
     // User-accepted: silent email-match merge enables one seerr account to hold Plex + Jellyfin + Emby identities.

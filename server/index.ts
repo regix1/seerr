@@ -1,5 +1,8 @@
 import csurf from '@dr.pogodin/csurf';
+import JellyfinAPI from '@server/api/jellyfin';
 import PlexAPI from '@server/api/plexapi';
+import { MediaServerType } from '@server/constants/server';
+import { UserType } from '@server/constants/user';
 import dataSource, { getRepository, isPgsql } from '@server/datasource';
 import DiscoverSlider from '@server/entity/DiscoverSlider';
 import { Session } from '@server/entity/Session';
@@ -82,6 +85,106 @@ app
         await dbConnection.runMigrations();
         await dbConnection.query('PRAGMA foreign_keys=ON');
       }
+    }
+
+    // Repair legacy installs where the Jellyfin settings block actually points
+    // at an Emby server. We ask the canonical signal — `/System/Info/Public`
+    // returns `ProductName: "Jellyfin Server" | "Emby Server"`. No hostname
+    // heuristics, no user-count proxies. If the server is unreachable we skip
+    // and try again next startup.
+    try {
+      const jellyfinConfigured = Boolean(
+        settings.jellyfin.ip || settings.jellyfin.apiKey
+      );
+      const embyEmpty = !settings.emby.ip && !settings.emby.apiKey;
+
+      if (jellyfinConfigured && embyEmpty) {
+        const probeClient = JellyfinAPI.forJellyfin(
+          settings.jellyfin,
+          settings.jellyfin.apiKey || undefined,
+          'BOT_seerr'
+        );
+        const detectedBrand = await probeClient.getServerProductName();
+
+        if (detectedBrand === 'emby') {
+          logger.info(
+            'Configured Jellyfin server reports ProductName "Emby Server"; moving it to Emby settings.',
+            { label: 'Settings' }
+          );
+
+          const legacyJellyfin = JSON.parse(JSON.stringify(settings.jellyfin));
+          settings.emby = {
+            name: legacyJellyfin.name ?? '',
+            ip: legacyJellyfin.ip ?? '',
+            port: legacyJellyfin.port ?? 8096,
+            useSsl: legacyJellyfin.useSsl ?? false,
+            urlBase: legacyJellyfin.urlBase ?? '',
+            externalHostname: legacyJellyfin.externalHostname ?? '',
+            forgotPasswordUrl: legacyJellyfin.jellyfinForgotPasswordUrl ?? '',
+            libraries: legacyJellyfin.libraries ?? [],
+            serverId: legacyJellyfin.serverId ?? '',
+            apiKey: legacyJellyfin.apiKey ?? '',
+          };
+          settings.jellyfin = {
+            name: '',
+            ip: '',
+            port: 8096,
+            useSsl: false,
+            urlBase: '',
+            externalHostname: '',
+            jellyfinForgotPasswordUrl: '',
+            libraries: [],
+            serverId: '',
+            apiKey: '',
+          };
+          settings.main.embyLoginEnabled = true;
+          settings.main.jellyfinLoginEnabled = false;
+          if (settings.main.mediaServerType === MediaServerType.JELLYFIN) {
+            settings.main.mediaServerType = MediaServerType.EMBY;
+          }
+
+          await dbConnection.query(
+            `UPDATE "user"
+                SET "embyUserId" = COALESCE("embyUserId", "jellyfinUserId"),
+                    "embyUsername" = COALESCE("embyUsername", "jellyfinUsername"),
+                    "embyAuthToken" = COALESCE("embyAuthToken", "jellyfinAuthToken"),
+                    "embyDeviceId" = COALESCE("embyDeviceId", "jellyfinDeviceId")
+              WHERE "userType" = ${UserType.EMBY}`
+          );
+          await dbConnection.query(
+            `UPDATE "user"
+                SET "jellyfinUserId" = NULL,
+                    "jellyfinUsername" = NULL,
+                    "jellyfinAuthToken" = NULL,
+                    "jellyfinDeviceId" = NULL
+              WHERE "userType" = ${UserType.EMBY}`
+          );
+          await dbConnection.query(
+            `UPDATE "media"
+                SET "embyMediaId" = COALESCE("embyMediaId", "jellyfinMediaId"),
+                    "embyMediaId4k" = COALESCE("embyMediaId4k", "jellyfinMediaId4k")`
+          );
+          await dbConnection.query(
+            `UPDATE "media"
+                SET "jellyfinMediaId" = NULL,
+                    "jellyfinMediaId4k" = NULL`
+          );
+          await settings.save();
+        } else if (detectedBrand === null) {
+          logger.warn(
+            'Could not probe configured Jellyfin server for ProductName; skipping brand-mismatch repair this startup.',
+            { label: 'Settings', host: settings.jellyfin.ip }
+          );
+        }
+      }
+    } catch (e) {
+      logger.warn(
+        'Unable to probe configured Jellyfin server for brand mismatch.',
+        {
+          label: 'Settings',
+          errorMessage: (e as Error).message,
+        }
+      );
     }
 
     restartFlag.initializeSettings(settings);

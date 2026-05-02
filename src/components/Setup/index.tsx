@@ -1,5 +1,3 @@
-import EmbyLogo from '@app/assets/services/emby.svg';
-import JellyfinLogo from '@app/assets/services/jellyfin.svg';
 import PlexLogo from '@app/assets/services/plex.svg';
 import AppDataWarning from '@app/components/AppDataWarning';
 import Button from '@app/components/Common/Button';
@@ -14,6 +12,7 @@ import SetupSteps from '@app/components/Setup/SetupSteps';
 import useLocale from '@app/hooks/useLocale';
 import useSettings from '@app/hooks/useSettings';
 import defineMessages from '@app/utils/defineMessages';
+import { ServerIcon } from '@heroicons/react/24/outline';
 import { MediaServerType } from '@server/constants/server';
 import type { Library } from '@server/lib/settings';
 import axios from 'axios';
@@ -28,9 +27,7 @@ import SetupLogin from './SetupLogin';
 const messages = defineMessages('components.Setup', {
   welcome: 'Welcome to Seerr',
   subtitle: 'Get started by choosing your media server',
-  configjellyfin: 'Configure Jellyfin',
   configplex: 'Configure Plex',
-  configemby: 'Configure Emby',
   setup: 'Setup',
   finish: 'Finish Setup',
   finishing: 'Finishing…',
@@ -41,6 +38,7 @@ const messages = defineMessages('components.Setup', {
   configureservices: 'Configure Services',
   librarieserror:
     'Validation failed. Please toggle the libraries again to continue.',
+  otherMediaServer: 'Other (Jellyfin / Emby)',
 });
 
 const Setup = () => {
@@ -203,24 +201,8 @@ const Setup = () => {
               <div className="mb-2 flex justify-center pb-6 text-sm">
                 {intl.formatMessage(messages.subtitle)}
               </div>
-              <div className="grid grid-cols-3">
+              <div className="grid grid-cols-2">
                 <div className="flex flex-col divide-y divide-gray-600 rounded-l border border-gray-600 py-2">
-                  <div className="mb-2 flex flex-1 items-center justify-center px-2 py-2">
-                    <JellyfinLogo className="h-10" />
-                  </div>
-                  <div className="px-2 pt-2">
-                    <button
-                      onClick={() => {
-                        setMediaServerType(MediaServerType.JELLYFIN);
-                        setCurrentStep(2);
-                      }}
-                      className="button-md relative z-10 inline-flex h-full w-full items-center justify-center rounded-md border border-gray-600 bg-transparent px-4 py-2 text-sm font-medium leading-5 text-white transition duration-150 ease-in-out hover:z-20 hover:border-gray-200 focus:z-20 focus:border-gray-100 focus:outline-none active:border-gray-100"
-                    >
-                      {intl.formatMessage(messages.configjellyfin)}
-                    </button>
-                  </div>
-                </div>
-                <div className="flex flex-col divide-y divide-gray-600 border-y border-gray-600 py-2">
                   <div className="mb-2 flex flex-1 items-center justify-center px-2 py-2">
                     <PlexLogo className="h-8" />
                   </div>
@@ -238,17 +220,22 @@ const Setup = () => {
                 </div>
                 <div className="flex flex-col divide-y divide-gray-600 rounded-r border border-gray-600 py-2">
                   <div className="mb-2 flex flex-1 items-center justify-center px-2 py-2">
-                    <EmbyLogo className="h-9" />
+                    <ServerIcon className="h-10 text-gray-300" />
                   </div>
                   <div className="px-2 pt-2">
                     <button
                       onClick={() => {
-                        setMediaServerType(MediaServerType.EMBY);
+                        // Bug 5 fix: do NOT pre-commit to JELLYFIN here.
+                        // The probe step inside MediaServerSetup will detect
+                        // the actual brand and report it via onDetected.
+                        // Use NOT_CONFIGURED as a sentinel so SetupLogin
+                        // renders MediaServerSetup regardless of brand.
+                        setMediaServerType(MediaServerType.NOT_CONFIGURED);
                         setCurrentStep(2);
                       }}
                       className="button-md relative z-10 inline-flex h-full w-full items-center justify-center rounded-md border border-gray-600 bg-transparent px-4 py-2 text-sm font-medium leading-5 text-white transition duration-150 ease-in-out hover:z-20 hover:border-gray-200 focus:z-20 focus:border-gray-100 focus:outline-none active:border-gray-100"
                     >
-                      {intl.formatMessage(messages.configemby)}
+                      {intl.formatMessage(messages.otherMediaServer)}
                     </button>
                   </div>
                 </div>
@@ -263,6 +250,7 @@ const Setup = () => {
                 setCurrentStep(1);
               }}
               onComplete={() => setCurrentStep(3)}
+              onDetected={(detectedType) => setMediaServerType(detectedType)}
             />
           )}
           {currentStep === 3 && (

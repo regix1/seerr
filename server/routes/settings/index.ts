@@ -3,6 +3,7 @@ import PlexAPI from '@server/api/plexapi';
 import PlexTvAPI from '@server/api/plextv';
 import TautulliAPI from '@server/api/tautulli';
 import { ApiErrorCode } from '@server/constants/error';
+import { MediaServerType } from '@server/constants/server';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import { MediaRequest } from '@server/entity/MediaRequest';
@@ -296,6 +297,70 @@ settingsRoutes.post('/plex/sync', (req, res) => {
   return res.status(200).json(plexFullScanner.status());
 });
 
+// ---------------------------------------------------------------------------
+// Probe endpoint — detect server brand without saving any settings
+// ---------------------------------------------------------------------------
+settingsRoutes.post(
+  '/probe',
+  // Bug 1 fix: allow the probe during first-time setup (before any admin
+  // exists).  Once the install is initialized we enforce admin-only access
+  // because the route performs outbound network requests on the admin's behalf.
+  (req, res, next) => {
+    const settings = getSettings();
+    if (settings.public.initialized) {
+      return isAuthenticated(Permission.ADMIN)(req, res, next);
+    }
+    return next();
+  },
+  async (req, res, next) => {
+    const { hostname, port, useSsl, urlBase } = req.body as {
+      hostname: string;
+      port: number;
+      useSsl?: boolean;
+      urlBase?: string;
+    };
+
+    if (!hostname || !port) {
+      return next({ status: 400, message: 'hostname and port are required.' });
+    }
+
+    const scheme = useSsl ? 'https' : 'http';
+    const base = urlBase ?? '';
+    const url = `${scheme}://${hostname}:${port}${base}`;
+
+    const api = new JellyfinAPI(
+      url,
+      undefined,
+      undefined,
+      MediaServerType.JELLYFIN
+    );
+
+    try {
+      const info = await api.getServerPublicInfo();
+
+      if (!info) {
+        return next({ status: 502, message: 'Could not reach server.' });
+      }
+
+      const brand = await api.getServerProductName();
+
+      return res.status(200).json({
+        brand,
+        productName: info.productName,
+        serverName: info.serverName,
+        version: info.version,
+        serverId: info.id,
+      });
+    } catch (e) {
+      logger.error('Probe endpoint error', {
+        label: 'Settings',
+        errorMessage: (e as Error).message,
+      });
+      return next({ status: 502, message: 'Could not reach server.' });
+    }
+  }
+);
+
 settingsRoutes.get('/jellyfin', (_req, res) => {
   const settings = getSettings();
 
@@ -309,7 +374,7 @@ settingsRoutes.post('/jellyfin', async (req, res, next) => {
   try {
     const admin = await userRepository.findOneOrFail({
       where: { id: 1 },
-      select: ['id', 'jellyfinUserId', 'jellyfinDeviceId'],
+      select: ['id', 'jellyfinUserId', 'jellyfinDeviceId', 'embyDeviceId'],
       order: { id: 'ASC' },
     });
 
@@ -327,10 +392,81 @@ settingsRoutes.post('/jellyfin', async (req, res, next) => {
       throw new ApiError(result?.status, ApiErrorCode.InvalidUrl);
     }
 
+    // Bug 2 fix: use the full A→B→E→G cascade instead of the raw ProductName
+    // field which is absent on old Emby servers.
+    const detectedBrand = await jellyfinClient.getServerProductName();
+    if (detectedBrand === null) {
+      logger.warn(
+        'Could not detect server brand on /settings/jellyfin save — defaulting to jellyfin.',
+        { label: 'Settings' }
+      );
+    }
+
+    if (detectedBrand === 'emby') {
+      logger.info(
+        'Server reported ProductName "Emby Server" on /settings/jellyfin save — auto-routing to Emby settings.',
+        { label: 'Settings', productName: result.ProductName }
+      );
+
+      const allowedEmbyFields = [
+        'ip',
+        'port',
+        'useSsl',
+        'urlBase',
+        'externalHostname',
+        'forgotPasswordUrl',
+        'apiKey',
+      ] as const;
+      // Map jellyfinForgotPasswordUrl -> forgotPasswordUrl when present.
+      const embyShapedBody: Record<string, unknown> = {};
+      for (const f of allowedEmbyFields) {
+        if (Object.prototype.hasOwnProperty.call(req.body, f)) {
+          embyShapedBody[f] = req.body[f];
+        }
+      }
+      if (
+        Object.prototype.hasOwnProperty.call(
+          req.body,
+          'jellyfinForgotPasswordUrl'
+        ) &&
+        !Object.prototype.hasOwnProperty.call(req.body, 'forgotPasswordUrl')
+      ) {
+        embyShapedBody.forgotPasswordUrl = req.body.jellyfinForgotPasswordUrl;
+      }
+
+      Object.assign(settings.emby, embyShapedBody);
+      settings.emby.serverId = result.Id;
+      settings.emby.name = result.ServerName;
+      settings.main.embyLoginEnabled = true;
+      if (settings.main.mediaServerType === MediaServerType.JELLYFIN) {
+        settings.main.mediaServerType = MediaServerType.EMBY;
+        settings.main.jellyfinLoginEnabled = false;
+      }
+      await settings.save();
+
+      return res.status(200).json({
+        ...settings.emby,
+        _detected: {
+          brand: 'emby',
+          productName: result.ProductName,
+          rerouted: true,
+        },
+      });
+    }
+
     Object.assign(settings.jellyfin, req.body);
     settings.jellyfin.serverId = result.Id;
     settings.jellyfin.name = result.ServerName;
     await settings.save();
+
+    return res.status(200).json({
+      ...settings.jellyfin,
+      _detected: {
+        brand: 'jellyfin',
+        productName: result.ProductName,
+        rerouted: false,
+      },
+    });
   } catch (e) {
     if (e instanceof ApiError) {
       logger.error('Something went wrong testing Jellyfin connection', {
@@ -355,8 +491,6 @@ settingsRoutes.post('/jellyfin', async (req, res, next) => {
       });
     }
   }
-
-  return res.status(200).json(settings.jellyfin);
 });
 
 settingsRoutes.get('/jellyfin/library', async (req, res, next) => {
@@ -508,10 +642,75 @@ settingsRoutes.post('/emby', async (req, res, next) => {
       throw new ApiError(result?.status, ApiErrorCode.InvalidUrl);
     }
 
+    // Bug 2 fix: use the full A→B→E→G cascade instead of the raw ProductName
+    // field which is absent on old Emby servers.
+    const detectedBrand = await embyClient.getServerProductName();
+    if (detectedBrand === null) {
+      logger.warn(
+        'Could not detect server brand on /settings/emby save — defaulting to emby.',
+        { label: 'Settings' }
+      );
+    }
+
+    if (detectedBrand === 'jellyfin') {
+      logger.info(
+        'Server reported ProductName "Jellyfin Server" on /settings/emby save — auto-routing to Jellyfin settings.',
+        { label: 'Settings', productName: result.ProductName }
+      );
+
+      // Translate the emby-shaped body into a jellyfin-shaped one. Note the
+      // forgotPasswordUrl rename: emby = `forgotPasswordUrl`,
+      // jellyfin = `jellyfinForgotPasswordUrl`.
+      const jellyfinPayload: Record<string, unknown> = {};
+      for (const f of [
+        'ip',
+        'port',
+        'useSsl',
+        'urlBase',
+        'externalHostname',
+        'apiKey',
+      ] as const) {
+        if (Object.prototype.hasOwnProperty.call(req.body, f)) {
+          jellyfinPayload[f] = req.body[f];
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(req.body, 'forgotPasswordUrl')) {
+        jellyfinPayload.jellyfinForgotPasswordUrl = req.body.forgotPasswordUrl;
+      }
+
+      Object.assign(settings.jellyfin, jellyfinPayload);
+      settings.jellyfin.serverId = result.Id;
+      settings.jellyfin.name = result.ServerName;
+      settings.main.jellyfinLoginEnabled = true;
+      if (settings.main.mediaServerType === MediaServerType.EMBY) {
+        settings.main.mediaServerType = MediaServerType.JELLYFIN;
+        settings.main.embyLoginEnabled = false;
+      }
+      await settings.save();
+
+      return res.status(200).json({
+        ...settings.jellyfin,
+        _detected: {
+          brand: 'jellyfin',
+          productName: result.ProductName,
+          rerouted: true,
+        },
+      });
+    }
+
     Object.assign(settings.emby, pick(req.body, allowedEmbyFields));
     settings.emby.serverId = result.Id;
     settings.emby.name = result.ServerName;
     await settings.save();
+
+    return res.status(200).json({
+      ...settings.emby,
+      _detected: {
+        brand: 'emby',
+        productName: result.ProductName,
+        rerouted: false,
+      },
+    });
   } catch (e) {
     logger.error('Something went wrong testing Emby connection', {
       label: 'API',
@@ -522,8 +721,6 @@ settingsRoutes.post('/emby', async (req, res, next) => {
       message: e instanceof ApiError ? e.errorCode : ApiErrorCode.Unknown,
     });
   }
-
-  return res.status(200).json(settings.emby);
 });
 
 settingsRoutes.get('/emby/library', async (req, res, next) => {
