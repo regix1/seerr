@@ -28,13 +28,19 @@ import {
 } from '@server/lib/scanners/utils/findAdminScanUser';
 import type { JobId, Library, MainSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
-import logger from '@server/logger';
+import logger, { resolveLogLevel, setLogLevel } from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
 import discoverSettingRoutes from '@server/routes/settings/discover';
 import { ApiError } from '@server/types/error';
 import { appDataPath } from '@server/utils/appDataVolume';
 import { getAppVersion } from '@server/utils/appVersion';
 import { dnsCache } from '@server/utils/dnsCache';
+import {
+  GITHUB_DEVELOP_BRANCH,
+  getGithubApiRepoUrl,
+  getGithubRepoUrl,
+  parseGithubRepoSlug,
+} from '@server/utils/githubRepo';
 import type { DnsEntries, DnsStats } from 'dns-caching';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
@@ -121,9 +127,20 @@ settingsRoutes.post('/main', async (req, res) => {
     'blocklistLanguage',
     'blocklistedTags',
     'blocklistedTagsLimit',
+    'githubRepo',
   ];
 
   const sanitizedBody = pick(req.body, allowedMainFields);
+
+  if (
+    sanitizedBody.githubRepo !== undefined &&
+    !parseGithubRepoSlug(sanitizedBody.githubRepo)
+  ) {
+    return res.status(400).json({
+      message: 'GitHub repository must be in owner/repo format.',
+    });
+  }
+
   settings.main = merge(settings.main, sanitizedBody);
   await settings.save();
 
@@ -141,6 +158,10 @@ settingsRoutes.post('/network', async (req, res) => {
 
   settings.network = merge(settings.network, req.body);
   await settings.save();
+
+  setLogLevel(
+    resolveLogLevel(settings.network.logLevel, process.env.LOG_LEVEL)
+  );
 
   return res.status(200).json(settings.network);
 });
@@ -1255,12 +1276,21 @@ settingsRoutes.get('/about', async (req, res) => {
   const totalMediaItems = await mediaRepository.count();
   const totalRequests = await mediaRequestRepository.count();
 
+  const settings = getSettings();
+  const githubRepo = settings.main.githubRepo;
+  const githubRepoUrl = getGithubRepoUrl(githubRepo);
+  const githubApiRepoUrl = getGithubApiRepoUrl(githubRepo);
+
   return res.status(200).json({
     version: getAppVersion(),
     totalMediaItems,
     totalRequests,
     tz: process.env.TZ,
     appDataPath: appDataPath(),
+    githubRepo,
+    githubRepoUrl,
+    githubDevelopBranch: GITHUB_DEVELOP_BRANCH,
+    githubReleasesUrl: `${githubApiRepoUrl}/releases?per_page=20`,
   } as SettingsAboutResponse);
 });
 

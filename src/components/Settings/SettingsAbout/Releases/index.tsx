@@ -28,9 +28,6 @@ const messages = defineMessages('components.Settings.SettingsAbout.Releases', {
   viewchangelog: 'View Changelog',
 });
 
-const REPO_RELEASE_API =
-  'https://api.github.com/repos/seerr-team/seerr/releases?per_page=20';
-
 interface GitHubRelease {
   url: string;
   assets_url: string;
@@ -122,11 +119,12 @@ const Release = ({ currentVersion, release, isLatest }: ReleaseProps) => {
 
 interface ReleasesProps {
   currentVersion: string;
+  releasesApiUrl: string;
 }
 
-const Releases = ({ currentVersion }: ReleasesProps) => {
+const Releases = ({ currentVersion, releasesApiUrl }: ReleasesProps) => {
   const intl = useIntl();
-  const { data, error } = useSWR<GitHubRelease[]>(REPO_RELEASE_API);
+  const { data, error } = useSWR<GitHubRelease[]>(releasesApiUrl);
 
   if (!data && !error) {
     return <LoadingSpinner />;

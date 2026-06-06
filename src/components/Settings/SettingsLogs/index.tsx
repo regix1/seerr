@@ -26,6 +26,8 @@ import type {
   LogMessage,
   LogsResultsResponse,
 } from '@server/interfaces/api/settingsInterfaces';
+import type { LogLevel, NetworkSettings } from '@server/lib/settings';
+import axios from 'axios';
 import copy from 'copy-to-clipboard';
 import { useRouter } from 'next/router';
 import { Fragment, useEffect, useState } from 'react';
@@ -52,6 +54,15 @@ const messages = defineMessages('components.Settings.SettingsLogs', {
   extraData: 'Additional Data',
   copiedLogMessage: 'Copied log message to clipboard.',
   viewdetails: 'View Details',
+  logLevel: 'Logging Level',
+  logLevelTip:
+    'Controls which messages are written to logs and stdout. Debug includes detailed job and API activity.',
+  logLevelDebug: 'Debug (verbose)',
+  logLevelInfo: 'Info',
+  logLevelWarn: 'Warning',
+  logLevelError: 'Error only',
+  toastLogLevelSuccess: 'Logging level updated.',
+  toastLogLevelFailure: 'Failed to update logging level.',
 });
 
 type Filter = 'debug' | 'info' | 'warn' | 'error';
@@ -91,6 +102,24 @@ const SettingsLogs = () => {
   );
 
   const { data: appData } = useSWR('/api/v1/status/appdata');
+  const { data: networkSettings, mutate: mutateNetworkSettings } =
+    useSWR<NetworkSettings>('/api/v1/settings/network');
+
+  const updateLogLevel = async (logLevel: LogLevel) => {
+    try {
+      await axios.post('/api/v1/settings/network', { logLevel });
+      mutateNetworkSettings();
+      addToast(intl.formatMessage(messages.toastLogLevelSuccess), {
+        appearance: 'success',
+        autoDismiss: true,
+      });
+    } catch {
+      addToast(intl.formatMessage(messages.toastLogLevelFailure), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    }
+  };
 
   useEffect(() => {
     const filterString = window.localStorage.getItem('logs-display-settings');
@@ -252,6 +281,36 @@ const SettingsLogs = () => {
             appDataPath: appData ? appData.appDataPath : '/app/config',
           })}
         </p>
+        <div className="form-row mt-4">
+          <label htmlFor="logLevel" className="text-label">
+            {intl.formatMessage(messages.logLevel)}
+          </label>
+          <div className="max-w-lg">
+            <select
+              id="logLevel"
+              name="logLevel"
+              className="short"
+              value={networkSettings?.logLevel ?? 'debug'}
+              onChange={(e) => updateLogLevel(e.target.value as LogLevel)}
+            >
+              <option value="debug">
+                {intl.formatMessage(messages.logLevelDebug)}
+              </option>
+              <option value="info">
+                {intl.formatMessage(messages.logLevelInfo)}
+              </option>
+              <option value="warn">
+                {intl.formatMessage(messages.logLevelWarn)}
+              </option>
+              <option value="error">
+                {intl.formatMessage(messages.logLevelError)}
+              </option>
+            </select>
+            <p className="mt-2 text-sm text-gray-400">
+              {intl.formatMessage(messages.logLevelTip)}
+            </p>
+          </div>
+        </div>
         <div className="mt-2 flex flex-grow flex-col sm:flex-grow-0 sm:flex-row sm:justify-end">
           <div className="mb-2 flex flex-grow sm:mb-0 sm:mr-2 md:flex-grow-0">
             <span className="inline-flex cursor-default items-center rounded-l-md border border-r-0 border-gray-500 bg-gray-800 px-3 text-sm text-gray-100">

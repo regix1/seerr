@@ -1,5 +1,7 @@
+import { GITHUB_DEVELOP_BRANCH } from '@server/constants/github';
 import cacheManager from '@server/lib/cache';
 import logger from '@server/logger';
+import { getGithubRepoSlug } from '@server/utils/githubRepo';
 import ExternalAPI from './externalapi';
 
 interface GitHubRelease {
@@ -83,7 +85,7 @@ class GithubAPI extends ExternalAPI {
   } = {}): Promise<GitHubRelease[]> {
     try {
       const data = await this.get<GitHubRelease[]>(
-        '/repos/seerr-team/seerr/releases',
+        `/repos/${getGithubRepoSlug()}/releases`,
         {
           params: {
             per_page: take,
@@ -103,14 +105,14 @@ class GithubAPI extends ExternalAPI {
 
   public async getSeerrCommits({
     take = 20,
-    branch = 'develop',
+    branch = GITHUB_DEVELOP_BRANCH,
   }: {
     take?: number;
     branch?: string;
   } = {}): Promise<GithubCommit[]> {
     try {
       const data = await this.get<GithubCommit[]>(
-        '/repos/seerr-team/seerr/commits',
+        `/repos/${getGithubRepoSlug()}/commits`,
         {
           params: {
             per_page: take,

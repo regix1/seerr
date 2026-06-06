@@ -1,9 +1,11 @@
 import Alert from '@app/components/Common/Alert';
 import Badge from '@app/components/Common/Badge';
+import Button from '@app/components/Common/Button';
 import List from '@app/components/Common/List';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import Releases from '@app/components/Settings/SettingsAbout/Releases';
+import useToasts from '@app/hooks/useToasts';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
@@ -11,6 +13,8 @@ import type {
   SettingsAboutResponse,
   StatusResponse,
 } from '@server/interfaces/api/settingsInterfaces';
+import axios from 'axios';
+import { useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
 
@@ -22,6 +26,13 @@ const messages = defineMessages('components.Settings.SettingsAbout', {
   totalrequests: 'Total Requests',
   gettingsupport: 'Getting Support',
   githubdiscussions: 'GitHub Discussions',
+  githubRepo: 'GitHub Repository',
+  githubRepoTip:
+    'Repository used for version checks, release notes, and update links. Use owner/repo format (e.g. regix1/seerr).',
+  saveGithubRepo: 'Save Repository',
+  toastGithubRepoSuccess: 'GitHub repository updated.',
+  toastGithubRepoFailure: 'Failed to update GitHub repository.',
+  validationGithubRepo: 'Enter a valid repository in owner/repo format.',
   timezone: 'Time Zone',
   appDataPath: 'Data Directory',
   supportseerr: 'Support Seerr',
@@ -33,13 +44,23 @@ const messages = defineMessages('components.Settings.SettingsAbout', {
     'You are running the <code>develop</code> branch of Seerr, which is only recommended for those contributing to development or assisting with bleeding-edge testing.',
 });
 
+const GITHUB_REPO_PATTERN = /^[\w.-]+\/[\w.-]+$/;
+
 const SettingsAbout = () => {
   const intl = useIntl();
-  const { data, error } = useSWR<SettingsAboutResponse>(
+  const { addToast } = useToasts();
+  const { data, error, mutate } = useSWR<SettingsAboutResponse>(
     '/api/v1/settings/about'
   );
+  const { data: status, mutate: mutateStatus } =
+    useSWR<StatusResponse>('/api/v1/status');
+  const [githubRepo, setGithubRepo] = useState('');
 
-  const { data: status } = useSWR<StatusResponse>('/api/v1/status');
+  useEffect(() => {
+    if (data?.githubRepo) {
+      setGithubRepo(data.githubRepo);
+    }
+  }, [data?.githubRepo]);
 
   if (!data && !error) {
     return <LoadingSpinner />;
@@ -48,6 +69,33 @@ const SettingsAbout = () => {
   if (!data) {
     return <ErrorPage statusCode={500} />;
   }
+
+  const saveGithubRepo = async () => {
+    if (!GITHUB_REPO_PATTERN.test(githubRepo.trim())) {
+      addToast(intl.formatMessage(messages.validationGithubRepo), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+      return;
+    }
+
+    try {
+      await axios.post('/api/v1/settings/main', {
+        githubRepo: githubRepo.trim(),
+      });
+      await mutate();
+      await mutateStatus();
+      addToast(intl.formatMessage(messages.toastGithubRepoSuccess), {
+        appearance: 'success',
+        autoDismiss: true,
+      });
+    } catch {
+      addToast(intl.formatMessage(messages.toastGithubRepoFailure), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    }
+  };
 
   return (
     <>
@@ -68,6 +116,27 @@ const SettingsAbout = () => {
               })}
             />
           )}
+          <List.Item title={intl.formatMessage(messages.githubRepo)}>
+            <div className="flex w-full max-w-xl flex-col gap-2 sm:flex-row">
+              <input
+                type="text"
+                className="flex-grow"
+                value={githubRepo}
+                onChange={(e) => setGithubRepo(e.target.value)}
+                placeholder="owner/repo"
+              />
+              <Button
+                buttonType="primary"
+                onClick={() => saveGithubRepo()}
+                disabled={githubRepo.trim() === data.githubRepo}
+              >
+                <span>{intl.formatMessage(messages.saveGithubRepo)}</span>
+              </Button>
+            </div>
+            <p className="mt-2 text-sm text-gray-400">
+              {intl.formatMessage(messages.githubRepoTip)}
+            </p>
+          </List.Item>
           <List.Item
             title={intl.formatMessage(messages.version)}
             className="flex flex-row items-center truncate"
@@ -80,8 +149,8 @@ const SettingsAbout = () => {
                 <a
                   href={
                     data.version.startsWith('develop-')
-                      ? `https://github.com/seerr-team/seerr/compare/${status.commitTag}...develop`
-                      : 'https://github.com/seerr-team/seerr/releases'
+                      ? `${data.githubRepoUrl}/compare/${status.commitTag}...${data.githubDevelopBranch}`
+                      : `${data.githubRepoUrl}/releases`
                   }
                   target="_blank"
                   rel="noopener noreferrer"
@@ -97,8 +166,8 @@ const SettingsAbout = () => {
                 <a
                   href={
                     data.version.startsWith('develop-')
-                      ? 'https://github.com/seerr-team/seerr/commits/develop'
-                      : 'https://github.com/seerr-team/seerr/releases'
+                      ? `${data.githubRepoUrl}/commits/${data.githubDevelopBranch}`
+                      : `${data.githubRepoUrl}/releases`
                   }
                   target="_blank"
                   rel="noopener noreferrer"
@@ -142,12 +211,12 @@ const SettingsAbout = () => {
           </List.Item>
           <List.Item title={intl.formatMessage(messages.githubdiscussions)}>
             <a
-              href="https://github.com/seerr-team/seerr/discussions"
+              href={`${data.githubRepoUrl}/discussions`}
               target="_blank"
               rel="noreferrer"
               className="text-indigo-500 transition duration-300 hover:underline"
             >
-              https://github.com/seerr-team/seerr/discussions
+              {`${data.githubRepoUrl}/discussions`}
             </a>
           </List.Item>
           <List.Item title="Discord">
@@ -177,7 +246,10 @@ const SettingsAbout = () => {
         </List>
       </div>
       <div className="section">
-        <Releases currentVersion={data.version} />
+        <Releases
+          currentVersion={data.version}
+          releasesApiUrl={data.githubReleasesUrl}
+        />
       </div>
     </>
   );

@@ -280,6 +280,9 @@ components:
         enableSpecialEpisodes:
           type: boolean
           example: false
+        githubRepo:
+          type: string
+          example: regix1/seerr
     NetworkSettings:
       type: object
       properties:
@@ -331,6 +334,14 @@ components:
             forceMaxTtl:
               type: number
               example: -1
+        logLevel:
+          type: string
+          enum:
+            - debug
+            - info
+            - warn
+            - error
+          example: debug
     PlexLibrary:
       type: object
       properties:

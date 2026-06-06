@@ -19,6 +19,10 @@ export interface SettingsAboutResponse {
   totalMediaItems: number;
   tz?: string;
   appDataPath: string;
+  githubRepo: string;
+  githubRepoUrl: string;
+  githubDevelopBranch: string;
+  githubReleasesUrl: string;
 }
 
 export interface PublicSettingsResponse {

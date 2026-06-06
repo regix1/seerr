@@ -1,6 +1,7 @@
 import { MediaServerType } from '@server/constants/server';
 import { Permission } from '@server/lib/permissions';
 import { runMigrations } from '@server/lib/settings/migrator';
+import { resolveLogLevel, setLogLevel } from '@server/logger';
 import type { AvailableLocale } from '@server/types/languages';
 import { randomBytes, randomUUID } from 'crypto';
 import fs from 'fs/promises';
@@ -194,6 +195,7 @@ export interface MainSettings {
   enableSpecialEpisodes: boolean;
   locale: string;
   youtubeUrl: string;
+  githubRepo: string;
 }
 
 export interface ProxySettings {
@@ -213,6 +215,8 @@ export interface DnsCacheSettings {
   forceMaxTtl?: number;
 }
 
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
 export interface NetworkSettings {
   csrfProtection: boolean;
   forceIpv4First: boolean;
@@ -220,6 +224,7 @@ export interface NetworkSettings {
   proxy: ProxySettings;
   dnsCache: DnsCacheSettings;
   apiRequestTimeout: number;
+  logLevel: LogLevel;
 }
 
 interface PublicSettings {
@@ -481,6 +486,7 @@ class Settings {
         enableSpecialEpisodes: false,
         locale: 'en',
         youtubeUrl: '',
+        githubRepo: 'regix1/seerr',
       },
       plex: {
         name: '',
@@ -709,6 +715,7 @@ class Settings {
           forceMaxTtl: -1,
         },
         apiRequestTimeout: 10000,
+        logLevel: 'debug',
       },
       migrations: [],
     };
@@ -971,6 +978,10 @@ class Settings {
     if (change) {
       await this.save();
     }
+
+    setLogLevel(
+      resolveLogLevel(this.data.network.logLevel, process.env.LOG_LEVEL)
+    );
 
     return this;
   }

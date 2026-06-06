@@ -3,6 +3,21 @@ import path from 'path';
 import * as winston from 'winston';
 import 'winston-daily-rotate-file';
 
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+const VALID_LOG_LEVELS: LogLevel[] = ['debug', 'info', 'warn', 'error'];
+
+export const resolveLogLevel = (
+  settingsLevel?: string,
+  envLevel?: string
+): LogLevel => {
+  const candidate = (settingsLevel ?? envLevel ?? 'debug').toLowerCase();
+
+  return VALID_LOG_LEVELS.includes(candidate as LogLevel)
+    ? (candidate as LogLevel)
+    : 'debug';
+};
+
 const hformat = winston.format.printf(
   ({ level, label, message, timestamp, ...metadata }) => {
     let msg = `${timestamp} [${level}]${
@@ -52,7 +67,7 @@ machineLogFileTransport.on('error', (err) => {
 });
 
 const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL?.toLowerCase() || 'debug',
+  level: resolveLogLevel(undefined, process.env.LOG_LEVEL),
   format: winston.format.combine(
     winston.format.splat(),
     winston.format.timestamp(),
@@ -71,5 +86,9 @@ const logger = winston.createLogger({
     machineLogFileTransport,
   ],
 });
+
+export const setLogLevel = (level: LogLevel): void => {
+  logger.level = level;
+};
 
 export default logger;

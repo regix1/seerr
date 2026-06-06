@@ -29,6 +29,7 @@ const migrateNetworkSettings = (settings: LegacySettings): AllSettings => {
       forceMaxTtl: -1,
     },
     apiRequestTimeout: 10000,
+    logLevel: 'debug',
   };
   delete settings.main.csrfProtection;
   delete settings.main.trustProxy;
