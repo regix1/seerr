@@ -108,7 +108,7 @@ const StatusBadge = ({
                 href={link.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block py-1 text-indigo-300 hover:text-indigo-200 hover:underline"
+                className="block cursor-pointer py-1 text-gray-100 no-underline transition-colors hover:text-gray-400"
               >
                 {intl.formatMessage(messages.playonplex, {
                   mediaServerName: link.mediaServerName,
