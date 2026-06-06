@@ -954,6 +954,7 @@
   "components.Settings.SettingsJobsCache.errorFlushingDnsCache": "Failed to flush DNS cache.",
   "components.Settings.SettingsJobsCache.errorRunningJob": "Failed to run job.",
   "components.Settings.SettingsJobsCache.failures": "Failures",
+  "components.Settings.SettingsJobsCache.fileflows-sync": "FileFlows Sync",
   "components.Settings.SettingsJobsCache.flushcache": "Flush Cache",
   "components.Settings.SettingsJobsCache.flushdnscache": "Flush DNS Cache",
   "components.Settings.SettingsJobsCache.hitRate": "Hit Rate",
