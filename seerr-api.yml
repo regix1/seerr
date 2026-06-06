@@ -601,6 +601,27 @@ components:
               type: string
               enum: [tvdb, tmdb]
               example: 'tvdb'
+    FileFlowsSettings:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          example: false
+        hostname:
+          type: string
+          example: ''
+        port:
+          type: number
+          example: 19200
+        useSsl:
+          type: boolean
+          example: false
+        apiKey:
+          type: string
+          example: ''
+        urlBase:
+          type: string
+          example: ''
     TautulliSettings:
       type: object
       properties:
@@ -2484,6 +2505,61 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/NetworkSettings'
+  /settings/fileflows:
+    get:
+      summary: Get FileFlows settings
+      description: Retrieves current FileFlows settings.
+      tags:
+        - settings
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileFlowsSettings'
+    post:
+      summary: Update FileFlows settings
+      description: Updates FileFlows settings with the provided values.
+      tags:
+        - settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileFlowsSettings'
+      responses:
+        '200':
+          description: 'Values were successfully updated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileFlowsSettings'
+  /settings/fileflows/test:
+    post:
+      summary: Test FileFlows connection
+      description: Tests connectivity to a FileFlows server.
+      tags:
+        - settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileFlowsSettings'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  processing:
+                    type: number
+                  queue:
+                    type: number
   /settings/main/regenerate:
     post:
       summary: Get main settings with newly-generated API key
