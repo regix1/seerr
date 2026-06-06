@@ -926,7 +926,7 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                                     messages.fileflowsProcessing
                                   )}
                                   {ffSeason.fileFlowsProgress != null
-                                    ? ` ${ffSeason.fileFlowsProgress}%`
+                                    ? ` ${Math.max(0, Math.min(100, Math.round(ffSeason.fileFlowsProgress)))}%`
                                     : ''}
                                 </Badge>
                               </div>

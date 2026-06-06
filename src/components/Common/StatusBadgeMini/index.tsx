@@ -33,11 +33,13 @@ const StatusBadgeMini = ({
 
   let indicatorIcon: React.ReactNode;
 
-  // FileFlows post-processing takes precedence (pink), but never masks the
-  // BLOCKLISTED/DELETED danger states.
+  // FileFlows post-processing takes precedence (pink), but is a media-level
+  // hold: never shown on the 4k badge, and never masks the BLOCKLISTED/DELETED
+  // danger states.
   if (
     fileFlowsProcessing &&
     !inProgress &&
+    !is4k &&
     status !== MediaStatus.BLOCKLISTED &&
     status !== MediaStatus.DELETED
   ) {

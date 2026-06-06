@@ -60,6 +60,14 @@ const stem = (name: string): string => {
   return dot > 0 ? name.slice(0, dot) : name;
 };
 
+// The parent folder of a path — usually the release folder a download sits in.
+// When the file itself was renamed (e.g. a scene group prefix like "sr-…"), the
+// folder still carries the clean release name, which the *arr parsers resolve.
+const parentFolder = (p: string): string => {
+  const parts = p.replace(/\\/g, '/').split('/').filter(Boolean);
+  return parts.length >= 2 ? parts[parts.length - 2] : '';
+};
+
 /**
  * Tracks which files FileFlows is currently processing so callers can avoid
  * treating media as "available" while it is still being post-processed.
@@ -82,9 +90,16 @@ class FileFlowsProcessingTracker {
   // Per-file movie-vs-tv hint from FileFlows' library name, keyed by lowercased
   // basename, rebuilt on every status refresh.
   private libraryHints = new Map<string, 'movie' | 'tv' | null>();
+  // Per-file parent (release) folder name, keyed by lowercased basename, rebuilt
+  // on every status refresh. Used as a second parse candidate so a renamed file
+  // can still resolve via its clean release-folder name.
+  private fileFolder = new Map<string, string>();
   // Per-file FileFlows step percent (0-100), keyed by lowercased basename,
   // rebuilt on every status refresh.
   private fileProgress = new Map<string, number>();
+  // Per-file FileFlows step NAME, keyed by lowercased basename, rebuilt on every
+  // status refresh. Lets the badge percent be gated to the encode step only.
+  private fileStep = new Map<string, string>();
   // Latest known progress per held media key, so the UI badge can show a live
   // percent. Expires together with the held mark.
   private heldProgress = new Map<string, number>();
@@ -149,19 +164,29 @@ class FileFlowsProcessingTracker {
       this.folders = new Set();
       this.currentFiles = [];
       this.libraryHints = new Map();
+      this.fileFolder = new Map();
       this.fileProgress = new Map();
+      this.fileStep = new Map();
       this.processingCount = status.processing ?? 0;
       this.queueCount = status.queue ?? 0;
       for (const file of status.processingFiles ?? []) {
         this.addPath(file.name);
         this.addPath(file.relativePath ?? '');
-        const name = basename(file.name || file.relativePath || '');
+        const fullPath = file.name || file.relativePath || '';
+        const name = basename(fullPath);
         if (name && !this.currentFiles.includes(name)) {
           this.currentFiles.push(name);
         }
         if (name) {
           const key = name.toLowerCase();
           this.libraryHints.set(key, libraryHint(file.library));
+          const folder = parentFolder(fullPath);
+          if (folder && folder.toLowerCase() !== key) {
+            this.fileFolder.set(key, folder);
+          }
+          if (file.step) {
+            this.fileStep.set(key, file.step);
+          }
           if (typeof file.stepPercent === 'number') {
             this.fileProgress.set(key, clampPercent(file.stepPercent));
           }
@@ -197,7 +222,9 @@ class FileFlowsProcessingTracker {
     this.folders = new Set();
     this.currentFiles = [];
     this.libraryHints = new Map();
+    this.fileFolder = new Map();
     this.fileProgress = new Map();
+    this.fileStep = new Map();
     this.processingCount = 0;
     this.queueCount = 0;
     // Release held media immediately when FileFlows is disabled or has been
@@ -253,8 +280,17 @@ class FileFlowsProcessingTracker {
    */
   public markHeld(key: string, percent?: number | null): void {
     this.heldMedia.set(key, Date.now());
-    if (typeof percent === 'number' && Number.isFinite(percent)) {
-      this.heldProgress.set(key, clampPercent(percent));
+    // `undefined` means the caller has no opinion on the percent (e.g. a hold
+    // from the *arr download queue) — leave any existing percent untouched. A
+    // value (including `null`) is authoritative: store it, or clear a stale one
+    // when FileFlows moves off the encode step. Clearing on `null` is what stops
+    // a per-node 100% from sticking after the node that reported it finishes.
+    if (percent !== undefined) {
+      if (typeof percent === 'number' && Number.isFinite(percent)) {
+        this.heldProgress.set(key, clampPercent(percent));
+      } else {
+        this.heldProgress.delete(key);
+      }
     }
   }
 
@@ -377,22 +413,51 @@ class FileFlowsProcessingTracker {
   // parse the release name. The *arr parser is scene-aware, so it resolves names
   // a plain match misses (extra tags like "-xpost", renamed files, etc.). The
   // FileFlows library name hints movie-vs-tv so the right *arr is tried first.
-  private async resolveFileFull(file: string): Promise<ResolvedFile> {
+  private async resolveFileFull(
+    file: string,
+    folder?: string
+  ): Promise<ResolvedFile> {
     const hint = this.libraryHints.get(file.toLowerCase()) ?? null;
-    const attempts =
-      hint === 'tv'
-        ? [() => this.parseWithSonarr(file), () => this.parseWithRadarr(file)]
-        : [() => this.parseWithRadarr(file), () => this.parseWithSonarr(file)];
+    // Parse candidates in order of reliability: the file name first (it carries
+    // SxxExx for TV granularity), then the parent release folder — which is
+    // often the clean scene name when the file itself was renamed (e.g. a group
+    // prefix like "sr-…" that breaks the parser). Dedupe case-insensitively.
+    const candidates: string[] = [];
+    const seen = new Set<string>();
+    for (const candidate of [file, folder]) {
+      if (candidate && !seen.has(candidate.toLowerCase())) {
+        seen.add(candidate.toLowerCase());
+        candidates.push(candidate);
+      }
+    }
 
-    for (const attempt of attempts) {
-      const result = await attempt();
-      if (result) {
-        if (result.mediaType === 'tv') {
-          const { seasons, episodes } = parseSeasonEpisode(file);
-          result.seasons = seasons;
-          result.episodes = episodes;
+    const parsers =
+      hint === 'tv'
+        ? [
+            (c: string) => this.parseWithSonarr(c),
+            (c: string) => this.parseWithRadarr(c),
+          ]
+        : [
+            (c: string) => this.parseWithRadarr(c),
+            (c: string) => this.parseWithSonarr(c),
+          ];
+
+    for (const parse of parsers) {
+      for (const candidate of candidates) {
+        const result = await parse(candidate);
+        if (result) {
+          if (result.mediaType === 'tv') {
+            // Prefer the file name for episode granularity (the folder may be a
+            // season pack); fall back to the folder when the file name has none.
+            const fromFile = parseSeasonEpisode(file);
+            const { seasons, episodes } = fromFile.seasons.length
+              ? fromFile
+              : parseSeasonEpisode(folder ?? '');
+            result.seasons = seasons;
+            result.episodes = episodes;
+          }
+          return result;
         }
-        return result;
       }
     }
 
@@ -425,14 +490,24 @@ class FileFlowsProcessingTracker {
     for (const file of this.currentFiles) {
       let resolved = this.resolveCache.get(file);
       if (!resolved?.key) {
-        resolved = await this.resolveFileFull(file);
+        const folder = this.fileFolder.get(file.toLowerCase());
+        resolved = await this.resolveFileFull(file, folder);
         if (resolved.key) {
           this.resolveCache.set(file, resolved);
         }
       }
       if (resolved.key) {
-        // Re-mark every cycle with the latest percent so the badge stays live.
-        const percent = this.fileProgress.get(file.toLowerCase());
+        // Re-mark every cycle so the badge stays live. FileFlows runs each file
+        // through a chain of nodes and reports only the CURRENT node's percent
+        // (0-100), which resets to 0 at every node — so surfacing it raw makes
+        // the badge run 0→100 several times per file. Surface a percent only for
+        // the actual encode/transcode node (the single long 0→100 that reads as
+        // real progress); during the quick setup/teardown nodes pass `null` so
+        // the badge shows a plain spinner instead of a misleading per-node %.
+        const fileKey = file.toLowerCase();
+        const percent = isEncodeStep(this.fileStep.get(fileKey))
+          ? (this.fileProgress.get(fileKey) ?? null)
+          : null;
         this.markHeld(resolved.key, percent);
         // For TV, also hold at season and episode granularity so the badge can
         // surface on the season group, the season overall, and the episode row.
@@ -492,6 +567,19 @@ class FileFlowsProcessingTracker {
 // Clamp a FileFlows step percent to a whole 0-100.
 function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+// FileFlows runs each file through a chain of flow nodes and reports only the
+// current node's percent. We surface a badge percent only for the heavy
+// encode/transcode node — the single long 0→100 that represents real progress —
+// so the badge doesn't run a fresh 0→100 for every node in the flow. Matches the
+// common encode node names (e.g. "FFMPEG Builder: Executor", "Video Encode");
+// other nodes (analyse, remux, move, metadata) show no percent, just the spinner.
+function isEncodeStep(step?: string): boolean {
+  if (!step) {
+    return false;
+  }
+  return /ffmpeg|encod|transcod/i.test(step);
 }
 
 // Extract season + episode numbers from a release file name. Handles single
