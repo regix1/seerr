@@ -35,9 +35,10 @@ export interface FileFlowsFileMapping {
   badgeActive: boolean;
 }
 
-// How long a successful /api/status result is reused before re-fetching. A
-// scanner processes many items per run; this keeps it to ~one request per run.
-const CACHE_TTL_MS = 30 * 1000;
+// How long a successful /api/status result is reused before re-fetching.
+// Concurrent callers within a run are still deduped via `inFlight`; this short
+// TTL keeps the live processing percent reasonably current for the UI badge.
+const CACHE_TTL_MS = 3 * 1000;
 // If FileFlows stays unreachable longer than this, the last-good cache is
 // discarded so a FileFlows outage can't block "available" notifications forever
 // (fail-open). Brief blips reuse the previous cache (fail-closed / keep gating).

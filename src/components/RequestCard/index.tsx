@@ -258,13 +258,15 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
     `/api/v1/request/${request.id}`,
     {
       fallbackData: request,
-      refreshInterval: refreshIntervalHelper(
-        {
-          downloadStatus: request.media.downloadStatus,
-          downloadStatus4k: request.media.downloadStatus4k,
-        },
-        5000
-      ),
+      refreshInterval: (latestData) =>
+        refreshIntervalHelper(
+          {
+            downloadStatus: latestData?.media?.downloadStatus,
+            downloadStatus4k: latestData?.media?.downloadStatus4k,
+            fileFlowsProcessing: latestData?.media?.fileFlowsProcessing,
+          },
+          5000
+        ),
     }
   );
 
@@ -360,7 +362,7 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
         }}
       />
       <div
-        className="relative flex w-72 overflow-hidden rounded-xl bg-gray-800 bg-cover bg-center p-4 text-gray-400 shadow ring-1 ring-gray-700 sm:w-96"
+        className="relative flex w-72 overflow-hidden rounded-xl bg-gray-800 bg-cover bg-center p-4 text-gray-400 shadow ring-1 ring-gray-700 sm:w-[27rem]"
         data-testid="request-card"
       >
         {title.backdropPath && (

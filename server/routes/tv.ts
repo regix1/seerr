@@ -22,6 +22,11 @@ const tvRoutes = Router();
 tvRoutes.get('/:id', async (req, res, next) => {
   const tmdb = new TheMovieDb();
 
+  // Keep FileFlows holds/percent fresh while this page is polled, so the
+  // processing badge updates promptly rather than waiting for the sync job.
+  // Fire-and-forget: a FileFlows outage must never delay this response.
+  void fileFlowsTracker.resolveHeldMedia().catch(() => undefined);
+
   try {
     const tmdbTv = await tmdb.getTvShow({
       tvId: Number(req.params.id),
@@ -72,6 +77,10 @@ tvRoutes.get('/:id', async (req, res, next) => {
 });
 
 tvRoutes.get('/:id/season/:seasonNumber', async (req, res, next) => {
+  // Refresh FileFlows holds (fire-and-forget) so per-episode badges stay current
+  // as this season is polled.
+  void fileFlowsTracker.resolveHeldMedia().catch(() => undefined);
+
   try {
     const tmdb = new TheMovieDb();
     const tmdbTv = await tmdb.getTvShow({

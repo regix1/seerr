@@ -21,6 +21,7 @@ import type {
   MediaRequestBody,
   RequestResultsResponse,
 } from '@server/interfaces/api/requestInterfaces';
+import fileFlowsTracker from '@server/lib/fileflows';
 import { Permission, Permission2 } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -477,6 +478,10 @@ requestRoutes.get('/count', async (req, res, next) => {
 
 requestRoutes.get('/:requestId', async (req, res, next) => {
   const requestRepository = getRepository(MediaRequest);
+
+  // Refresh FileFlows holds (fire-and-forget) so the request card's processing
+  // badge and percent stay current while it is polled.
+  void fileFlowsTracker.resolveHeldMedia().catch(() => undefined);
 
   try {
     const request = await requestRepository.findOneOrFail({

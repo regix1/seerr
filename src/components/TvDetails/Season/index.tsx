@@ -21,7 +21,15 @@ type SeasonProps = {
 const Season = ({ seasonNumber, tvId }: SeasonProps) => {
   const intl = useIntl();
   const { data, error } = useSWR<SeasonWithEpisodes>(
-    `/api/v1/tv/${tvId}/season/${seasonNumber}`
+    `/api/v1/tv/${tvId}/season/${seasonNumber}`,
+    {
+      // Poll while FileFlows is processing an episode so the per-episode badge
+      // and percent stay current.
+      refreshInterval: (latestData) =>
+        (latestData?.episodes ?? []).some((e) => e.fileFlowsProcessing)
+          ? 3000
+          : 0,
+    }
   );
 
   if (!data && !error) {

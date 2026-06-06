@@ -326,13 +326,15 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
     NonFunctionProperties<MediaRequest>
   >(`/api/v1/request/${request.id}`, {
     fallbackData: request,
-    refreshInterval: refreshIntervalHelper(
-      {
-        downloadStatus: request.media.downloadStatus,
-        downloadStatus4k: request.media.downloadStatus4k,
-      },
-      5000
-    ),
+    refreshInterval: (latestData) =>
+      refreshIntervalHelper(
+        {
+          downloadStatus: latestData?.media?.downloadStatus,
+          downloadStatus4k: latestData?.media?.downloadStatus4k,
+          fileFlowsProcessing: latestData?.media?.fileFlowsProcessing,
+        },
+        5000
+      ),
   });
 
   const [isRetrying, setRetrying] = useState(false);

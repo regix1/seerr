@@ -6,6 +6,7 @@ import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import { Watchlist } from '@server/entity/Watchlist';
+import fileFlowsTracker from '@server/lib/fileflows';
 import logger from '@server/logger';
 import { mapMovieDetails } from '@server/models/Movie';
 import { mapMovieResult } from '@server/models/Search';
@@ -15,6 +16,11 @@ const movieRoutes = Router();
 
 movieRoutes.get('/:id', async (req, res, next) => {
   const tmdb = new TheMovieDb();
+
+  // Keep FileFlows holds/percent fresh while this page is polled, so the
+  // processing badge updates promptly rather than waiting for the sync job.
+  // Fire-and-forget: a FileFlows outage must never delay this response.
+  void fileFlowsTracker.resolveHeldMedia().catch(() => undefined);
 
   try {
     const tmdbMovie = await tmdb.getMovie({
