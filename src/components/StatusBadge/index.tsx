@@ -153,6 +153,17 @@ const StatusBadge = ({
     />
   );
 
+  // FileFlows can post-process a file after the *arr already imported it, so the
+  // persisted status is often AVAILABLE rather than PROCESSING. Surface the
+  // indicator regardless of which status branch renders, as long as a real
+  // download isn't already in progress (that has its own spinner).
+  const fileFlowsIndicator =
+    !inProgress && fileFlowsProcessing ? (
+      <Tooltip content={intl.formatMessage(messages.fileflowsProcessing)}>
+        <Spinner className="ml-1 h-3 w-3" />
+      </Tooltip>
+    ) : null;
+
   switch (status) {
     case MediaStatus.AVAILABLE:
       return (
@@ -188,6 +199,7 @@ const StatusBadge = ({
                   }
                 )}
               </span>
+              {fileFlowsIndicator}
               {inProgress && (
                 <>
                   {mediaType === 'tv' &&
@@ -253,6 +265,7 @@ const StatusBadge = ({
                   }
                 )}
               </span>
+              {fileFlowsIndicator}
               {inProgress && (
                 <>
                   {mediaType === 'tv' &&
@@ -319,13 +332,7 @@ const StatusBadge = ({
                   }
                 )}
               </span>
-              {!inProgress && fileFlowsProcessing && (
-                <Tooltip
-                  content={intl.formatMessage(messages.fileflowsProcessing)}
-                >
-                  <Spinner className="ml-1 h-3 w-3" />
-                </Tooltip>
-              )}
+              {fileFlowsIndicator}
               {inProgress && (
                 <>
                   {mediaType === 'tv' &&

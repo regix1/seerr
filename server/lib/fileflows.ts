@@ -1,6 +1,41 @@
-import FileFlowsAPI from '@server/api/fileflows';
+import FileFlowsAPI, { type FileFlowsMetaInfo } from '@server/api/fileflows';
+import RadarrAPI from '@server/api/servarr/radarr';
+import SonarrAPI from '@server/api/servarr/sonarr';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+
+type MappingSource = 'fileflows' | 'arr-parse' | 'none';
+
+// FileFlows' own resolved metadata for a processing file (from a Movie/TV
+// lookup node). tmdbId is null when FileFlows reported only a title or a
+// non-numeric id.
+interface FileFlowsMeta {
+  tmdbId: number | null;
+  mediaType: 'movie' | 'tv' | null;
+  title: string | null;
+}
+
+// A processing file resolved to a media item via FileFlows metadata or the
+// Radarr/Sonarr release parser. `key` is the held-media key (`tmdb:`/`tvdb:`)
+// or null when the file could not be resolved.
+interface ResolvedFile {
+  key: string | null;
+  mediaType: 'movie' | 'tv' | null;
+  tmdbId: number | null;
+  tvdbId: number | null;
+  title: string | null;
+  source: MappingSource;
+}
+
+export interface FileFlowsFileMapping {
+  file: string;
+  title: string | null;
+  mediaType: 'movie' | 'tv' | null;
+  tmdbId: number | null;
+  tvdbId: number | null;
+  source: MappingSource;
+  badgeActive: boolean;
+}
 
 // How long a successful /api/status result is reused before re-fetching. A
 // scanner processes many items per run; this keeps it to ~one request per run.
@@ -38,6 +73,15 @@ class FileFlowsProcessingTracker {
   private lastGoodAt = 0;
   private heldMedia = new Map<string, number>();
   private inFlight: Promise<void> | null = null;
+  private currentFiles: string[] = [];
+  private processingCount = 0;
+  private queueCount = 0;
+  // FileFlows' own per-file metadata, keyed by lowercased basename, rebuilt on
+  // every status refresh.
+  private metaByBasename = new Map<string, FileFlowsMeta>();
+  // Cache resolved files (positive results only) so we parse a given file at
+  // most once while it is processing.
+  private resolveCache = new Map<string, ResolvedFile>();
 
   private get isEnabled(): boolean {
     const { enabled, hostname } = getSettings().fileflows;
@@ -94,9 +138,36 @@ class FileFlowsProcessingTracker {
       this.basenames = new Set();
       this.stems = new Set();
       this.folders = new Set();
+      this.currentFiles = [];
+      this.metaByBasename = new Map();
+      this.processingCount = status.processing ?? 0;
+      this.queueCount = status.queue ?? 0;
       for (const file of status.processingFiles ?? []) {
         this.addPath(file.name);
         this.addPath(file.relativePath ?? '');
+        const name = basename(file.name || file.relativePath || '');
+        if (name && !this.currentFiles.includes(name)) {
+          this.currentFiles.push(name);
+        }
+      }
+
+      // Best-effort: enrich with FileFlows' own metadata (title / TMDB id) when
+      // a lookup node populated it. A failure here (older build, route absent)
+      // must not discard the status result captured above.
+      try {
+        const libraryFiles = await api.getProcessingLibraryFiles();
+        for (const lf of libraryFiles) {
+          const base = basename(lf.Name || lf.RelativePath || '').toLowerCase();
+          const meta = this.resolveFromMeta(lf.MetaInfo);
+          if (base && meta) {
+            this.metaByBasename.set(base, meta);
+          }
+        }
+      } catch (e) {
+        logger.debug('FileFlows library-file metadata unavailable', {
+          label: 'FileFlows',
+          errorMessage: e instanceof Error ? e.message : String(e),
+        });
       }
 
       const now = Date.now();
@@ -126,6 +197,10 @@ class FileFlowsProcessingTracker {
     this.basenames = new Set();
     this.stems = new Set();
     this.folders = new Set();
+    this.currentFiles = [];
+    this.metaByBasename = new Map();
+    this.processingCount = 0;
+    this.queueCount = 0;
   }
 
   /** True if FileFlows is actively processing at least one file. */
@@ -192,6 +267,189 @@ class FileFlowsProcessingTracker {
     }
     return false;
   }
+
+  // Parse FileFlows' MetaInfo into a usable mapping. Returns null only when the
+  // metadata carries neither a title nor a usable id (nothing to surface).
+  private resolveFromMeta(
+    meta?: FileFlowsMetaInfo | null
+  ): FileFlowsMeta | null {
+    if (!meta) {
+      return null;
+    }
+    const tmdbId = numericId(meta.MetaId);
+    const title = meta.Title?.trim() || null;
+    if (!tmdbId && !title) {
+      return null;
+    }
+    // FileFlows only fills SeasonNumber/EpisodeNumber for TV; presence of either
+    // is a reliable movie-vs-tv signal that doesn't depend on enum ordering.
+    const isTv = meta.SeasonNumber != null || meta.EpisodeNumber != null;
+    return { tmdbId, mediaType: isTv ? 'tv' : 'movie', title };
+  }
+
+  // Resolve a single processing file to a media item. Prefers FileFlows' own
+  // metadata (no extra network call); otherwise asks each Radarr/Sonarr server
+  // to parse the release name. The *arr parser is scene-aware, so it resolves
+  // names a plain match misses (extra tags like "-xpost", renamed files, etc.).
+  private async resolveFileFull(file: string): Promise<ResolvedFile> {
+    const meta = this.metaByBasename.get(file.toLowerCase());
+
+    if (meta?.tmdbId) {
+      return {
+        key: `tmdb:${meta.tmdbId}`,
+        mediaType: meta.mediaType ?? 'movie',
+        tmdbId: meta.tmdbId,
+        tvdbId: null,
+        title: meta.title,
+        source: 'fileflows',
+      };
+    }
+
+    const settings = getSettings();
+
+    for (const server of settings.radarr) {
+      if (!server.syncEnabled) {
+        continue;
+      }
+      try {
+        const radarr = new RadarrAPI({
+          apiKey: server.apiKey,
+          url: RadarrAPI.buildUrl(server, '/api/v3'),
+        });
+        const tmdbId = await radarr.getTmdbIdFromRelease(file);
+        if (tmdbId) {
+          return {
+            key: `tmdb:${tmdbId}`,
+            mediaType: 'movie',
+            tmdbId,
+            tvdbId: null,
+            title: meta?.title ?? null,
+            source: 'arr-parse',
+          };
+        }
+      } catch {
+        // try the next server
+      }
+    }
+
+    for (const server of settings.sonarr) {
+      if (!server.syncEnabled) {
+        continue;
+      }
+      try {
+        const sonarr = new SonarrAPI({
+          apiKey: server.apiKey,
+          url: SonarrAPI.buildUrl(server, '/api/v3'),
+        });
+        const tvdbId = await sonarr.getTvdbIdFromRelease(file);
+        if (tvdbId) {
+          return {
+            key: `tvdb:${tvdbId}`,
+            mediaType: 'tv',
+            tmdbId: null,
+            tvdbId,
+            title: meta?.title ?? null,
+            source: 'arr-parse',
+          };
+        }
+      } catch {
+        // try the next server
+      }
+    }
+
+    // Unresolved — still surface any FileFlows title for the diagnostic view.
+    return {
+      key: null,
+      mediaType: meta?.mediaType ?? null,
+      tmdbId: null,
+      tvdbId: null,
+      title: meta?.title ?? null,
+      source: 'none',
+    };
+  }
+
+  /**
+   * Resolve each currently-processing file to a media item and mark it held, so
+   * the "processing in FileFlows" badge shows even when the download already
+   * left the *arr queue. Resolved files are cached so each is parsed at most
+   * once; unresolved files are retried each cycle (cheap, and lets late
+   * FileFlows metadata or a newly-added *arr entry resolve them).
+   */
+  public async resolveHeldMedia(): Promise<void> {
+    await this.refresh();
+
+    for (const cached of this.resolveCache.keys()) {
+      if (!this.currentFiles.includes(cached)) {
+        this.resolveCache.delete(cached);
+      }
+    }
+
+    for (const file of this.currentFiles) {
+      let resolved = this.resolveCache.get(file);
+      if (!resolved?.key) {
+        resolved = await this.resolveFileFull(file);
+        if (resolved.key) {
+          this.resolveCache.set(file, resolved);
+        }
+      }
+      if (resolved.key) {
+        this.markHeld(resolved.key);
+      }
+    }
+  }
+
+  /** Diagnostic mapping of each processing file to the media it resolved to. */
+  public async getFileMappings(): Promise<{
+    processing: number;
+    queue: number;
+    files: FileFlowsFileMapping[];
+  }> {
+    await this.resolveHeldMedia();
+
+    const files: FileFlowsFileMapping[] = this.currentFiles.map((file) => {
+      // resolveHeldMedia caches positives; unresolved files fall back to any
+      // FileFlows metadata so the view can still show what FileFlows thinks it
+      // is even when nothing mapped it to an id.
+      const meta = this.metaByBasename.get(file.toLowerCase());
+      const resolved: ResolvedFile = this.resolveCache.get(file) ?? {
+        key: null,
+        mediaType: meta?.mediaType ?? null,
+        tmdbId: null,
+        tvdbId: null,
+        title: meta?.title ?? null,
+        source: 'none',
+      };
+      return {
+        file,
+        title: resolved.title,
+        mediaType: resolved.mediaType,
+        tmdbId: resolved.tmdbId,
+        tvdbId: resolved.tvdbId,
+        source: resolved.source,
+        badgeActive: resolved.key ? this.isHeld(resolved.key) : false,
+      };
+    });
+
+    return {
+      processing: this.processingCount,
+      queue: this.queueCount,
+      files,
+    };
+  }
+}
+
+// A FileFlows MetaId is treated as a TMDB id only when it is a clean positive
+// integer; FileFlows may instead expose an IMDb-style id ("tt123…") or nothing,
+// in which case the *arr parser is the authoritative resolver.
+function numericId(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value === 'string' && /^\d+$/.test(value.trim())) {
+    const parsed = Number(value.trim());
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+  }
+  return null;
 }
 
 const fileFlowsTracker = new FileFlowsProcessingTracker();

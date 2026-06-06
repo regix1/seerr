@@ -2585,21 +2585,28 @@ paths:
                   files:
                     type: array
                     items:
-                      type: string
-                  mappings:
-                    type: array
-                    items:
                       type: object
                       properties:
+                        file:
+                          type: string
                         title:
                           type: string
+                          nullable: true
                         mediaType:
                           type: string
+                          nullable: true
                         tmdbId:
                           type: number
                           nullable: true
-                        fileFlowsProcessing:
-                          type: boolean
+                        tvdbId:
+                          type: number
+                          nullable: true
+                        source:
+                          type: string
+                          enum:
+                            - fileflows
+                            - arr-parse
+                            - none
                         badgeActive:
                           type: boolean
   /settings/main/regenerate:

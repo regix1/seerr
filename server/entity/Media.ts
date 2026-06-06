@@ -569,6 +569,9 @@ class Media {
           )
         : fileFlowsTracker.isHeld(
             this.tvdbId != null ? `tvdb:${this.tvdbId}` : undefined,
+            // FileFlows resolves TV via TheMovieDB, so it marks shows under a
+            // `tmdb:` key — match that too, not only the Sonarr `tvdb:` key.
+            this.tmdbId != null ? `tmdb:${this.tmdbId}` : undefined,
             this.externalServiceId != null
               ? `sonarr:${this.externalServiceId}`
               : undefined,

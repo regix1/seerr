@@ -361,6 +361,21 @@ class SonarrAPI extends ServarrBase<{
     }
   }
 
+  // Resolve a release/file name (e.g. a FileFlows processing file) to a known
+  // series' TVDB id using Sonarr's own release parser. Handles scene naming
+  // that a plain filename match would miss.
+  public async getTvdbIdFromRelease(title: string): Promise<number | null> {
+    try {
+      const response = await this.axios.get<{ series?: { tvdbId?: number } }>(
+        '/parse',
+        { params: { title } }
+      );
+      return response.data?.series?.tvdbId ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   public async getEpisodes(seriesId: number): Promise<EpisodeResult[]> {
     try {
       const response = await this.axios.get<EpisodeResult[]>('/episode', {

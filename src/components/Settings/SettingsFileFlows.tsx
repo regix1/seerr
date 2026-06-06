@@ -39,19 +39,18 @@ const messages = defineMessages('components.Settings', {
   toastSettingsFailure: 'Something went wrong while saving settings.',
   mappingsTitle: 'FileFlows Mappings',
   mappingsDescription:
-    'A live view of what FileFlows is processing and how it maps to your Radarr/Sonarr downloads. Use it to spot files whose names don’t line up with a download.',
-  mappingsProcessingFiles: 'FileFlows is processing',
+    'A live view of every file FileFlows is processing and the media it resolves to. When a file resolves to a title here, the “Processing in FileFlows” badge shows on that title.',
+  mappingsProcessingFiles: 'Processing files',
   mappingsNoFiles: 'FileFlows is not processing any files right now.',
-  mappingsDownloadsHeader: 'Active downloads',
-  mappingsNoDownloads: 'No active Radarr/Sonarr downloads detected.',
-  mappingsColRelease: 'Release',
-  mappingsColMedia: 'Media',
-  mappingsColMatched: 'FileFlows match',
-  mappingsColBadge: 'Badge shown',
-  mappingsMatched: 'Matched',
-  mappingsUnmatched: 'No match',
-  mappingsNotLinked: 'Not linked',
+  mappingsColFile: 'File',
+  mappingsColMedia: 'Resolved media',
+  mappingsColSource: 'Resolved via',
+  mappingsColBadge: 'Badge active',
   mappingsView: 'View',
+  mappingsUnresolved: 'Unresolved',
+  mappingsSourceFileflows: 'FileFlows metadata',
+  mappingsSourceArr: 'Radarr/Sonarr parser',
+  mappingsSourceNone: '—',
   mappingsYes: 'Yes',
   mappingsNo: 'No',
 });
@@ -65,11 +64,13 @@ interface FileFlowsSettings {
   urlBase: string;
 }
 
-interface FileFlowsMapping {
-  title: string;
-  mediaType: 'movie' | 'tv';
+interface FileFlowsFileMapping {
+  file: string;
+  title: string | null;
+  mediaType: 'movie' | 'tv' | null;
   tmdbId: number | null;
-  fileFlowsProcessing: boolean;
+  tvdbId: number | null;
+  source: 'fileflows' | 'arr-parse' | 'none';
   badgeActive: boolean;
 }
 
@@ -77,8 +78,7 @@ interface FileFlowsMappingsResponse {
   enabled: boolean;
   processing: number;
   queue: number;
-  files: string[];
-  mappings: FileFlowsMapping[];
+  files: FileFlowsFileMapping[];
 }
 
 const SettingsFileFlows = () => {
@@ -373,43 +373,24 @@ const SettingsFileFlows = () => {
             </p>
           </div>
 
-          <div className="mb-6 rounded-lg bg-gray-800 p-4">
-            <h4 className="mb-2 text-sm font-semibold text-gray-100">
+          <div className="rounded-lg bg-gray-800 p-4">
+            <h4 className="mb-3 text-sm font-semibold text-gray-100">
               {intl.formatMessage(messages.mappingsProcessingFiles)} (
               {mappings?.processing ?? 0})
             </h4>
             {mappings && mappings.files.length > 0 ? (
-              <ul className="space-y-1 font-mono text-xs text-gray-300">
-                {mappings.files.map((file, index) => (
-                  <li key={`ff-file-${index}`} className="break-all">
-                    {file}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-gray-400">
-                {intl.formatMessage(messages.mappingsNoFiles)}
-              </p>
-            )}
-          </div>
-
-          <div className="rounded-lg bg-gray-800 p-4">
-            <h4 className="mb-3 text-sm font-semibold text-gray-100">
-              {intl.formatMessage(messages.mappingsDownloadsHeader)}
-            </h4>
-            {mappings && mappings.mappings.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs uppercase tracking-wider text-gray-400">
                       <th className="py-2 pr-4 font-medium">
-                        {intl.formatMessage(messages.mappingsColRelease)}
+                        {intl.formatMessage(messages.mappingsColFile)}
                       </th>
                       <th className="py-2 pr-4 font-medium">
                         {intl.formatMessage(messages.mappingsColMedia)}
                       </th>
                       <th className="py-2 pr-4 font-medium">
-                        {intl.formatMessage(messages.mappingsColMatched)}
+                        {intl.formatMessage(messages.mappingsColSource)}
                       </th>
                       <th className="py-2 font-medium">
                         {intl.formatMessage(messages.mappingsColBadge)}
@@ -417,45 +398,42 @@ const SettingsFileFlows = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700">
-                    {mappings.mappings.map((mapping, index) => (
-                      <tr key={`ff-map-${index}`}>
+                    {mappings.files.map((file, index) => (
+                      <tr key={`ff-file-${index}`}>
                         <td className="max-w-xs truncate py-2 pr-4 font-mono text-xs text-gray-300">
-                          {mapping.title}
+                          {file.file}
                         </td>
                         <td className="py-2 pr-4">
-                          {mapping.tmdbId ? (
+                          {file.tmdbId && file.mediaType ? (
                             <Link
-                              href={`/${mapping.mediaType}/${mapping.tmdbId}`}
+                              href={`/${file.mediaType}/${file.tmdbId}`}
                               className="text-indigo-400 hover:underline"
                             >
-                              {intl.formatMessage(messages.mappingsView)}
+                              {file.title ||
+                                intl.formatMessage(messages.mappingsView)}
                             </Link>
+                          ) : file.title ? (
+                            <span className="text-gray-300">{file.title}</span>
                           ) : (
                             <span className="text-gray-500">
-                              {intl.formatMessage(messages.mappingsNotLinked)}
+                              {intl.formatMessage(messages.mappingsUnresolved)}
                             </span>
                           )}
                         </td>
-                        <td className="py-2 pr-4">
-                          <Badge
-                            badgeType={
-                              mapping.fileFlowsProcessing
-                                ? 'success'
-                                : 'default'
-                            }
-                          >
-                            {mapping.fileFlowsProcessing
-                              ? intl.formatMessage(messages.mappingsMatched)
-                              : intl.formatMessage(messages.mappingsUnmatched)}
-                          </Badge>
+                        <td className="py-2 pr-4 text-xs text-gray-400">
+                          {file.source === 'fileflows'
+                            ? intl.formatMessage(
+                                messages.mappingsSourceFileflows
+                              )
+                            : file.source === 'arr-parse'
+                              ? intl.formatMessage(messages.mappingsSourceArr)
+                              : intl.formatMessage(messages.mappingsSourceNone)}
                         </td>
                         <td className="py-2">
                           <Badge
-                            badgeType={
-                              mapping.badgeActive ? 'success' : 'default'
-                            }
+                            badgeType={file.badgeActive ? 'success' : 'default'}
                           >
-                            {mapping.badgeActive
+                            {file.badgeActive
                               ? intl.formatMessage(messages.mappingsYes)
                               : intl.formatMessage(messages.mappingsNo)}
                           </Badge>
@@ -467,7 +445,7 @@ const SettingsFileFlows = () => {
               </div>
             ) : (
               <p className="text-sm text-gray-400">
-                {intl.formatMessage(messages.mappingsNoDownloads)}
+                {intl.formatMessage(messages.mappingsNoFiles)}
               </p>
             )}
           </div>

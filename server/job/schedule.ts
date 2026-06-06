@@ -265,6 +265,9 @@ export const startJobs = (): void => {
       if (!(await fileFlowsTracker.hasProcessingFiles())) {
         return;
       }
+      // Resolve in-progress files to media (handles releases that already left
+      // the *arr queue) so the "processing in FileFlows" badge stays accurate.
+      await fileFlowsTracker.resolveHeldMedia();
       logger.info(
         'FileFlows is processing files; running scan to refresh availability',
         { label: 'Jobs' }
