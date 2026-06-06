@@ -10,7 +10,10 @@ import useToasts from '@app/hooks/useToasts';
 import { Permission, Permission2, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
-import { refreshIntervalHelper } from '@app/utils/refreshIntervalHelper';
+import {
+  mediaPollingState,
+  refreshIntervalHelper,
+} from '@app/utils/refreshIntervalHelper';
 import { withProperties } from '@app/utils/typeHelpers';
 import {
   ArrowPathIcon,
@@ -257,14 +260,7 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
     {
       fallbackData: request,
       refreshInterval: (latestData) =>
-        refreshIntervalHelper(
-          {
-            downloadStatus: latestData?.media?.downloadStatus,
-            downloadStatus4k: latestData?.media?.downloadStatus4k,
-            fileFlowsProcessing: latestData?.media?.fileFlowsProcessing,
-          },
-          5000
-        ),
+        refreshIntervalHelper(mediaPollingState(latestData?.media), 5000),
     }
   );
 

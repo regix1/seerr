@@ -1,5 +1,9 @@
 import TitleCard from '@app/components/TitleCard';
 import { Permission, useUser } from '@app/hooks/useUser';
+import {
+  mediaPollingState,
+  refreshIntervalHelper,
+} from '@app/utils/refreshIntervalHelper';
 import type { MovieDetails } from '@server/models/Movie';
 import type { TvDetails } from '@server/models/Tv';
 import { useInView } from 'react-intersection-observer';
@@ -36,7 +40,11 @@ const TmdbTitleCard = ({
   const url =
     type === 'movie' ? `/api/v1/movie/${tmdbId}` : `/api/v1/tv/${tmdbId}`;
   const { data: title, error } = useSWR<MovieDetails | TvDetails>(
-    inView ? `${url}` : null
+    inView ? `${url}` : null,
+    {
+      refreshInterval: (latestData) =>
+        refreshIntervalHelper(mediaPollingState(latestData?.mediaInfo), 5000),
+    }
   );
 
   if (!title && !error) {
@@ -67,6 +75,7 @@ const TmdbTitleCard = ({
       }
       image={title.posterPath}
       status={title.mediaInfo?.status}
+      fileFlowsProcessing={title.mediaInfo?.fileFlowsProcessing}
       summary={title.overview}
       title={title.title}
       userScore={title.voteAverage}
@@ -84,6 +93,7 @@ const TmdbTitleCard = ({
       }
       image={title.posterPath}
       status={title.mediaInfo?.status}
+      fileFlowsProcessing={title.mediaInfo?.fileFlowsProcessing}
       summary={title.overview}
       title={title.name}
       userScore={title.voteAverage}

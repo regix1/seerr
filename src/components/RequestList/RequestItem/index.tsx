@@ -10,7 +10,10 @@ import useToasts from '@app/hooks/useToasts';
 import { Permission, Permission2, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
-import { refreshIntervalHelper } from '@app/utils/refreshIntervalHelper';
+import {
+  mediaPollingState,
+  refreshIntervalHelper,
+} from '@app/utils/refreshIntervalHelper';
 import {
   ArrowPathIcon,
   CheckIcon,
@@ -325,14 +328,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
   >(`/api/v1/request/${request.id}`, {
     fallbackData: request,
     refreshInterval: (latestData) =>
-      refreshIntervalHelper(
-        {
-          downloadStatus: latestData?.media?.downloadStatus,
-          downloadStatus4k: latestData?.media?.downloadStatus4k,
-          fileFlowsProcessing: latestData?.media?.fileFlowsProcessing,
-        },
-        5000
-      ),
+      refreshIntervalHelper(mediaPollingState(latestData?.media), 5000),
   });
 
   const [isRetrying, setRetrying] = useState(false);

@@ -34,7 +34,10 @@ import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
 import { sortCrewPriority } from '@app/utils/creditHelpers';
 import defineMessages from '@app/utils/defineMessages';
-import { refreshIntervalHelper } from '@app/utils/refreshIntervalHelper';
+import {
+  mediaPollingState,
+  refreshIntervalHelper,
+} from '@app/utils/refreshIntervalHelper';
 import { Disclosure, Transition } from '@headlessui/react';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
 import {
@@ -136,14 +139,7 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
   } = useSWR<TvDetailsType>(`/api/v1/tv/${router.query.tvId}`, {
     fallbackData: tv,
     refreshInterval: (latestData) =>
-      refreshIntervalHelper(
-        {
-          downloadStatus: latestData?.mediaInfo?.downloadStatus,
-          downloadStatus4k: latestData?.mediaInfo?.downloadStatus4k,
-          fileFlowsProcessing: latestData?.mediaInfo?.fileFlowsProcessing,
-        },
-        5000
-      ),
+      refreshIntervalHelper(mediaPollingState(latestData?.mediaInfo), 5000),
   });
 
   const { data: ratingData } = useSWR<RTRating>(

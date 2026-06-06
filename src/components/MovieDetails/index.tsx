@@ -32,7 +32,10 @@ import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
 import { sortCrewPriority } from '@app/utils/creditHelpers';
 import defineMessages from '@app/utils/defineMessages';
-import { refreshIntervalHelper } from '@app/utils/refreshIntervalHelper';
+import {
+  mediaPollingState,
+  refreshIntervalHelper,
+} from '@app/utils/refreshIntervalHelper';
 import {
   ArrowRightCircleIcon,
   CloudIcon,
@@ -140,14 +143,7 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
   } = useSWR<MovieDetailsType>(`/api/v1/movie/${router.query.movieId}`, {
     fallbackData: movie,
     refreshInterval: (latestData) =>
-      refreshIntervalHelper(
-        {
-          downloadStatus: latestData?.mediaInfo?.downloadStatus,
-          downloadStatus4k: latestData?.mediaInfo?.downloadStatus4k,
-          fileFlowsProcessing: latestData?.mediaInfo?.fileFlowsProcessing,
-        },
-        5000
-      ),
+      refreshIntervalHelper(mediaPollingState(latestData?.mediaInfo), 5000),
   });
 
   const { data: ratingData } = useSWR<RatingResponse>(

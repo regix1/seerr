@@ -4,6 +4,10 @@ import Slider from '@app/components/Slider';
 import TitleCard from '@app/components/TitleCard';
 import useSettings from '@app/hooks/useSettings';
 import { useUser } from '@app/hooks/useUser';
+import {
+  mediaPollingState,
+  refreshIntervalHelper,
+} from '@app/utils/refreshIntervalHelper';
 import { ArrowRightCircleIcon } from '@heroicons/react/24/outline';
 import { MediaStatus } from '@server/constants/media';
 import { Permission } from '@server/lib/permissions';
@@ -57,6 +61,21 @@ const MediaSlider = ({
     {
       initialSize: 2,
       revalidateFirstPage: false,
+      refreshInterval: (pages) => {
+        for (const title of (pages ?? []).flatMap((page) => page.results)) {
+          if (title.mediaType !== 'movie' && title.mediaType !== 'tv') {
+            continue;
+          }
+          const interval = refreshIntervalHelper(
+            mediaPollingState(title.mediaInfo),
+            5000
+          );
+          if (interval > 0) {
+            return interval;
+          }
+        }
+        return 0;
+      },
     }
   );
 
@@ -127,12 +146,16 @@ const MediaSlider = ({
               isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
               image={title.posterPath}
               status={title.mediaInfo?.status}
+              fileFlowsProcessing={title.mediaInfo?.fileFlowsProcessing}
               summary={title.overview}
               title={title.title}
               userScore={title.voteAverage}
               year={title.releaseDate}
               mediaType={title.mediaType}
-              inProgress={(title.mediaInfo?.downloadStatus ?? []).length > 0}
+              inProgress={
+                (title.mediaInfo?.downloadStatus ?? []).length > 0 ||
+                title.mediaInfo?.fileFlowsProcessing
+              }
             />
           );
         case 'tv':
@@ -143,12 +166,16 @@ const MediaSlider = ({
               isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
               image={title.posterPath}
               status={title.mediaInfo?.status}
+              fileFlowsProcessing={title.mediaInfo?.fileFlowsProcessing}
               summary={title.overview}
               title={title.name}
               userScore={title.voteAverage}
               year={title.firstAirDate}
               mediaType={title.mediaType}
-              inProgress={(title.mediaInfo?.downloadStatus ?? []).length > 0}
+              inProgress={
+                (title.mediaInfo?.downloadStatus ?? []).length > 0 ||
+                title.mediaInfo?.fileFlowsProcessing
+              }
             />
           );
         case 'person':

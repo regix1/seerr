@@ -91,13 +91,15 @@ const ListView = ({
                     }
                     image={title.posterPath}
                     status={title.mediaInfo?.status}
+                    fileFlowsProcessing={title.mediaInfo?.fileFlowsProcessing}
                     summary={title.overview}
                     title={title.title}
                     userScore={title.voteAverage}
                     year={title.releaseDate}
                     mediaType={title.mediaType}
                     inProgress={
-                      (title.mediaInfo?.downloadStatus ?? []).length > 0
+                      (title.mediaInfo?.downloadStatus ?? []).length > 0 ||
+                      title.mediaInfo?.fileFlowsProcessing
                     }
                     canExpand
                   />
@@ -113,13 +115,15 @@ const ListView = ({
                     }
                     image={title.posterPath}
                     status={title.mediaInfo?.status}
+                    fileFlowsProcessing={title.mediaInfo?.fileFlowsProcessing}
                     summary={title.overview}
                     title={title.name}
                     userScore={title.voteAverage}
                     year={title.firstAirDate}
                     mediaType={title.mediaType}
                     inProgress={
-                      (title.mediaInfo?.downloadStatus ?? []).length > 0
+                      (title.mediaInfo?.downloadStatus ?? []).length > 0 ||
+                      title.mediaInfo?.fileFlowsProcessing
                     }
                     canExpand
                   />

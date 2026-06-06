@@ -39,6 +39,7 @@ interface TitleCardProps {
   userScore?: number;
   mediaType: MediaType;
   status?: MediaStatus;
+  fileFlowsProcessing?: boolean;
   canExpand?: boolean;
   inProgress?: boolean;
   isAddedToWatchlist?: number | boolean;
@@ -62,6 +63,7 @@ const TitleCard = ({
   year,
   title,
   status,
+  fileFlowsProcessing = false,
   mediaType,
   isAddedToWatchlist = false,
   inProgress = false,
@@ -462,6 +464,7 @@ const TitleCard = ({
                   <StatusBadgeMini
                     status={currentStatus}
                     inProgress={inProgress}
+                    fileFlowsProcessing={fileFlowsProcessing}
                     shrink
                   />
                 </div>
