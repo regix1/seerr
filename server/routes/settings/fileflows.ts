@@ -1,10 +1,18 @@
 import FileFlowsAPI from '@server/api/fileflows';
 import fileFlowsTracker from '@server/lib/fileflows';
+import { Permission } from '@server/lib/permissions';
 import { getSettings, type FileFlowsSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import { isAuthenticated } from '@server/middleware/auth';
 import { Router } from 'express';
 
 const fileflowsRoutes = Router();
+
+// FileFlows proxies an unauthenticated upstream API (hostname, token, file
+// paths). Restrict every route here to admins even though the parent
+// /settings router already enforces ADMIN — keeps this surface safe if the
+// mount point ever changes.
+fileflowsRoutes.use(isAuthenticated(Permission.ADMIN));
 
 fileflowsRoutes.get('/', (_req, res) => {
   const settings = getSettings();
