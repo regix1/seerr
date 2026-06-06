@@ -139,7 +139,7 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
         downloadStatus: tv?.mediaInfo?.downloadStatus,
         downloadStatus4k: tv?.mediaInfo?.downloadStatus4k,
       },
-      15000
+      5000
     ),
   });
 

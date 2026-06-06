@@ -144,7 +144,7 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
         downloadStatus: movie?.mediaInfo?.downloadStatus,
         downloadStatus4k: movie?.mediaInfo?.downloadStatus4k,
       },
-      15000
+      5000
     ),
   });
 

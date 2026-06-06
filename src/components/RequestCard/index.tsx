@@ -259,7 +259,7 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
           downloadStatus: request.media.downloadStatus,
           downloadStatus4k: request.media.downloadStatus4k,
         },
-        15000
+        5000
       ),
     }
   );
