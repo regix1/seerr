@@ -98,11 +98,14 @@ class FileFlowsProcessingTracker {
   // rebuilt on every status refresh.
   private fileProgress = new Map<string, number>();
   // Per-file FileFlows step NAME, keyed by lowercased basename, rebuilt on every
-  // status refresh. Lets the badge percent be gated to the encode step only.
+  // status refresh. Surfaced to the badge (with the percent) as the current node.
   private fileStep = new Map<string, string>();
   // Latest known progress per held media key, so the UI badge can show a live
   // percent. Expires together with the held mark.
   private heldProgress = new Map<string, number>();
+  // Latest known FileFlows step/node name per held media key, shown beside the
+  // percent so the badge reads "<node> <percent>%". Expires with the held mark.
+  private heldStep = new Map<string, string>();
   // Cache resolved files (positive results only) so we parse a given file at
   // most once while it is processing.
   private resolveCache = new Map<string, ResolvedFile>();
@@ -278,18 +281,29 @@ class FileFlowsProcessingTracker {
    * FileFlows step percent for the item is known it is stored too, so the badge
    * can show live progress.
    */
-  public markHeld(key: string, percent?: number | null): void {
+  public markHeld(
+    key: string,
+    percent?: number | null,
+    step?: string | null
+  ): void {
     this.heldMedia.set(key, Date.now());
-    // `undefined` means the caller has no opinion on the percent (e.g. a hold
-    // from the *arr download queue) — leave any existing percent untouched. A
-    // value (including `null`) is authoritative: store it, or clear a stale one
-    // when FileFlows moves off the encode step. Clearing on `null` is what stops
-    // a per-node 100% from sticking after the node that reported it finishes.
+    // `undefined` means the caller has no opinion on this value (e.g. a hold from
+    // the *arr download queue) — leave any existing value untouched. A value
+    // (including `null`) is authoritative: store it, or clear a stale one when
+    // FileFlows moves to a node that reports none. Clearing on `null` stops a
+    // finished node's percent/name from sticking after it moves on.
     if (percent !== undefined) {
       if (typeof percent === 'number' && Number.isFinite(percent)) {
         this.heldProgress.set(key, clampPercent(percent));
       } else {
         this.heldProgress.delete(key);
+      }
+    }
+    if (step !== undefined) {
+      if (step) {
+        this.heldStep.set(key, step);
+      } else {
+        this.heldStep.delete(key);
       }
     }
   }
@@ -307,6 +321,7 @@ class FileFlowsProcessingTracker {
       if (Date.now() - markedAt > HELD_TTL_MS) {
         this.heldMedia.delete(key);
         this.heldProgress.delete(key);
+        this.heldStep.delete(key);
         continue;
       }
       return true;
@@ -328,6 +343,7 @@ class FileFlowsProcessingTracker {
       if (now - markedAt > HELD_TTL_MS) {
         this.heldMedia.delete(key);
         this.heldProgress.delete(key);
+        this.heldStep.delete(key);
       } else {
         held = true;
       }
@@ -348,6 +364,24 @@ class FileFlowsProcessingTracker {
       const percent = this.heldProgress.get(key);
       if (percent != null) {
         return percent;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * FileFlows step/node name for the first still-held key (in argument order)
+   * that has one, or null when unknown. Pairs with getHeldProgress so the badge
+   * can show "<node> <percent>%".
+   */
+  public getHeldStep(...keys: (string | undefined)[]): string | null {
+    for (const key of keys) {
+      if (!key || !this.isHeld(key)) {
+        continue;
+      }
+      const step = this.heldStep.get(key);
+      if (step != null) {
+        return step;
       }
     }
     return null;
@@ -498,27 +532,26 @@ class FileFlowsProcessingTracker {
       }
       if (resolved.key) {
         // Re-mark every cycle so the badge stays live. FileFlows runs each file
-        // through a chain of nodes and reports only the CURRENT node's percent
-        // (0-100), which resets to 0 at every node — so surfacing it raw makes
-        // the badge run 0→100 several times per file. Surface a percent only for
-        // the actual encode/transcode node (the single long 0→100 that reads as
-        // real progress); during the quick setup/teardown nodes pass `null` so
-        // the badge shows a plain spinner instead of a misleading per-node %.
+        // through a chain of nodes and reports the CURRENT node's name plus its
+        // percent (0-100, which resets to 0 at each node). Surface BOTH so the
+        // badge shows "<node> <percent>%" — the node name makes the per-node
+        // reset understandable instead of looking like a looping bar. A `null`
+        // percent clears any stale value when a node reports none.
         const fileKey = file.toLowerCase();
-        const percent = isEncodeStep(this.fileStep.get(fileKey))
-          ? (this.fileProgress.get(fileKey) ?? null)
-          : null;
-        this.markHeld(resolved.key, percent);
+        const percent = this.fileProgress.get(fileKey) ?? null;
+        const step = this.fileStep.get(fileKey) ?? null;
+        this.markHeld(resolved.key, percent, step);
         // For TV, also hold at season and episode granularity so the badge can
         // surface on the season group, the season overall, and the episode row.
         if (resolved.tvdbId != null) {
           for (const season of resolved.seasons ?? []) {
-            this.markHeld(`tvdb:${resolved.tvdbId}:s${season}`, percent);
+            this.markHeld(`tvdb:${resolved.tvdbId}:s${season}`, percent, step);
           }
           for (const ep of resolved.episodes ?? []) {
             this.markHeld(
               `tvdb:${resolved.tvdbId}:s${ep.season}e${ep.episode}`,
-              percent
+              percent,
+              step
             );
           }
         }
@@ -567,19 +600,6 @@ class FileFlowsProcessingTracker {
 // Clamp a FileFlows step percent to a whole 0-100.
 function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
-}
-
-// FileFlows runs each file through a chain of flow nodes and reports only the
-// current node's percent. We surface a badge percent only for the heavy
-// encode/transcode node — the single long 0→100 that represents real progress —
-// so the badge doesn't run a fresh 0→100 for every node in the flow. Matches the
-// common encode node names (e.g. "FFMPEG Builder: Executor", "Video Encode");
-// other nodes (analyse, remux, move, metadata) show no percent, just the spinner.
-function isEncodeStep(step?: string): boolean {
-  if (!step) {
-    return false;
-  }
-  return /ffmpeg|encod|transcod/i.test(step);
 }
 
 // Extract season + episode numbers from a release file name. Handles single

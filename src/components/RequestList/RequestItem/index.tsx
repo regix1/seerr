@@ -157,6 +157,7 @@ const RequestItemError = ({
                     }
                     fileFlowsProcessing={requestData.media.fileFlowsProcessing}
                     fileFlowsProgress={requestData.media.fileFlowsProgress}
+                    fileFlowsStep={requestData.media.fileFlowsStep}
                     is4k={requestData.is4k}
                     mediaType={requestData.type}
                     plexUrl={requestData.is4k ? plexUrl4k : plexUrl}
@@ -571,6 +572,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   }
                   fileFlowsProcessing={requestData.media.fileFlowsProcessing}
                   fileFlowsProgress={requestData.media.fileFlowsProgress}
+                  fileFlowsStep={requestData.media.fileFlowsStep}
                   is4k={requestData.is4k}
                   tmdbId={requestData.media.tmdbId}
                   mediaType={requestData.type}

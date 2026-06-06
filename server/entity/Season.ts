@@ -27,6 +27,7 @@ class Season {
   // Computed (non-persisted) FileFlows state, set from Media.getDownloadingItem.
   public fileFlowsProcessing?: boolean = false;
   public fileFlowsProgress?: number | null = null;
+  public fileFlowsStep?: string | null = null;
 
   @ManyToOne(() => Media, (media) => media.seasons, {
     onDelete: 'CASCADE',

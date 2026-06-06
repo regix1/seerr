@@ -302,6 +302,7 @@ class Media {
   public downloadStatus4k?: DownloadingItem[] = [];
   public fileFlowsProcessing?: boolean = false;
   public fileFlowsProgress?: number | null = null;
+  public fileFlowsStep?: string | null = null;
 
   public mediaUrl?: string;
   public mediaUrl4k?: string;
@@ -583,6 +584,7 @@ class Media {
           ];
     this.fileFlowsProcessing = fileFlowsTracker.isHeld(...fileFlowsKeys);
     this.fileFlowsProgress = fileFlowsTracker.getHeldProgress(...fileFlowsKeys);
+    this.fileFlowsStep = fileFlowsTracker.getHeldStep(...fileFlowsKeys);
 
     // Per-season FileFlows state (the resolver holds TV at season granularity
     // under `tvdb:<id>:s<n>`), surfaced on mediaInfo.seasons[] for the season
@@ -601,6 +603,7 @@ class Media {
         season.fileFlowsProgress = fileFlowsTracker.getHeldProgress(
           ...seasonKeys
         );
+        season.fileFlowsStep = fileFlowsTracker.getHeldStep(...seasonKeys);
       }
     }
   }
