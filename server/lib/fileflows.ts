@@ -33,6 +33,7 @@ const stem = (name: string): string => {
 class FileFlowsProcessingTracker {
   private basenames = new Set<string>();
   private stems = new Set<string>();
+  private folders = new Set<string>();
   private fetchedAt = 0;
   private lastGoodAt = 0;
   private heldMedia = new Map<string, number>();
@@ -52,6 +53,12 @@ class FileFlowsProcessingTracker {
     if (base) {
       this.basenames.add(base.toLowerCase());
       this.stems.add(stem(base).toLowerCase());
+    }
+    // Track parent folder names too — a release usually sits in a folder named
+    // after the release, which matches the *arr download-queue title even when
+    // the file inside has been renamed.
+    for (const segment of parts.slice(0, -1)) {
+      this.folders.add(segment.toLowerCase());
     }
   }
 
@@ -86,6 +93,7 @@ class FileFlowsProcessingTracker {
 
       this.basenames = new Set();
       this.stems = new Set();
+      this.folders = new Set();
       for (const file of status.processingFiles ?? []) {
         this.addPath(file.name);
         this.addPath(file.relativePath ?? '');
@@ -117,6 +125,7 @@ class FileFlowsProcessingTracker {
   private clear(): void {
     this.basenames = new Set();
     this.stems = new Set();
+    this.folders = new Set();
   }
 
   /** True if FileFlows is actively processing at least one file. */
@@ -153,7 +162,7 @@ class FileFlowsProcessingTracker {
       return false;
     }
     const t = title.toLowerCase();
-    return this.stems.has(t) || this.basenames.has(t);
+    return this.stems.has(t) || this.basenames.has(t) || this.folders.has(t);
   }
 
   /**

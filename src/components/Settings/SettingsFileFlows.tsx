@@ -1,3 +1,4 @@
+import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
@@ -7,6 +8,7 @@ import defineMessages from '@app/utils/defineMessages';
 import { ArrowDownOnSquareIcon, BeakerIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
 import { Field, Form, Formik } from 'formik';
+import Link from 'next/link';
 import { useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
@@ -35,6 +37,23 @@ const messages = defineMessages('components.Settings', {
   toastFileFlowsTestFailure: 'Could not connect to FileFlows.',
   toastSettingsSuccess: 'FileFlows settings saved successfully!',
   toastSettingsFailure: 'Something went wrong while saving settings.',
+  mappingsTitle: 'FileFlows Mappings',
+  mappingsDescription:
+    'A live view of what FileFlows is processing and how it maps to your Radarr/Sonarr downloads. Use it to spot files whose names don’t line up with a download.',
+  mappingsProcessingFiles: 'FileFlows is processing',
+  mappingsNoFiles: 'FileFlows is not processing any files right now.',
+  mappingsDownloadsHeader: 'Active downloads',
+  mappingsNoDownloads: 'No active Radarr/Sonarr downloads detected.',
+  mappingsColRelease: 'Release',
+  mappingsColMedia: 'Media',
+  mappingsColMatched: 'FileFlows match',
+  mappingsColBadge: 'Badge shown',
+  mappingsMatched: 'Matched',
+  mappingsUnmatched: 'No match',
+  mappingsNotLinked: 'Not linked',
+  mappingsView: 'View',
+  mappingsYes: 'Yes',
+  mappingsNo: 'No',
 });
 
 interface FileFlowsSettings {
@@ -44,6 +63,22 @@ interface FileFlowsSettings {
   useSsl: boolean;
   apiKey: string;
   urlBase: string;
+}
+
+interface FileFlowsMapping {
+  title: string;
+  mediaType: 'movie' | 'tv';
+  tmdbId: number | null;
+  fileFlowsProcessing: boolean;
+  badgeActive: boolean;
+}
+
+interface FileFlowsMappingsResponse {
+  enabled: boolean;
+  processing: number;
+  queue: number;
+  files: string[];
+  mappings: FileFlowsMapping[];
 }
 
 const SettingsFileFlows = () => {
@@ -56,6 +91,11 @@ const SettingsFileFlows = () => {
     error,
     mutate: revalidate,
   } = useSWR<FileFlowsSettings>('/api/v1/settings/fileflows');
+
+  const { data: mappings } = useSWR<FileFlowsMappingsResponse>(
+    data?.enabled ? '/api/v1/settings/fileflows/mappings' : null,
+    { refreshInterval: 10000 }
+  );
 
   const FileFlowsSettingsSchema = Yup.object().shape({
     hostname: Yup.string().when('enabled', {
@@ -322,6 +362,117 @@ const SettingsFileFlows = () => {
           }}
         </Formik>
       </div>
+      {data?.enabled && (
+        <div className="mt-10">
+          <div className="mb-4">
+            <h3 className="heading">
+              {intl.formatMessage(messages.mappingsTitle)}
+            </h3>
+            <p className="description">
+              {intl.formatMessage(messages.mappingsDescription)}
+            </p>
+          </div>
+
+          <div className="mb-6 rounded-lg bg-gray-800 p-4">
+            <h4 className="mb-2 text-sm font-semibold text-gray-100">
+              {intl.formatMessage(messages.mappingsProcessingFiles)} (
+              {mappings?.processing ?? 0})
+            </h4>
+            {mappings && mappings.files.length > 0 ? (
+              <ul className="space-y-1 font-mono text-xs text-gray-300">
+                {mappings.files.map((file, index) => (
+                  <li key={`ff-file-${index}`} className="break-all">
+                    {file}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-gray-400">
+                {intl.formatMessage(messages.mappingsNoFiles)}
+              </p>
+            )}
+          </div>
+
+          <div className="rounded-lg bg-gray-800 p-4">
+            <h4 className="mb-3 text-sm font-semibold text-gray-100">
+              {intl.formatMessage(messages.mappingsDownloadsHeader)}
+            </h4>
+            {mappings && mappings.mappings.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wider text-gray-400">
+                      <th className="py-2 pr-4 font-medium">
+                        {intl.formatMessage(messages.mappingsColRelease)}
+                      </th>
+                      <th className="py-2 pr-4 font-medium">
+                        {intl.formatMessage(messages.mappingsColMedia)}
+                      </th>
+                      <th className="py-2 pr-4 font-medium">
+                        {intl.formatMessage(messages.mappingsColMatched)}
+                      </th>
+                      <th className="py-2 font-medium">
+                        {intl.formatMessage(messages.mappingsColBadge)}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-700">
+                    {mappings.mappings.map((mapping, index) => (
+                      <tr key={`ff-map-${index}`}>
+                        <td className="max-w-xs truncate py-2 pr-4 font-mono text-xs text-gray-300">
+                          {mapping.title}
+                        </td>
+                        <td className="py-2 pr-4">
+                          {mapping.tmdbId ? (
+                            <Link
+                              href={`/${mapping.mediaType}/${mapping.tmdbId}`}
+                              className="text-indigo-400 hover:underline"
+                            >
+                              {intl.formatMessage(messages.mappingsView)}
+                            </Link>
+                          ) : (
+                            <span className="text-gray-500">
+                              {intl.formatMessage(messages.mappingsNotLinked)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2 pr-4">
+                          <Badge
+                            badgeType={
+                              mapping.fileFlowsProcessing
+                                ? 'success'
+                                : 'default'
+                            }
+                          >
+                            {mapping.fileFlowsProcessing
+                              ? intl.formatMessage(messages.mappingsMatched)
+                              : intl.formatMessage(messages.mappingsUnmatched)}
+                          </Badge>
+                        </td>
+                        <td className="py-2">
+                          <Badge
+                            badgeType={
+                              mapping.badgeActive ? 'success' : 'default'
+                            }
+                          >
+                            {mapping.badgeActive
+                              ? intl.formatMessage(messages.mappingsYes)
+                              : intl.formatMessage(messages.mappingsNo)}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">
+                {intl.formatMessage(messages.mappingsNoDownloads)}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 };

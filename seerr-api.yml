@@ -2560,6 +2560,48 @@ paths:
                     type: number
                   queue:
                     type: number
+  /settings/fileflows/mappings:
+    get:
+      summary: Get FileFlows processing-to-media mappings
+      description: >-
+        Diagnostic view of the files FileFlows is processing and how they map to
+        Radarr/Sonarr downloads and Overseerr media.
+      tags:
+        - settings
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  processing:
+                    type: number
+                  queue:
+                    type: number
+                  files:
+                    type: array
+                    items:
+                      type: string
+                  mappings:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        title:
+                          type: string
+                        mediaType:
+                          type: string
+                        tmdbId:
+                          type: number
+                          nullable: true
+                        fileFlowsProcessing:
+                          type: boolean
+                        badgeActive:
+                          type: boolean
   /settings/main/regenerate:
     post:
       summary: Get main settings with newly-generated API key

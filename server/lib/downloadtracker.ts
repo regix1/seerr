@@ -55,6 +55,24 @@ class DownloadTracker {
     );
   }
 
+  // All currently-tracked download items across every server, de-duplicated
+  // (queue data is mirrored to servers sharing a host). Used by the FileFlows
+  // mappings view.
+  public getAllDownloads(): DownloadingItem[] {
+    const all = [
+      ...Object.values(this.radarrServers).flat(),
+      ...Object.values(this.sonarrServers).flat(),
+    ];
+    return uniqWith(
+      all,
+      (a, b) =>
+        a.mediaType === b.mediaType &&
+        a.externalId === b.externalId &&
+        a.downloadId === b.downloadId &&
+        a.title === b.title
+    );
+  }
+
   public async resetDownloadTracker() {
     this.radarrServers = {};
     this.sonarrServers = {};
