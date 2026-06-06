@@ -1,7 +1,6 @@
 import TitleCard from '@app/components/TitleCard';
 import globalMessages from '@app/i18n/globalMessages';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
-import { useSpring } from '@react-spring/web';
 import { debounce } from 'lodash';
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 import { useIntl } from 'react-intl';
@@ -81,65 +80,39 @@ const Slider = ({
     debouncedScroll();
   };
 
-  const [, setX] = useSpring(() => ({
-    from: { x: 0 },
-    to: { x: 0 },
-  }));
+  const slide = (direction: Direction) => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
 
-  const slide = async (direction: Direction) => {
-    const clientWidth =
-      containerRef.current?.getBoundingClientRect().width ?? 0;
+    const clientWidth = container.getBoundingClientRect().width;
     const cardWidth =
-      containerRef.current?.firstElementChild?.getBoundingClientRect().width ??
-      0;
-    const scrollPosition = containerRef.current?.scrollLeft ?? 0;
-    const visibleItems = Math.floor(clientWidth / cardWidth);
-    const scrollOffset = scrollPosition % cardWidth;
+      container.firstElementChild?.getBoundingClientRect().width ?? 0;
+    const scrollPosition = container.scrollLeft;
+    const maxScroll = container.scrollWidth - clientWidth;
 
-    if (direction === Direction.LEFT) {
-      const newX = Math.max(
-        scrollPosition - scrollOffset - visibleItems * cardWidth,
-        0
-      );
-      await setX.start({
-        from: { x: scrollPosition },
-        to: { x: newX },
-        onChange: (results) => {
-          if (containerRef.current) {
-            containerRef.current.scrollLeft = results.value.x;
-          }
-        },
-        reset: true,
-        config: { friction: 60, tension: 500, velocity: 20 },
-      })[0];
+    // Move a full "page" of whole cards per click, snapping to the card grid.
+    // Fall back to the viewport width when the card width can't be measured.
+    const visibleItems = cardWidth > 0 ? Math.floor(clientWidth / cardWidth) : 0;
+    const scrollOffset = cardWidth > 0 ? scrollPosition % cardWidth : 0;
+    const distance = visibleItems > 0 ? visibleItems * cardWidth : clientWidth;
 
-      if (newX === 0) {
-        setScrollPos({ isStart: true, isEnd: false });
-      } else {
-        setScrollPos({ isStart: false, isEnd: false });
-      }
-    } else if (direction === Direction.RIGHT) {
-      const newX = Math.min(
-        scrollPosition - scrollOffset + visibleItems * cardWidth,
-        containerRef.current?.scrollWidth ?? 0 - clientWidth
-      );
-      await setX.start({
-        from: { x: scrollPosition },
-        to: { x: newX },
-        onChange: (results) => {
-          if (containerRef.current) {
-            containerRef.current.scrollLeft = results.value.x;
-          }
-        },
-        reset: true,
-        config: { friction: 60, tension: 500, velocity: 20 },
-      })[0];
+    const newX =
+      direction === Direction.LEFT
+        ? Math.max(scrollPosition - scrollOffset - distance, 0)
+        : Math.min(scrollPosition - scrollOffset + distance, maxScroll);
 
-      if (newX >= (containerRef.current?.scrollWidth ?? 0) - clientWidth) {
-        setScrollPos({ isStart: false, isEnd: true });
-      } else {
-        setScrollPos({ isStart: false, isEnd: false });
-      }
+    container.scrollTo({ left: newX, behavior: 'smooth' });
+
+    // Optimistically refresh the arrow enabled/disabled state; the container's
+    // onScroll handler also refreshes it as the smooth scroll progresses.
+    if (newX <= 0) {
+      setScrollPos({ isStart: true, isEnd: false });
+    } else if (newX >= maxScroll) {
+      setScrollPos({ isStart: false, isEnd: true });
+    } else {
+      setScrollPos({ isStart: false, isEnd: false });
     }
   };
 
