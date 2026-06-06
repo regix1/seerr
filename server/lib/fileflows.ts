@@ -29,7 +29,6 @@ const stem = (name: string): string => {
 class FileFlowsProcessingTracker {
   private basenames = new Set<string>();
   private stems = new Set<string>();
-  private segments = new Set<string>();
   private fetchedAt = 0;
   private lastGoodAt = 0;
 
@@ -47,10 +46,6 @@ class FileFlowsProcessingTracker {
     if (base) {
       this.basenames.add(base.toLowerCase());
       this.stems.add(stem(base).toLowerCase());
-    }
-    // Every directory segment (folder name) — used for series-folder matching.
-    for (const seg of parts.slice(0, -1)) {
-      this.segments.add(seg.toLowerCase());
     }
   }
 
@@ -71,7 +66,6 @@ class FileFlowsProcessingTracker {
 
       this.basenames = new Set();
       this.stems = new Set();
-      this.segments = new Set();
       for (const file of status.processingFiles ?? []) {
         this.addPath(file.name);
         this.addPath(file.relativePath ?? '');
@@ -103,7 +97,6 @@ class FileFlowsProcessingTracker {
   private clear(): void {
     this.basenames = new Set();
     this.stems = new Set();
-    this.segments = new Set();
   }
 
   /** True if FileFlows is actively processing at least one file. */
@@ -123,22 +116,6 @@ class FileFlowsProcessingTracker {
     }
     const base = basename(filePath).toLowerCase();
     return this.basenames.has(base) || this.stems.has(stem(base).toLowerCase());
-  }
-
-  /**
-   * True if FileFlows is processing any file located within a folder whose name
-   * matches `folderName` (e.g. a Sonarr series folder). Matched by folder name,
-   * not full path, to survive differing mount roots between FileFlows and *arr.
-   */
-  public async isFolderProcessing(folderName?: string): Promise<boolean> {
-    if (!folderName) {
-      return false;
-    }
-    await this.refresh();
-    if (this.segments.size === 0) {
-      return false;
-    }
-    return this.segments.has(basename(folderName).toLowerCase());
   }
 }
 

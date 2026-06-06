@@ -13,6 +13,13 @@ export interface SonarrSeason {
     percentOfEpisodes: number;
   };
 }
+interface EpisodeFileResult {
+  id: number;
+  seriesId: number;
+  seasonNumber: number;
+  relativePath?: string;
+  path?: string;
+}
 interface EpisodeResult {
   seriesId: number;
   episodeFileId: number;
@@ -367,6 +374,25 @@ class SonarrAPI extends ServarrBase<{
         seriesId,
       });
       throw new Error('Failed to get episodes', { cause: e });
+    }
+  }
+
+  public async getEpisodeFiles(seriesId: number): Promise<EpisodeFileResult[]> {
+    try {
+      const response = await this.axios.get<EpisodeFileResult[]>(
+        '/episodefile',
+        {
+          params: { seriesId },
+        }
+      );
+      return response.data;
+    } catch (e) {
+      logger.error('Failed to retrieve episode files', {
+        label: 'Sonarr API',
+        errorMessage: e.message,
+        seriesId,
+      });
+      throw new Error('Failed to get episode files', { cause: e });
     }
   }
 

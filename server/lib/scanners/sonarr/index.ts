@@ -185,17 +185,42 @@ class SonarrScanner
           }
         });
 
-      // FileFlows gate: if FileFlows is still post-processing files in this
-      // series' folder, keep its seasons from flipping to available (and the
-      // available notification from firing) until processing completes.
-      const fileFlowsProcessing = await fileFlowsTracker.isFolderProcessing(
-        sonarrSeries.path
-      );
-      if (fileFlowsProcessing) {
-        this.log(
-          `FileFlows is still processing files for "${sonarrSeries.title}"; deferring availability`,
-          'debug'
-        );
+      // FileFlows gate: if FileFlows is still post-processing episode files for
+      // this series, keep the affected season(s) from flipping to available
+      // (and the available notification from firing) until processing
+      // completes. Episode files are matched by filename, per season. The
+      // episode-file lookup only runs when FileFlows is actively processing
+      // something — otherwise the tracker short-circuits to a no-op.
+      const fileFlowsSeasons = new Set<number>();
+      const sonarrSeriesId = sonarrSeries.id;
+      if (
+        sonarrSeriesId !== undefined &&
+        (await fileFlowsTracker.hasProcessingFiles())
+      ) {
+        try {
+          const episodeFiles =
+            await this.sonarrApi.getEpisodeFiles(sonarrSeriesId);
+          for (const file of episodeFiles) {
+            if (
+              await fileFlowsTracker.isFileProcessing(
+                file.relativePath ?? file.path
+              )
+            ) {
+              fileFlowsSeasons.add(file.seasonNumber);
+            }
+          }
+        } catch {
+          // If episode files can't be enumerated, fall back to not holding
+          // (fail open) rather than blocking availability.
+        }
+        if (fileFlowsSeasons.size > 0) {
+          this.log(
+            `FileFlows is still processing season(s) ${[
+              ...fileFlowsSeasons,
+            ].join(', ')} of "${sonarrSeries.title}"; deferring availability`,
+            'debug'
+          );
+        }
       }
 
       for (const season of filteredSeasons) {
@@ -208,7 +233,7 @@ class SonarrScanner
           totalEpisodes: season.statistics?.totalEpisodeCount ?? 0,
           processing:
             (season.monitored && totalAvailableEpisodes === 0) ||
-            fileFlowsProcessing,
+            fileFlowsSeasons.has(season.seasonNumber),
           is4kOverride: server4k,
         });
       }
