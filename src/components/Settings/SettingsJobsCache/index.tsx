@@ -11,6 +11,14 @@ import useSettings from '@app/hooks/useSettings';
 import useToasts from '@app/hooks/useToasts';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
+import {
+  buildJobScheduleOptions,
+  parseCronToTotalSeconds,
+  totalSecondsToCron,
+  withCurrentScheduleOption,
+  type JobScheduleDisplayUnit,
+  type JobScheduleOption,
+} from '@app/utils/jobScheduleOptions';
 import { formatBytes } from '@app/utils/numberHelpers';
 import { Transition } from '@headlessui/react';
 import { PlayIcon, StopIcon, TrashIcon } from '@heroicons/react/24/outline';
@@ -25,7 +33,7 @@ import axios from 'axios';
 import cronstrue from 'cronstrue/i18n';
 import humanizeDuration from 'humanize-duration';
 import { Fragment, useReducer, useState } from 'react';
-import type { MessageDescriptor } from 'react-intl';
+import type { IntlShape, MessageDescriptor } from 'react-intl';
 import { FormattedRelativeTime, useIntl } from 'react-intl';
 import useSWR from 'swr';
 
@@ -134,131 +142,51 @@ interface Job {
 type JobModalState = {
   isOpen?: boolean;
   job?: Job;
-  scheduleDays: number;
-  scheduleHours: number;
-  scheduleMinutes: number;
-  scheduleSeconds: number;
+  scheduleTotalSeconds: number;
 };
 
 type JobModalAction =
   | {
       type: 'set';
-      days?: number;
-      hours?: number;
-      minutes?: number;
-      seconds?: number;
+      scheduleTotalSeconds: number;
     }
   | {
       type: 'close';
     }
   | { type: 'open'; job?: Job };
 
-const DEFAULT_SCHEDULE = {
-  scheduleDays: 1,
-  scheduleHours: 1,
-  scheduleMinutes: 5,
-  scheduleSeconds: 30,
-};
-
-const JOB_SCHEDULE_SECONDS_OPTIONS = [5, 10, 15, 20, 30, 45, 60];
-const JOB_SCHEDULE_MINUTES_OPTIONS = [1, 3, 5, 10, 15, 20, 30, 60];
-// Radarr/Sonarr full-library scans are heavier; offer a wider range including
-// sub-hourly intervals for FileFlows users who need faster availability updates.
-const JOB_SCHEDULE_ARR_SCAN_MINUTES_OPTIONS = [
-  5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 360, 720, 1440,
-];
-const JOB_SCHEDULE_HOURS_OPTIONS = [1, 2, 3, 4, 6, 8, 12, 24, 48, 72];
-const JOB_SCHEDULE_DAYS_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 10, 14, 21];
+const DEFAULT_SCHEDULE_TOTAL_SECONDS = 300;
 
 const isArrScanJob = (jobId?: JobId): boolean =>
   jobId === 'radarr-scan' || jobId === 'sonarr-scan';
 
-const getJobScheduleMinutesOptions = (jobId?: JobId): number[] =>
-  isArrScanJob(jobId)
-    ? JOB_SCHEDULE_ARR_SCAN_MINUTES_OPTIONS
-    : JOB_SCHEDULE_MINUTES_OPTIONS;
+const formatScheduleOptionLabel = (
+  intl: IntlShape,
+  option: JobScheduleOption
+): string => {
+  const messageByUnit: Record<
+    JobScheduleDisplayUnit,
+    (value: number) => string
+  > = {
+    seconds: (value) =>
+      intl.formatMessage(messages.editJobScheduleSelectorSeconds, {
+        jobScheduleSeconds: value,
+      }),
+    minutes: (value) =>
+      intl.formatMessage(messages.editJobScheduleSelectorMinutes, {
+        jobScheduleMinutes: value,
+      }),
+    hours: (value) =>
+      intl.formatMessage(messages.editJobScheduleSelectorHours, {
+        jobScheduleHours: value,
+      }),
+    days: (value) =>
+      intl.formatMessage(messages.editJobScheduleSelectorDays, {
+        jobScheduleDays: value,
+      }),
+  };
 
-const withCurrentScheduleOption = (
-  options: number[],
-  current: number
-): number[] => {
-  if (!options.includes(current)) {
-    return [...options, current].sort((a, b) => a - b);
-  }
-
-  return options;
-};
-
-const parseJobScheduleFromCron = (
-  cronSchedule: string,
-  interval: Job['interval']
-): typeof DEFAULT_SCHEDULE => {
-  const parts = cronSchedule.trim().split(/\s+/);
-
-  if (parts.length !== 6) {
-    return DEFAULT_SCHEDULE;
-  }
-
-  const [second, minute, hour, , day] = parts;
-
-  switch (interval) {
-    case 'seconds': {
-      if (second.startsWith('*/')) {
-        const scheduleSeconds = Number(second.slice(2));
-        if (scheduleSeconds > 0) {
-          return { ...DEFAULT_SCHEDULE, scheduleSeconds };
-        }
-      }
-
-      if (second === '0' && minute === '*') {
-        return { ...DEFAULT_SCHEDULE, scheduleSeconds: 60 };
-      }
-
-      break;
-    }
-    case 'minutes': {
-      if (minute.startsWith('*/')) {
-        const scheduleMinutes = Number(minute.slice(2));
-        if (scheduleMinutes > 0) {
-          return { ...DEFAULT_SCHEDULE, scheduleMinutes };
-        }
-      }
-
-      // Hourly at a fixed minute offset (e.g. `0 30 * * * *`)
-      if (second === '0' && hour === '*' && /^\d+$/.test(minute)) {
-        return { ...DEFAULT_SCHEDULE, scheduleMinutes: 60 };
-      }
-
-      // Legacy once-daily at a fixed clock time (e.g. `0 0 4 * * *`)
-      if (second === '0' && minute === '0' && /^\d+$/.test(hour)) {
-        return { ...DEFAULT_SCHEDULE, scheduleMinutes: 1440 };
-      }
-
-      break;
-    }
-    case 'hours': {
-      if (hour.startsWith('*/')) {
-        const scheduleHours = Number(hour.slice(2));
-        if (scheduleHours > 0) {
-          return { ...DEFAULT_SCHEDULE, scheduleHours };
-        }
-      }
-
-      break;
-    }
-    case 'days': {
-      if (day.startsWith('*/')) {
-        const scheduleDays = Number(day.slice(2));
-        if (scheduleDays > 0) {
-          return { ...DEFAULT_SCHEDULE, scheduleDays };
-        }
-      }
-
-      break;
-    }
-  }
-
-  return DEFAULT_SCHEDULE;
+  return messageByUnit[option.displayUnit](option.displayValue);
 };
 
 const jobModalReducer = (
@@ -273,24 +201,21 @@ const jobModalReducer = (
       };
 
     case 'open': {
-      const parsedSchedule = action.job
-        ? parseJobScheduleFromCron(action.job.cronSchedule, action.job.interval)
-        : DEFAULT_SCHEDULE;
+      const scheduleTotalSeconds = action.job
+        ? parseCronToTotalSeconds(action.job.cronSchedule, action.job.interval)
+        : DEFAULT_SCHEDULE_TOTAL_SECONDS;
 
       return {
         isOpen: true,
         job: action.job,
-        ...parsedSchedule,
+        scheduleTotalSeconds,
       };
     }
 
     case 'set':
       return {
         ...state,
-        scheduleDays: action.days ?? state.scheduleDays,
-        scheduleHours: action.hours ?? state.scheduleHours,
-        scheduleMinutes: action.minutes ?? state.scheduleMinutes,
-        scheduleSeconds: action.seconds ?? state.scheduleSeconds,
+        scheduleTotalSeconds: action.scheduleTotalSeconds,
       };
   }
 };
@@ -328,10 +253,7 @@ const SettingsJobs = () => {
 
   const [jobModalState, dispatch] = useReducer(jobModalReducer, {
     isOpen: false,
-    scheduleDays: 1,
-    scheduleHours: 1,
-    scheduleMinutes: 5,
-    scheduleSeconds: 30,
+    scheduleTotalSeconds: DEFAULT_SCHEDULE_TOTAL_SECONDS,
   });
   const [isSaving, setIsSaving] = useState(false);
   const settings = useSettings();
@@ -421,28 +343,21 @@ const SettingsJobs = () => {
   };
 
   const scheduleJob = async () => {
-    const jobScheduleCron = ['0', '0', '*', '*', '*', '*'];
-
     try {
-      if (jobModalState.job?.interval === 'seconds') {
-        jobScheduleCron.splice(0, 2, `*/${jobModalState.scheduleSeconds}`, '*');
-      } else if (jobModalState.job?.interval === 'minutes') {
-        jobScheduleCron[1] = `*/${jobModalState.scheduleMinutes}`;
-      } else if (jobModalState.job?.interval === 'hours') {
-        jobScheduleCron[2] = `*/${jobModalState.scheduleHours}`;
-      } else if (jobModalState.job?.interval === 'days') {
-        jobScheduleCron[2] = '1';
-        jobScheduleCron[3] = `*/${jobModalState.scheduleDays}`;
-      } else {
-        // jobs with interval: fixed should not be editable
+      if (!jobModalState.job || jobModalState.job.interval === 'fixed') {
         throw new Error();
       }
+
+      const schedule = totalSecondsToCron(
+        jobModalState.scheduleTotalSeconds,
+        jobModalState.job.interval
+      );
 
       setIsSaving(true);
       await axios.post(
         `/api/v1/settings/jobs/${jobModalState.job.id}/schedule`,
         {
-          schedule: jobScheduleCron.join(' '),
+          schedule,
         }
       );
 
@@ -523,111 +438,35 @@ const SettingsJobs = () => {
                   {intl.formatMessage(messages.editJobSchedulePrompt)}
                 </label>
                 <div className="form-input-area">
-                  {jobModalState.job?.interval === 'seconds' ? (
-                    <select
-                      name="jobScheduleSeconds"
-                      className="inline"
-                      value={jobModalState.scheduleSeconds}
-                      onChange={(e) =>
-                        dispatch({
-                          type: 'set',
-                          seconds: Number(e.target.value),
-                        })
-                      }
-                    >
-                      {withCurrentScheduleOption(
-                        JOB_SCHEDULE_SECONDS_OPTIONS,
-                        jobModalState.scheduleSeconds
-                      ).map((v) => (
-                        <option value={v} key={`jobScheduleSeconds-${v}`}>
-                          {intl.formatMessage(
-                            messages.editJobScheduleSelectorSeconds,
-                            {
-                              jobScheduleSeconds: v,
-                            }
-                          )}
-                        </option>
-                      ))}
-                    </select>
-                  ) : jobModalState.job?.interval === 'minutes' ? (
-                    <select
-                      name="jobScheduleMinutes"
-                      className="inline"
-                      value={jobModalState.scheduleMinutes}
-                      onChange={(e) =>
-                        dispatch({
-                          type: 'set',
-                          minutes: Number(e.target.value),
-                        })
-                      }
-                    >
-                      {withCurrentScheduleOption(
-                        getJobScheduleMinutesOptions(jobModalState.job?.id),
-                        jobModalState.scheduleMinutes
-                      ).map((v) => (
-                        <option value={v} key={`jobScheduleMinutes-${v}`}>
-                          {intl.formatMessage(
-                            messages.editJobScheduleSelectorMinutes,
-                            {
-                              jobScheduleMinutes: v,
-                            }
-                          )}
-                        </option>
-                      ))}
-                    </select>
-                  ) : jobModalState.job?.interval === 'days' ? (
-                    <select
-                      name="jobScheduleDays"
-                      className="inline"
-                      value={jobModalState.scheduleDays}
-                      onChange={(e) =>
-                        dispatch({
-                          type: 'set',
-                          days: Number(e.target.value),
-                        })
-                      }
-                    >
-                      {withCurrentScheduleOption(
-                        JOB_SCHEDULE_DAYS_OPTIONS,
-                        jobModalState.scheduleDays
-                      ).map((v) => (
-                        <option value={v} key={`jobScheduleDays-${v}`}>
-                          {intl.formatMessage(
-                            messages.editJobScheduleSelectorDays,
-                            {
-                              jobScheduleDays: v,
-                            }
-                          )}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <select
-                      name="jobScheduleHours"
-                      className="inline"
-                      value={jobModalState.scheduleHours}
-                      onChange={(e) =>
-                        dispatch({
-                          type: 'set',
-                          hours: Number(e.target.value),
-                        })
-                      }
-                    >
-                      {withCurrentScheduleOption(
-                        JOB_SCHEDULE_HOURS_OPTIONS,
-                        jobModalState.scheduleHours
-                      ).map((v) => (
-                        <option value={v} key={`jobScheduleHours-${v}`}>
-                          {intl.formatMessage(
-                            messages.editJobScheduleSelectorHours,
-                            {
-                              jobScheduleHours: v,
-                            }
-                          )}
-                        </option>
-                      ))}
-                    </select>
-                  )}
+                  {jobModalState.job &&
+                    jobModalState.job.interval !== 'fixed' && (
+                      <select
+                        name="jobSchedule"
+                        className="inline"
+                        value={jobModalState.scheduleTotalSeconds}
+                        onChange={(e) =>
+                          dispatch({
+                            type: 'set',
+                            scheduleTotalSeconds: Number(e.target.value),
+                          })
+                        }
+                      >
+                        {withCurrentScheduleOption(
+                          buildJobScheduleOptions(
+                            jobModalState.job.interval,
+                            jobModalState.job.id
+                          ),
+                          jobModalState.scheduleTotalSeconds
+                        ).map((option) => (
+                          <option
+                            value={option.totalSeconds}
+                            key={`jobSchedule-${option.totalSeconds}`}
+                          >
+                            {formatScheduleOptionLabel(intl, option)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                 </div>
               </div>
             </form>
