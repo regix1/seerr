@@ -1,11 +1,17 @@
+import type { ReactElement, ReactNode } from 'react';
 import React from 'react';
 import ReactDOM from 'react-dom';
 import type { Config } from 'react-popper-tooltip';
 import { usePopperTooltip } from 'react-popper-tooltip';
 
+type TooltipChildProps = {
+  ref?: React.Ref<HTMLElement>;
+  className?: string;
+};
+
 type TooltipProps = {
-  content: React.ReactNode;
-  children: React.ReactElement<any>;
+  content: ReactNode;
+  children: ReactElement<TooltipChildProps>;
   tooltipConfig?: Partial<Config>;
   className?: string;
 };

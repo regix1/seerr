@@ -318,9 +318,10 @@ const SettingsJobs = () => {
     availabilitySync: 'schedule' | 'active';
   }>('/api/v1/settings/fileflows');
 
-  const fileFlowsTriggersArrScans =
+  const fileFlowsTriggersArrScans = Boolean(
     fileFlowsSettings?.enabled &&
-    fileFlowsSettings?.availabilitySync === 'active';
+    fileFlowsSettings?.availabilitySync === 'active'
+  );
 
   const isArrScanCancelDisabled = (job: Job): boolean =>
     fileFlowsTriggersArrScans && isArrScanJob(job.id);
