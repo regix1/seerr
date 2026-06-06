@@ -8,6 +8,7 @@ import MediaServerLibrariesPanel from '@app/components/Settings/MediaServerLibra
 import SettingsBadge from '@app/components/Settings/SettingsBadge';
 import useScanCompleteToast from '@app/hooks/useScanCompleteToast';
 import useSettings from '@app/hooks/useSettings';
+import useToasts from '@app/hooks/useToasts';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import { isValidURL } from '@app/utils/urlValidationHelper';
@@ -20,7 +21,6 @@ import { Field, Formik } from 'formik';
 import { orderBy } from 'lodash';
 import { useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
-import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 import * as Yup from 'yup';
 

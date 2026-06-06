@@ -13,7 +13,7 @@ import { ApiErrorCode } from '@server/constants/error';
 import type { EmbySettings } from '@server/lib/settings';
 import axios from 'axios';
 import { FormattedMessage, useIntl } from 'react-intl';
-import { useToasts } from 'react-toast-notifications';
+import useToasts from '@app/hooks/useToasts';
 
 const messages = defineMessages('components.Settings.SettingsEmby', {
   embysettings: 'Emby Settings',

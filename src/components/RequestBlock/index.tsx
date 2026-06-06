@@ -22,7 +22,7 @@ import axios from 'axios';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useIntl } from 'react-intl';
-import { useToasts } from 'react-toast-notifications';
+import useToasts from '@app/hooks/useToasts';
 import { mutate } from 'swr';
 
 const messages = defineMessages('components.RequestBlock', {

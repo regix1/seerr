@@ -32,8 +32,10 @@ import type { TvDetails } from '@server/models/Tv';
 import axios from 'axios';
 import Link from 'next/link';
 import { useIntl } from 'react-intl';
-import { useToasts } from 'react-toast-notifications';
+import useToasts from '@app/hooks/useToasts';
 import useSWR from 'swr';
+
+import type { JSX } from 'react';
 
 const filterDuplicateDownloads = (
   items: DownloadingItem[] = []

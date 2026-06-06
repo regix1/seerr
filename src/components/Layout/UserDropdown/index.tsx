@@ -13,7 +13,7 @@ import type { LinkProps } from 'next/link';
 import Link from 'next/link';
 import { Fragment, forwardRef } from 'react';
 import { useIntl } from 'react-intl';
-import { useToasts } from 'react-toast-notifications';
+import useToasts from '@app/hooks/useToasts';
 
 const messages = defineMessages('components.Layout.UserDropdown', {
   myprofile: 'Profile',

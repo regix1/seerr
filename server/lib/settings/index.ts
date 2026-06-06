@@ -282,6 +282,7 @@ export interface NotificationAgentEmail extends NotificationAgentConfig {
     authPass?: string;
     allowSelfSigned: boolean;
     senderName: string;
+    usePublicLogo: boolean;
     pgpPrivateKey?: string;
     pgpPassword?: string;
   };
@@ -518,6 +519,7 @@ class Settings {
               requireTls: false,
               allowSelfSigned: false,
               senderName: 'Seerr',
+              usePublicLogo: false,
             },
           },
           discord: {

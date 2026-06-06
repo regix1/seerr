@@ -355,8 +355,8 @@ class PlexScanner
 
     const seasons = tvShow.seasons;
     const processableSeasons: ProcessableSeason[] = [];
-    const settings = getSettings();
 
+    const settings = getSettings();
     const filteredSeasons = settings.main.enableSpecialEpisodes
       ? seasons
       : seasons.filter((sn) => sn.season_number !== 0);
