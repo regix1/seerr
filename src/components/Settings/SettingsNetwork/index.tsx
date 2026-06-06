@@ -60,7 +60,121 @@ const messages = defineMessages('components.Settings.SettingsNetwork', {
   apiRequestTimeoutTip:
     'Maximum time (in seconds) to wait for responses from external services like Radarr/Sonarr. Set to 0 for no timeout.',
   validationApiRequestTimeout: 'You must provide a valid timeout value',
+  sectionProxyAwarenessTitle: 'Reverse Proxy',
+  sectionProxyAwarenessDescription:
+    'Control how Seerr handles requests when it runs behind a reverse proxy.',
+  sectionSecurityTitle: 'Security',
+  sectionSecurityDescription:
+    'Harden API access. Only change these if you understand the implications.',
+  sectionDnsTitle: 'DNS & Connectivity',
+  sectionDnsDescription:
+    'Tune DNS resolution and how long Seerr waits for external services.',
+  sectionOutboundProxyTitle: 'Outbound Proxy',
+  sectionOutboundProxyDescription:
+    "Route all of Seerr's outgoing HTTP/HTTPS traffic through a proxy server.",
 });
+
+interface ToggleProps {
+  id?: string;
+  checked: boolean;
+  onChange: () => void;
+  disabled?: boolean;
+  ariaLabel?: string;
+}
+
+const Toggle = ({
+  id,
+  checked,
+  onChange,
+  disabled,
+  ariaLabel,
+}: ToggleProps) => (
+  <button
+    id={id}
+    type="button"
+    role="switch"
+    aria-checked={checked}
+    aria-label={ariaLabel}
+    disabled={disabled}
+    onClick={onChange}
+    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:cursor-not-allowed disabled:opacity-50 ${
+      checked ? 'bg-indigo-600' : 'bg-gray-600'
+    }`}
+  >
+    <span
+      aria-hidden="true"
+      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+        checked ? 'translate-x-5' : 'translate-x-0'
+      }`}
+    />
+  </button>
+);
+
+interface SettingsCardProps {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}
+
+const SettingsCard = ({ title, description, children }: SettingsCardProps) => (
+  <div className="mb-6 overflow-hidden rounded-xl border border-gray-700 bg-gray-800/50 shadow-md ring-1 ring-white/5">
+    <div className="border-b border-gray-700 px-5 py-4">
+      <h4 className="text-base font-semibold text-white">{title}</h4>
+      {description && (
+        <p className="mt-0.5 text-sm leading-5 text-gray-400">{description}</p>
+      )}
+    </div>
+    <div className="divide-y divide-gray-700/70 px-5">{children}</div>
+  </div>
+);
+
+interface SettingRowProps {
+  label: string;
+  htmlFor?: string;
+  description?: React.ReactNode;
+  badges?: React.ReactNode;
+  control: React.ReactNode;
+  alignTop?: boolean;
+}
+
+const SettingRow = ({
+  label,
+  htmlFor,
+  description,
+  badges,
+  control,
+  alignTop,
+}: SettingRowProps) => (
+  <div
+    className={`flex flex-col gap-2 py-4 sm:flex-row sm:justify-between sm:gap-6 ${
+      alignTop ? 'sm:items-start' : 'sm:items-center'
+    }`}
+  >
+    <div className="min-w-0 flex-1">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <label
+          htmlFor={htmlFor}
+          className="mb-0 cursor-pointer text-sm font-semibold text-gray-100"
+        >
+          {label}
+        </label>
+        {badges && <span className="flex flex-wrap gap-1">{badges}</span>}
+      </div>
+      {description && (
+        <p className="mt-1 max-w-2xl text-sm leading-5 text-gray-400">
+          {description}
+        </p>
+      )}
+    </div>
+    <div
+      className={`flex shrink-0 flex-col gap-1 sm:items-end ${
+        alignTop ? 'sm:pt-0.5' : ''
+      }`}
+    >
+      {control}
+    </div>
+  </div>
+);
 
 const SettingsNetwork = () => {
   const { addToast } = useToasts();
@@ -127,466 +241,485 @@ const SettingsNetwork = () => {
           {intl.formatMessage(messages.networksettingsDescription)}
         </p>
       </div>
-      <div className="section">
-        <Formik
-          initialValues={{
-            csrfProtection: data?.csrfProtection,
-            forceIpv4First: data?.forceIpv4First,
-            dnsCacheEnabled: data?.dnsCache.enabled,
-            dnsCacheForceMinTtl: data?.dnsCache.forceMinTtl,
-            dnsCacheForceMaxTtl: data?.dnsCache.forceMaxTtl,
-            trustProxy: data?.trustProxy,
-            proxyEnabled: data?.proxy?.enabled,
-            proxyHostname: data?.proxy?.hostname,
-            proxyPort: data?.proxy?.port,
-            proxySsl: data?.proxy?.useSsl,
-            proxyUser: data?.proxy?.user,
-            proxyPassword: data?.proxy?.password,
-            proxyBypassFilter: data?.proxy?.bypassFilter,
-            proxyBypassLocalAddresses: data?.proxy?.bypassLocalAddresses,
-            apiRequestTimeout:
-              data?.apiRequestTimeout !== undefined
-                ? data.apiRequestTimeout / 1000
-                : 10,
-          }}
-          enableReinitialize
-          validationSchema={NetworkSettingsSchema}
-          onSubmit={async (values) => {
-            try {
-              await axios.post('/api/v1/settings/network', {
-                csrfProtection: values.csrfProtection,
-                forceIpv4First: values.forceIpv4First,
-                trustProxy: values.trustProxy,
-                dnsCache: {
-                  enabled: values.dnsCacheEnabled,
-                  forceMinTtl: Number(values.dnsCacheForceMinTtl),
-                  forceMaxTtl: Number(values.dnsCacheForceMaxTtl),
-                },
-                proxy: {
-                  enabled: values.proxyEnabled,
-                  hostname: values.proxyHostname,
-                  port: Number(values.proxyPort),
-                  useSsl: values.proxySsl,
-                  user: values.proxyUser,
-                  password: values.proxyPassword,
-                  bypassFilter: values.proxyBypassFilter,
-                  bypassLocalAddresses: values.proxyBypassLocalAddresses,
-                },
-                apiRequestTimeout: Number(values.apiRequestTimeout) * 1000,
-              });
-              mutate('/api/v1/settings/public');
-              mutate('/api/v1/status');
+      <Formik
+        initialValues={{
+          csrfProtection: data?.csrfProtection,
+          forceIpv4First: data?.forceIpv4First,
+          dnsCacheEnabled: data?.dnsCache.enabled,
+          dnsCacheForceMinTtl: data?.dnsCache.forceMinTtl,
+          dnsCacheForceMaxTtl: data?.dnsCache.forceMaxTtl,
+          trustProxy: data?.trustProxy,
+          proxyEnabled: data?.proxy?.enabled,
+          proxyHostname: data?.proxy?.hostname,
+          proxyPort: data?.proxy?.port,
+          proxySsl: data?.proxy?.useSsl,
+          proxyUser: data?.proxy?.user,
+          proxyPassword: data?.proxy?.password,
+          proxyBypassFilter: data?.proxy?.bypassFilter,
+          proxyBypassLocalAddresses: data?.proxy?.bypassLocalAddresses,
+          apiRequestTimeout:
+            data?.apiRequestTimeout !== undefined
+              ? data.apiRequestTimeout / 1000
+              : 10,
+        }}
+        enableReinitialize
+        validationSchema={NetworkSettingsSchema}
+        onSubmit={async (values) => {
+          try {
+            await axios.post('/api/v1/settings/network', {
+              csrfProtection: values.csrfProtection,
+              forceIpv4First: values.forceIpv4First,
+              trustProxy: values.trustProxy,
+              dnsCache: {
+                enabled: values.dnsCacheEnabled,
+                forceMinTtl: Number(values.dnsCacheForceMinTtl),
+                forceMaxTtl: Number(values.dnsCacheForceMaxTtl),
+              },
+              proxy: {
+                enabled: values.proxyEnabled,
+                hostname: values.proxyHostname,
+                port: Number(values.proxyPort),
+                useSsl: values.proxySsl,
+                user: values.proxyUser,
+                password: values.proxyPassword,
+                bypassFilter: values.proxyBypassFilter,
+                bypassLocalAddresses: values.proxyBypassLocalAddresses,
+              },
+              apiRequestTimeout: Number(values.apiRequestTimeout) * 1000,
+            });
+            mutate('/api/v1/settings/public');
+            mutate('/api/v1/status');
 
-              addToast(intl.formatMessage(messages.toastSettingsSuccess), {
-                autoDismiss: true,
-                appearance: 'success',
-              });
-            } catch {
-              addToast(intl.formatMessage(messages.toastSettingsFailure), {
-                autoDismiss: true,
-                appearance: 'error',
-              });
-            } finally {
-              revalidate();
-            }
-          }}
-        >
-          {({
-            errors,
-            touched,
-            isSubmitting,
-            isValid,
-            values,
-            setFieldValue,
-          }) => {
-            return (
-              <Form className="section" data-testid="settings-network-form">
-                <div className="form-row">
-                  <label htmlFor="trustProxy" className="checkbox-label">
-                    <span className="mr-2">
-                      {intl.formatMessage(messages.trustProxy)}
-                    </span>
-                    <SettingsBadge badgeType="restartRequired" />
-                    <span className="label-tip">
-                      {intl.formatMessage(messages.trustProxyTip)}
-                    </span>
-                  </label>
-                  <div className="form-input-area">
-                    <Field
-                      type="checkbox"
+            addToast(intl.formatMessage(messages.toastSettingsSuccess), {
+              autoDismiss: true,
+              appearance: 'success',
+            });
+          } catch {
+            addToast(intl.formatMessage(messages.toastSettingsFailure), {
+              autoDismiss: true,
+              appearance: 'error',
+            });
+          } finally {
+            revalidate();
+          }
+        }}
+      >
+        {({
+          errors,
+          touched,
+          isSubmitting,
+          isValid,
+          values,
+          setFieldValue,
+        }) => {
+          return (
+            <Form className="mt-6" data-testid="settings-network-form">
+              <SettingsCard
+                title={intl.formatMessage(messages.sectionProxyAwarenessTitle)}
+                description={intl.formatMessage(
+                  messages.sectionProxyAwarenessDescription
+                )}
+              >
+                <SettingRow
+                  htmlFor="trustProxy"
+                  label={intl.formatMessage(messages.trustProxy)}
+                  description={intl.formatMessage(messages.trustProxyTip)}
+                  badges={<SettingsBadge badgeType="restartRequired" />}
+                  control={
+                    <Toggle
                       id="trustProxy"
-                      name="trustProxy"
-                      onChange={() => {
-                        setFieldValue('trustProxy', !values.trustProxy);
-                      }}
+                      ariaLabel={intl.formatMessage(messages.trustProxy)}
+                      checked={!!values.trustProxy}
+                      onChange={() =>
+                        setFieldValue('trustProxy', !values.trustProxy)
+                      }
                     />
-                  </div>
-                </div>
-                <div className="form-row">
-                  <label htmlFor="csrfProtection" className="checkbox-label">
-                    <span className="mr-2">
-                      {intl.formatMessage(messages.csrfProtection)}
-                    </span>
-                    <SettingsBadge badgeType="advanced" />
-                    <SettingsBadge badgeType="restartRequired" />
-                    <span className="label-tip">
-                      {intl.formatMessage(messages.csrfProtectionTip)}
-                    </span>
-                  </label>
-                  <div className="form-input-area">
+                  }
+                />
+              </SettingsCard>
+
+              <SettingsCard
+                title={intl.formatMessage(messages.sectionSecurityTitle)}
+                description={intl.formatMessage(
+                  messages.sectionSecurityDescription
+                )}
+              >
+                <SettingRow
+                  htmlFor="csrfProtection"
+                  label={intl.formatMessage(messages.csrfProtection)}
+                  description={intl.formatMessage(messages.csrfProtectionTip)}
+                  badges={
+                    <>
+                      <SettingsBadge badgeType="advanced" />
+                      <SettingsBadge badgeType="restartRequired" />
+                    </>
+                  }
+                  control={
                     <Tooltip
                       content={intl.formatMessage(
                         messages.csrfProtectionHoverTip
                       )}
                     >
-                      <Field
-                        type="checkbox"
+                      <Toggle
                         id="csrfProtection"
-                        name="csrfProtection"
-                        onChange={() => {
+                        ariaLabel={intl.formatMessage(messages.csrfProtection)}
+                        checked={!!values.csrfProtection}
+                        onChange={() =>
                           setFieldValue(
                             'csrfProtection',
                             !values.csrfProtection
-                          );
-                        }}
+                          )
+                        }
                       />
                     </Tooltip>
-                  </div>
-                </div>
-                <div className="form-row">
-                  <label htmlFor="forceIpv4First" className="checkbox-label">
-                    <span className="mr-2">
-                      {intl.formatMessage(messages.forceIpv4First)}
-                    </span>
-                    <SettingsBadge badgeType="advanced" />
-                    <SettingsBadge badgeType="restartRequired" />
-                    <SettingsBadge badgeType="experimental" />
-                    <span className="label-tip">
-                      {intl.formatMessage(messages.forceIpv4FirstTip)}
-                    </span>
-                  </label>
-                  <div className="form-input-area">
-                    <Field
-                      type="checkbox"
+                  }
+                />
+              </SettingsCard>
+
+              <SettingsCard
+                title={intl.formatMessage(messages.sectionDnsTitle)}
+                description={intl.formatMessage(messages.sectionDnsDescription)}
+              >
+                <SettingRow
+                  htmlFor="forceIpv4First"
+                  label={intl.formatMessage(messages.forceIpv4First)}
+                  description={intl.formatMessage(messages.forceIpv4FirstTip)}
+                  badges={
+                    <>
+                      <SettingsBadge badgeType="advanced" />
+                      <SettingsBadge badgeType="restartRequired" />
+                      <SettingsBadge badgeType="experimental" />
+                    </>
+                  }
+                  control={
+                    <Toggle
                       id="forceIpv4First"
-                      name="forceIpv4First"
-                      onChange={() => {
-                        setFieldValue('forceIpv4First', !values.forceIpv4First);
-                      }}
+                      ariaLabel={intl.formatMessage(messages.forceIpv4First)}
+                      checked={!!values.forceIpv4First}
+                      onChange={() =>
+                        setFieldValue('forceIpv4First', !values.forceIpv4First)
+                      }
                     />
-                  </div>
-                </div>
-                <div className="form-row">
-                  <label htmlFor="dnsCacheEnabled" className="checkbox-label">
-                    <span className="mr-2">
-                      {intl.formatMessage(messages.dnsCache)}
-                    </span>
-                    <SettingsBadge badgeType="advanced" />
-                    <SettingsBadge badgeType="restartRequired" />
-                    <SettingsBadge badgeType="experimental" />
-                    <span className="label-tip">
-                      {intl.formatMessage(messages.dnsCacheTip)}
-                    </span>
-                  </label>
-                  <div className="form-input-area">
+                  }
+                />
+                <SettingRow
+                  htmlFor="dnsCacheEnabled"
+                  label={intl.formatMessage(messages.dnsCache)}
+                  description={intl.formatMessage(messages.dnsCacheTip)}
+                  badges={
+                    <>
+                      <SettingsBadge badgeType="advanced" />
+                      <SettingsBadge badgeType="restartRequired" />
+                      <SettingsBadge badgeType="experimental" />
+                    </>
+                  }
+                  control={
                     <Tooltip
                       content={intl.formatMessage(messages.dnsCacheHoverTip)}
                     >
-                      <Field
-                        type="checkbox"
+                      <Toggle
                         id="dnsCacheEnabled"
-                        name="dnsCacheEnabled"
-                        onChange={() => {
+                        ariaLabel={intl.formatMessage(messages.dnsCache)}
+                        checked={!!values.dnsCacheEnabled}
+                        onChange={() =>
                           setFieldValue(
                             'dnsCacheEnabled',
                             !values.dnsCacheEnabled
-                          );
-                        }}
+                          )
+                        }
                       />
                     </Tooltip>
-                  </div>
-                </div>
+                  }
+                />
                 {values.dnsCacheEnabled && (
-                  <>
-                    <div className="ml-4 mr-2">
-                      <div className="form-row">
-                        <label
-                          htmlFor="dnsCacheForceMinTtl"
-                          className="text-label"
-                        >
-                          {intl.formatMessage(messages.dnsCacheForceMinTtl)}
-                        </label>
-                        <div className="form-input-area">
-                          <Field
-                            id="dnsCacheForceMinTtl"
-                            name="dnsCacheForceMinTtl"
-                            type="text"
-                            inputMode="numeric"
-                            className="short"
-                          />
-                        </div>
-                        {errors.dnsCacheForceMinTtl &&
-                          touched.dnsCacheForceMinTtl &&
-                          typeof errors.dnsCacheForceMinTtl === 'string' && (
-                            <div className="error">
-                              {errors.dnsCacheForceMinTtl}
-                            </div>
-                          )}
-                      </div>
-                      <div className="form-row">
-                        <label
-                          htmlFor="dnsCacheForceMaxTtl"
-                          className="text-label"
-                        >
-                          {intl.formatMessage(messages.dnsCacheForceMaxTtl)}
-                        </label>
-                        <div className="form-input-area">
-                          <Field
-                            id="dnsCacheForceMaxTtl"
-                            name="dnsCacheForceMaxTtl"
-                            type="text"
-                            inputMode="text"
-                            className="short"
-                          />
-                        </div>
-                        {errors.dnsCacheForceMaxTtl &&
-                          touched.dnsCacheForceMaxTtl &&
-                          typeof errors.dnsCacheForceMaxTtl === 'string' && (
-                            <div className="error">
-                              {errors.dnsCacheForceMaxTtl}
-                            </div>
-                          )}
-                      </div>
+                  <div className="py-4">
+                    <div className="divide-y divide-gray-700/60 rounded-lg border border-gray-700/60 bg-gray-900/40 px-4">
+                      <SettingRow
+                        alignTop
+                        htmlFor="dnsCacheForceMinTtl"
+                        label={intl.formatMessage(messages.dnsCacheForceMinTtl)}
+                        control={
+                          <>
+                            <Field
+                              id="dnsCacheForceMinTtl"
+                              name="dnsCacheForceMinTtl"
+                              type="text"
+                              inputMode="numeric"
+                              className="short"
+                            />
+                            {errors.dnsCacheForceMinTtl &&
+                              touched.dnsCacheForceMinTtl &&
+                              typeof errors.dnsCacheForceMinTtl ===
+                                'string' && (
+                                <div className="error">
+                                  {errors.dnsCacheForceMinTtl}
+                                </div>
+                              )}
+                          </>
+                        }
+                      />
+                      <SettingRow
+                        alignTop
+                        htmlFor="dnsCacheForceMaxTtl"
+                        label={intl.formatMessage(messages.dnsCacheForceMaxTtl)}
+                        control={
+                          <>
+                            <Field
+                              id="dnsCacheForceMaxTtl"
+                              name="dnsCacheForceMaxTtl"
+                              type="text"
+                              inputMode="numeric"
+                              className="short"
+                            />
+                            {errors.dnsCacheForceMaxTtl &&
+                              touched.dnsCacheForceMaxTtl &&
+                              typeof errors.dnsCacheForceMaxTtl ===
+                                'string' && (
+                                <div className="error">
+                                  {errors.dnsCacheForceMaxTtl}
+                                </div>
+                              )}
+                          </>
+                        }
+                      />
                     </div>
-                  </>
+                  </div>
                 )}
-                <div className="form-row">
-                  <label htmlFor="apiRequestTimeout" className="text-label">
-                    <span className="mr-2">
-                      {intl.formatMessage(messages.apiRequestTimeout)}
-                    </span>
-                    <SettingsBadge badgeType="restartRequired" />
-                    <span className="label-tip">
-                      {intl.formatMessage(messages.apiRequestTimeoutTip)}
-                    </span>
-                  </label>
-                  <div className="form-input-area">
-                    <Field
-                      id="apiRequestTimeout"
-                      name="apiRequestTimeout"
-                      type="text"
-                      inputMode="numeric"
-                      className="short"
-                    />
-                  </div>
-                  {errors.apiRequestTimeout &&
-                    touched.apiRequestTimeout &&
-                    typeof errors.apiRequestTimeout === 'string' && (
-                      <div className="error">{errors.apiRequestTimeout}</div>
-                    )}
-                </div>
-                <div className="form-row">
-                  <label htmlFor="proxyEnabled" className="checkbox-label">
-                    <span className="mr-2">
-                      {intl.formatMessage(messages.proxyEnabled)}
-                    </span>
-                    <SettingsBadge badgeType="advanced" />
-                    <SettingsBadge badgeType="restartRequired" />
-                    <span className="label-tip">
-                      {intl.formatMessage(messages.proxyEnabledTip)}
-                    </span>
-                  </label>
-                  <div className="form-input-area">
-                    <Field
-                      type="checkbox"
+                <SettingRow
+                  alignTop
+                  htmlFor="apiRequestTimeout"
+                  label={intl.formatMessage(messages.apiRequestTimeout)}
+                  description={intl.formatMessage(
+                    messages.apiRequestTimeoutTip
+                  )}
+                  badges={<SettingsBadge badgeType="restartRequired" />}
+                  control={
+                    <>
+                      <Field
+                        id="apiRequestTimeout"
+                        name="apiRequestTimeout"
+                        type="text"
+                        inputMode="numeric"
+                        className="short"
+                      />
+                      {errors.apiRequestTimeout &&
+                        touched.apiRequestTimeout &&
+                        typeof errors.apiRequestTimeout === 'string' && (
+                          <div className="error">
+                            {errors.apiRequestTimeout}
+                          </div>
+                        )}
+                    </>
+                  }
+                />
+              </SettingsCard>
+
+              <SettingsCard
+                title={intl.formatMessage(messages.sectionOutboundProxyTitle)}
+                description={intl.formatMessage(
+                  messages.sectionOutboundProxyDescription
+                )}
+              >
+                <SettingRow
+                  htmlFor="proxyEnabled"
+                  label={intl.formatMessage(messages.proxyEnabled)}
+                  description={intl.formatMessage(messages.proxyEnabledTip)}
+                  badges={
+                    <>
+                      <SettingsBadge badgeType="advanced" />
+                      <SettingsBadge badgeType="restartRequired" />
+                    </>
+                  }
+                  control={
+                    <Toggle
                       id="proxyEnabled"
-                      name="proxyEnabled"
-                      onChange={() => {
-                        setFieldValue('proxyEnabled', !values.proxyEnabled);
-                      }}
+                      ariaLabel={intl.formatMessage(messages.proxyEnabled)}
+                      checked={!!values.proxyEnabled}
+                      onChange={() =>
+                        setFieldValue('proxyEnabled', !values.proxyEnabled)
+                      }
                     />
-                  </div>
-                </div>
+                  }
+                />
                 {values.proxyEnabled && (
-                  <>
-                    <div className="ml-4 mr-2">
-                      <div className="form-row">
-                        <label
-                          htmlFor="proxyHostname"
-                          className="checkbox-label"
-                        >
-                          {intl.formatMessage(messages.proxyHostname)}
-                        </label>
-                        <div className="form-input-area">
-                          <div className="form-input-field">
+                  <div className="py-4">
+                    <div className="divide-y divide-gray-700/60 rounded-lg border border-gray-700/60 bg-gray-900/40 px-4">
+                      <SettingRow
+                        alignTop
+                        htmlFor="proxyHostname"
+                        label={intl.formatMessage(messages.proxyHostname)}
+                        control={
+                          <>
+                            <div className="form-input-field w-full sm:w-72">
+                              <Field
+                                id="proxyHostname"
+                                name="proxyHostname"
+                                type="text"
+                              />
+                            </div>
+                            {errors.proxyHostname &&
+                              touched.proxyHostname &&
+                              typeof errors.proxyHostname === 'string' && (
+                                <div className="error">
+                                  {errors.proxyHostname}
+                                </div>
+                              )}
+                          </>
+                        }
+                      />
+                      <SettingRow
+                        alignTop
+                        htmlFor="proxyPort"
+                        label={intl.formatMessage(messages.proxyPort)}
+                        control={
+                          <>
                             <Field
-                              id="proxyHostname"
-                              name="proxyHostname"
+                              id="proxyPort"
+                              name="proxyPort"
                               type="text"
+                              inputMode="numeric"
+                              className="short"
                             />
-                          </div>
-                          {errors.proxyHostname &&
-                            touched.proxyHostname &&
-                            typeof errors.proxyHostname === 'string' && (
-                              <div className="error">
-                                {errors.proxyHostname}
-                              </div>
-                            )}
-                        </div>
-                      </div>
-                      <div className="form-row">
-                        <label htmlFor="proxyPort" className="checkbox-label">
-                          {intl.formatMessage(messages.proxyPort)}
-                        </label>
-                        <div className="form-input-area">
-                          <Field
-                            id="proxyPort"
-                            name="proxyPort"
-                            type="text"
-                            inputMode="numeric"
-                            className="short"
-                          />
-                          {errors.proxyPort &&
-                            touched.proxyPort &&
-                            typeof errors.proxyPort === 'string' && (
-                              <div className="error">{errors.proxyPort}</div>
-                            )}
-                        </div>
-                      </div>
-                      <div className="form-row">
-                        <label htmlFor="proxySsl" className="checkbox-label">
-                          {intl.formatMessage(messages.proxySsl)}
-                        </label>
-                        <div className="form-input-area">
-                          <Field
-                            type="checkbox"
+                            {errors.proxyPort &&
+                              touched.proxyPort &&
+                              typeof errors.proxyPort === 'string' && (
+                                <div className="error">{errors.proxyPort}</div>
+                              )}
+                          </>
+                        }
+                      />
+                      <SettingRow
+                        htmlFor="proxySsl"
+                        label={intl.formatMessage(messages.proxySsl)}
+                        control={
+                          <Toggle
                             id="proxySsl"
-                            name="proxySsl"
-                            onChange={() => {
-                              setFieldValue('proxySsl', !values.proxySsl);
-                            }}
+                            ariaLabel={intl.formatMessage(messages.proxySsl)}
+                            checked={!!values.proxySsl}
+                            onChange={() =>
+                              setFieldValue('proxySsl', !values.proxySsl)
+                            }
                           />
-                        </div>
-                      </div>
-                      <div className="form-row">
-                        <label htmlFor="proxyUser" className="checkbox-label">
-                          {intl.formatMessage(messages.proxyUser)}
-                        </label>
-                        <div className="form-input-area">
-                          <div className="form-input-field">
-                            <Field
-                              id="proxyUser"
-                              name="proxyUser"
-                              type="text"
-                            />
-                          </div>
-                          {errors.proxyUser &&
-                            touched.proxyUser &&
-                            typeof errors.proxyUser === 'string' && (
-                              <div className="error">{errors.proxyUser}</div>
-                            )}
-                        </div>
-                      </div>
-                      <div className="form-row">
-                        <label
-                          htmlFor="proxyPassword"
-                          className="checkbox-label"
-                        >
-                          {intl.formatMessage(messages.proxyPassword)}
-                        </label>
-                        <div className="form-input-area">
-                          <div className="form-input-field">
-                            <Field
-                              id="proxyPassword"
-                              name="proxyPassword"
-                              type="password"
-                            />
-                          </div>
-                          {errors.proxyPassword &&
-                            touched.proxyPassword &&
-                            typeof errors.proxyPassword === 'string' && (
-                              <div className="error">
-                                {errors.proxyPassword}
-                              </div>
-                            )}
-                        </div>
-                      </div>
-                      <div className="form-row">
-                        <label
-                          htmlFor="proxyBypassFilter"
-                          className="checkbox-label"
-                        >
-                          {intl.formatMessage(messages.proxyBypassFilter)}
-                          <span className="label-tip">
-                            {intl.formatMessage(messages.proxyBypassFilterTip)}
-                          </span>
-                        </label>
-                        <div className="form-input-area">
-                          <div className="form-input-field">
-                            <Field
-                              id="proxyBypassFilter"
-                              name="proxyBypassFilter"
-                              type="text"
-                            />
-                          </div>
-                          {errors.proxyBypassFilter &&
-                            touched.proxyBypassFilter &&
-                            typeof errors.proxyBypassFilter === 'string' && (
-                              <div className="error">
-                                {errors.proxyBypassFilter}
-                              </div>
-                            )}
-                        </div>
-                      </div>
-                      <div className="form-row">
-                        <label
-                          htmlFor="proxyBypassLocalAddresses"
-                          className="checkbox-label"
-                        >
-                          {intl.formatMessage(
-                            messages.proxyBypassLocalAddresses
-                          )}
-                        </label>
-                        <div className="form-input-area">
-                          <Field
-                            type="checkbox"
+                        }
+                      />
+                      <SettingRow
+                        alignTop
+                        htmlFor="proxyUser"
+                        label={intl.formatMessage(messages.proxyUser)}
+                        control={
+                          <>
+                            <div className="form-input-field w-full sm:w-72">
+                              <Field
+                                id="proxyUser"
+                                name="proxyUser"
+                                type="text"
+                              />
+                            </div>
+                            {errors.proxyUser &&
+                              touched.proxyUser &&
+                              typeof errors.proxyUser === 'string' && (
+                                <div className="error">{errors.proxyUser}</div>
+                              )}
+                          </>
+                        }
+                      />
+                      <SettingRow
+                        alignTop
+                        htmlFor="proxyPassword"
+                        label={intl.formatMessage(messages.proxyPassword)}
+                        control={
+                          <>
+                            <div className="form-input-field w-full sm:w-72">
+                              <Field
+                                id="proxyPassword"
+                                name="proxyPassword"
+                                type="password"
+                              />
+                            </div>
+                            {errors.proxyPassword &&
+                              touched.proxyPassword &&
+                              typeof errors.proxyPassword === 'string' && (
+                                <div className="error">
+                                  {errors.proxyPassword}
+                                </div>
+                              )}
+                          </>
+                        }
+                      />
+                      <SettingRow
+                        alignTop
+                        htmlFor="proxyBypassFilter"
+                        label={intl.formatMessage(messages.proxyBypassFilter)}
+                        description={intl.formatMessage(
+                          messages.proxyBypassFilterTip
+                        )}
+                        control={
+                          <>
+                            <div className="form-input-field w-full sm:w-72">
+                              <Field
+                                id="proxyBypassFilter"
+                                name="proxyBypassFilter"
+                                type="text"
+                              />
+                            </div>
+                            {errors.proxyBypassFilter &&
+                              touched.proxyBypassFilter &&
+                              typeof errors.proxyBypassFilter === 'string' && (
+                                <div className="error">
+                                  {errors.proxyBypassFilter}
+                                </div>
+                              )}
+                          </>
+                        }
+                      />
+                      <SettingRow
+                        htmlFor="proxyBypassLocalAddresses"
+                        label={intl.formatMessage(
+                          messages.proxyBypassLocalAddresses
+                        )}
+                        control={
+                          <Toggle
                             id="proxyBypassLocalAddresses"
-                            name="proxyBypassLocalAddresses"
-                            onChange={() => {
+                            ariaLabel={intl.formatMessage(
+                              messages.proxyBypassLocalAddresses
+                            )}
+                            checked={!!values.proxyBypassLocalAddresses}
+                            onChange={() =>
                               setFieldValue(
                                 'proxyBypassLocalAddresses',
                                 !values.proxyBypassLocalAddresses
-                              );
-                            }}
+                              )
+                            }
                           />
-                        </div>
-                      </div>
+                        }
+                      />
                     </div>
-                  </>
-                )}
-                <div className="actions">
-                  <div className="flex justify-end">
-                    <span className="ml-3 inline-flex rounded-md shadow-sm">
-                      <Button
-                        buttonType="primary"
-                        type="submit"
-                        disabled={isSubmitting || !isValid}
-                      >
-                        <ArrowDownOnSquareIcon />
-                        <span>
-                          {isSubmitting
-                            ? intl.formatMessage(globalMessages.saving)
-                            : intl.formatMessage(globalMessages.save)}
-                        </span>
-                      </Button>
-                    </span>
                   </div>
+                )}
+              </SettingsCard>
+
+              <div className="actions">
+                <div className="flex justify-end">
+                  <span className="inline-flex rounded-md shadow-sm">
+                    <Button
+                      buttonType="primary"
+                      type="submit"
+                      disabled={isSubmitting || !isValid}
+                    >
+                      <ArrowDownOnSquareIcon />
+                      <span>
+                        {isSubmitting
+                          ? intl.formatMessage(globalMessages.saving)
+                          : intl.formatMessage(globalMessages.save)}
+                      </span>
+                    </Button>
+                  </span>
                 </div>
-              </Form>
-            );
-          }}
-        </Formik>
-      </div>
+              </div>
+            </Form>
+          );
+        }}
+      </Formik>
     </>
   );
 };
