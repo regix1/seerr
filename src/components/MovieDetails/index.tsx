@@ -23,8 +23,8 @@ import PersonCard from '@app/components/PersonCard';
 import RequestButton from '@app/components/RequestButton';
 import Slider from '@app/components/Slider';
 import StatusBadge from '@app/components/StatusBadge';
-import useDeepLinks from '@app/hooks/useDeepLinks';
 import useLocale from '@app/hooks/useLocale';
+import useMediaServerPlayLinks from '@app/hooks/useMediaServerPlayLinks';
 import useSettings from '@app/hooks/useSettings';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
@@ -168,12 +168,8 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
     []
   );
 
-  const { mediaUrl: plexUrl, mediaUrl4k: plexUrl4k } = useDeepLinks({
-    mediaUrl: data?.mediaInfo?.mediaUrl,
-    mediaUrl4k: data?.mediaInfo?.mediaUrl4k,
-    iOSPlexUrl: data?.mediaInfo?.iOSPlexUrl,
-    iOSPlexUrl4k: data?.mediaInfo?.iOSPlexUrl4k,
-  });
+  const playLinks = useMediaServerPlayLinks(data?.mediaInfo, false);
+  const playLinks4k = useMediaServerPlayLinks(data?.mediaInfo, true);
 
   if (!data && !error) {
     return <LoadingSpinner />;
@@ -187,29 +183,35 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
   const mediaLinks: PlayButtonLink[] = [];
 
   if (
-    plexUrl &&
     hasPermission([Permission.REQUEST, Permission.REQUEST_MOVIE], {
       type: 'or',
     })
   ) {
-    mediaLinks.push({
-      text: getAvailableMediaServerName(plexUrl),
-      url: plexUrl,
-      svg: <PlayIcon />,
+    playLinks.forEach((link) => {
+      mediaLinks.push({
+        text: intl.formatMessage(messages.play, {
+          mediaServerName: link.mediaServerName,
+        }),
+        url: link.url,
+        svg: <PlayIcon />,
+      });
     });
   }
 
   if (
     settings.currentSettings.movie4kEnabled &&
-    plexUrl4k &&
     hasPermission([Permission.REQUEST_4K, Permission.REQUEST_4K_MOVIE], {
       type: 'or',
     })
   ) {
-    mediaLinks.push({
-      text: getAvailableMediaServerName(plexUrl4k, true),
-      url: plexUrl4k,
-      svg: <PlayIcon />,
+    playLinks4k.forEach((link) => {
+      mediaLinks.push({
+        text: intl.formatMessage(messages.play4k, {
+          mediaServerName: link.mediaServerName,
+        }),
+        url: link.url,
+        svg: <PlayIcon />,
+      });
     });
   }
 
@@ -300,34 +302,6 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
     data?.watchProviders?.find(
       (provider) => provider.iso_3166_1 === streamingRegion
     )?.flatrate ?? [];
-
-  function getMediaServerNameForUrl(url?: string, is4k = false) {
-    if (
-      url &&
-      url ===
-        (is4k ? data?.mediaInfo?.embyMediaUrl4k : data?.mediaInfo?.embyMediaUrl)
-    ) {
-      return 'Emby';
-    }
-
-    if (
-      url &&
-      url ===
-        (is4k
-          ? data?.mediaInfo?.jellyfinMediaUrl4k
-          : data?.mediaInfo?.jellyfinMediaUrl)
-    ) {
-      return 'Jellyfin';
-    }
-
-    return 'Plex';
-  }
-
-  function getAvailableMediaServerName(url?: string, is4k = false) {
-    return intl.formatMessage(is4k ? messages.play4k : messages.play, {
-      mediaServerName: getMediaServerNameForUrl(url, is4k),
-    });
-  }
 
   const onClickWatchlistBtn = async (): Promise<void> => {
     setIsUpdating(true);
@@ -519,8 +493,7 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
               fileFlowsProgress={data.mediaInfo?.fileFlowsProgress}
               tmdbId={data.mediaInfo?.tmdbId}
               mediaType="movie"
-              plexUrl={plexUrl}
-              mediaServerName={getMediaServerNameForUrl(plexUrl)}
+              playLinks={playLinks}
               serviceUrl={data.mediaInfo?.serviceUrl}
             />
             {settings.currentSettings.movie4kEnabled &&
@@ -546,8 +519,7 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
                   fileFlowsProgress={data.mediaInfo?.fileFlowsProgress}
                   tmdbId={data.mediaInfo?.tmdbId}
                   mediaType="movie"
-                  plexUrl={plexUrl4k}
-                  mediaServerName={getMediaServerNameForUrl(plexUrl4k, true)}
+                  playLinks={playLinks4k}
                   serviceUrl={data.mediaInfo?.serviceUrl4k}
                 />
               )}
@@ -1136,7 +1108,11 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
                 imdbId={data.externalIds.imdbId}
                 rtUrl={ratingData?.rt?.url}
                 mediaUrl={
-                  data.mediaInfo?.mediaUrl ?? data.mediaInfo?.mediaUrl4k
+                  data.mediaInfo?.ratingKey
+                    ? data.mediaInfo.mediaUrl
+                    : data.mediaInfo?.ratingKey4k
+                      ? data.mediaInfo.mediaUrl4k
+                      : undefined
                 }
                 jellyfinMediaUrl={
                   data.mediaInfo?.jellyfinMediaUrl ??

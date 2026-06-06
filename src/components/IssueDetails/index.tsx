@@ -7,12 +7,13 @@ import PageTitle from '@app/components/Common/PageTitle';
 import IssueComment from '@app/components/IssueDetails/IssueComment';
 import IssueDescription from '@app/components/IssueDetails/IssueDescription';
 import { issueOptions } from '@app/components/IssueModal/constants';
-import useDeepLinks from '@app/hooks/useDeepLinks';
+import useMediaServerPlayLinks from '@app/hooks/useMediaServerPlayLinks';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, Permission2, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
+import type { MediaServerPlayLink } from '@app/utils/mediaServerPlayLinks';
 import { Transition } from '@headlessui/react';
 import {
   ChatBubbleOvalLeftEllipsisIcon,
@@ -71,21 +72,6 @@ const messages = defineMessages('components.IssueDetails', {
   commentplaceholder: 'Add a comment…',
 });
 
-const getPlayButtonLabel = (
-  intl: ReturnType<typeof useIntl>,
-  serverFlavor: 'plex' | 'jellyfin' | 'emby',
-  is4k = false
-): string => {
-  const messageKey = is4k ? messages.play4konplex : messages.playonplex;
-  const mediaServerName =
-    serverFlavor === 'emby'
-      ? 'Emby'
-      : serverFlavor === 'jellyfin'
-        ? 'Jellyfin'
-        : 'Plex';
-  return intl.formatMessage(messageKey, { mediaServerName });
-};
-
 const isMovie = (movie: MovieDetails | TvDetails): movie is MovieDetails => {
   return (movie as MovieDetails).title !== undefined;
 };
@@ -105,17 +91,9 @@ const IssueDetails = () => {
       : null
   );
 
-  const { mediaUrl, mediaUrl4k } = useDeepLinks({
-    mediaUrl: data?.mediaInfo?.mediaUrl,
-    mediaUrl4k: data?.mediaInfo?.mediaUrl4k,
-    iOSPlexUrl: data?.mediaInfo?.iOSPlexUrl,
-    iOSPlexUrl4k: data?.mediaInfo?.iOSPlexUrl4k,
-  });
-
-  const jellyfinMediaUrl = data?.mediaInfo?.jellyfinMediaUrl;
-  const jellyfinMediaUrl4k = data?.mediaInfo?.jellyfinMediaUrl4k;
-  const embyMediaUrl = data?.mediaInfo?.embyMediaUrl;
-  const embyMediaUrl4k = data?.mediaInfo?.embyMediaUrl4k;
+  const mediaForPlayLinks = data?.mediaInfo ?? issueData?.media;
+  const playLinks = useMediaServerPlayLinks(mediaForPlayLinks, false);
+  const playLinks4k = useMediaServerPlayLinks(mediaForPlayLinks, true);
 
   const CommentSchema = Yup.object().shape({
     message: Yup.string().required(),
@@ -134,6 +112,29 @@ const IssueDetails = () => {
   }
 
   const belongsToUser = issueData.createdBy.id === currentUser?.id;
+
+  const renderPlayLinks = (links: MediaServerPlayLink[], is4k = false) =>
+    links.map((link) => (
+      <Button
+        key={`play-${is4k ? '4k-' : ''}${link.mediaServerName}-${link.url}`}
+        as="a"
+        href={link.url}
+        target="_blank"
+        rel="noreferrer"
+        className="w-full"
+        buttonType="ghost"
+      >
+        <PlayIcon />
+        <span>
+          {intl.formatMessage(
+            is4k ? messages.play4konplex : messages.playonplex,
+            {
+              mediaServerName: link.mediaServerName,
+            }
+          )}
+        </span>
+      </Button>
+    ));
 
   const [firstComment, ...otherComments] = issueData.comments;
 
@@ -388,45 +389,7 @@ const IssueDetails = () => {
               </div>
             </div>
             <div className="mb-6 mt-4 flex flex-col space-y-2">
-              {issueData?.media.mediaUrl && (
-                <Button
-                  as="a"
-                  href={mediaUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full"
-                  buttonType="ghost"
-                >
-                  <PlayIcon />
-                  <span>{getPlayButtonLabel(intl, 'plex')}</span>
-                </Button>
-              )}
-              {jellyfinMediaUrl && (
-                <Button
-                  as="a"
-                  href={jellyfinMediaUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full"
-                  buttonType="ghost"
-                >
-                  <PlayIcon />
-                  <span>{getPlayButtonLabel(intl, 'jellyfin')}</span>
-                </Button>
-              )}
-              {embyMediaUrl && (
-                <Button
-                  as="a"
-                  href={embyMediaUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full"
-                  buttonType="ghost"
-                >
-                  <PlayIcon />
-                  <span>{getPlayButtonLabel(intl, 'emby')}</span>
-                </Button>
-              )}
+              {renderPlayLinks(playLinks)}
               {issueData?.media.serviceUrl &&
                 hasPermission(Permission.ADMIN) && (
                   <Button
@@ -448,45 +411,7 @@ const IssueDetails = () => {
                     </span>
                   </Button>
                 )}
-              {issueData?.media.mediaUrl4k && (
-                <Button
-                  as="a"
-                  href={mediaUrl4k}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full"
-                  buttonType="ghost"
-                >
-                  <PlayIcon />
-                  <span>{getPlayButtonLabel(intl, 'plex', true)}</span>
-                </Button>
-              )}
-              {jellyfinMediaUrl4k && (
-                <Button
-                  as="a"
-                  href={jellyfinMediaUrl4k}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full"
-                  buttonType="ghost"
-                >
-                  <PlayIcon />
-                  <span>{getPlayButtonLabel(intl, 'jellyfin', true)}</span>
-                </Button>
-              )}
-              {embyMediaUrl4k && (
-                <Button
-                  as="a"
-                  href={embyMediaUrl4k}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full"
-                  buttonType="ghost"
-                >
-                  <PlayIcon />
-                  <span>{getPlayButtonLabel(intl, 'emby', true)}</span>
-                </Button>
-              )}
+              {renderPlayLinks(playLinks4k, true)}
               {issueData?.media.serviceUrl4k &&
                 hasPermission(Permission.ADMIN) && (
                   <Button
@@ -690,45 +615,7 @@ const IssueDetails = () => {
             </div>
           </div>
           <div className="mb-6 mt-4 flex flex-col space-y-2">
-            {issueData?.media.mediaUrl && (
-              <Button
-                as="a"
-                href={mediaUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full"
-                buttonType="ghost"
-              >
-                <PlayIcon />
-                <span>{getPlayButtonLabel(intl, 'plex')}</span>
-              </Button>
-            )}
-            {jellyfinMediaUrl && (
-              <Button
-                as="a"
-                href={jellyfinMediaUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full"
-                buttonType="ghost"
-              >
-                <PlayIcon />
-                <span>{getPlayButtonLabel(intl, 'jellyfin')}</span>
-              </Button>
-            )}
-            {embyMediaUrl && (
-              <Button
-                as="a"
-                href={embyMediaUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full"
-                buttonType="ghost"
-              >
-                <PlayIcon />
-                <span>{getPlayButtonLabel(intl, 'emby')}</span>
-              </Button>
-            )}
+            {renderPlayLinks(playLinks)}
             {issueData?.media.serviceUrl && hasPermission(Permission.ADMIN) && (
               <Button
                 as="a"
@@ -749,45 +636,7 @@ const IssueDetails = () => {
                 </span>
               </Button>
             )}
-            {issueData?.media.mediaUrl4k && (
-              <Button
-                as="a"
-                href={mediaUrl4k}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full"
-                buttonType="ghost"
-              >
-                <PlayIcon />
-                <span>{getPlayButtonLabel(intl, 'plex', true)}</span>
-              </Button>
-            )}
-            {jellyfinMediaUrl4k && (
-              <Button
-                as="a"
-                href={jellyfinMediaUrl4k}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full"
-                buttonType="ghost"
-              >
-                <PlayIcon />
-                <span>{getPlayButtonLabel(intl, 'jellyfin', true)}</span>
-              </Button>
-            )}
-            {embyMediaUrl4k && (
-              <Button
-                as="a"
-                href={embyMediaUrl4k}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full"
-                buttonType="ghost"
-              >
-                <PlayIcon />
-                <span>{getPlayButtonLabel(intl, 'emby', true)}</span>
-              </Button>
-            )}
+            {renderPlayLinks(playLinks4k, true)}
             {issueData?.media.serviceUrl4k &&
               hasPermission(Permission.ADMIN) && (
                 <Button

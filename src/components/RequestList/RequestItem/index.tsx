@@ -5,7 +5,7 @@ import CachedImage from '@app/components/Common/CachedImage';
 import ConfirmButton from '@app/components/Common/ConfirmButton';
 import RequestModal from '@app/components/RequestModal';
 import StatusBadge from '@app/components/StatusBadge';
-import useDeepLinks from '@app/hooks/useDeepLinks';
+import useMediaServerPlayLinks from '@app/hooks/useMediaServerPlayLinks';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, Permission2, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
@@ -74,12 +74,10 @@ const RequestItemError = ({
     mutate('/api/v1/request/count');
   };
 
-  const { mediaUrl: plexUrl, mediaUrl4k: plexUrl4k } = useDeepLinks({
-    mediaUrl: requestData?.media?.mediaUrl,
-    mediaUrl4k: requestData?.media?.mediaUrl4k,
-    iOSPlexUrl: requestData?.media?.iOSPlexUrl,
-    iOSPlexUrl4k: requestData?.media?.iOSPlexUrl4k,
-  });
+  const playLinks = useMediaServerPlayLinks(
+    requestData?.media,
+    requestData?.is4k ?? false
+  );
 
   return (
     <div className="flex h-64 w-full flex-col justify-center rounded-xl bg-gray-800 py-4 text-gray-400 shadow-md ring-1 ring-red-500 xl:h-28 xl:flex-row">
@@ -159,7 +157,7 @@ const RequestItemError = ({
                     fileFlowsProgress={requestData.media.fileFlowsProgress}
                     is4k={requestData.is4k}
                     mediaType={requestData.type}
-                    plexUrl={requestData.is4k ? plexUrl4k : plexUrl}
+                    playLinks={playLinks}
                     serviceUrl={
                       requestData.is4k
                         ? requestData.media.serviceUrl4k
@@ -405,12 +403,10 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
     }
   };
 
-  const { mediaUrl: plexUrl, mediaUrl4k: plexUrl4k } = useDeepLinks({
-    mediaUrl: requestData?.media?.mediaUrl,
-    mediaUrl4k: requestData?.media?.mediaUrl4k,
-    iOSPlexUrl: requestData?.media?.iOSPlexUrl,
-    iOSPlexUrl4k: requestData?.media?.iOSPlexUrl4k,
-  });
+  const playLinks = useMediaServerPlayLinks(
+    requestData?.media,
+    requestData?.is4k ?? false
+  );
 
   if (!title && !error) {
     return (
@@ -574,7 +570,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   is4k={requestData.is4k}
                   tmdbId={requestData.media.tmdbId}
                   mediaType={requestData.type}
-                  plexUrl={requestData.is4k ? plexUrl4k : plexUrl}
+                  playLinks={playLinks}
                   serviceUrl={
                     requestData.is4k
                       ? requestData.media.serviceUrl4k

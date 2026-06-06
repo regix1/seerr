@@ -5,7 +5,7 @@ import CachedImage from '@app/components/Common/CachedImage';
 import Tooltip from '@app/components/Common/Tooltip';
 import RequestModal from '@app/components/RequestModal';
 import StatusBadge from '@app/components/StatusBadge';
-import useDeepLinks from '@app/hooks/useDeepLinks';
+import useMediaServerPlayLinks from '@app/hooks/useMediaServerPlayLinks';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, Permission2, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
@@ -69,12 +69,10 @@ const RequestCardError = ({ requestData }: RequestCardErrorProps) => {
   const { user, hasPermission } = useUser();
   const intl = useIntl();
 
-  const { mediaUrl: plexUrl, mediaUrl4k: plexUrl4k } = useDeepLinks({
-    mediaUrl: requestData?.media?.mediaUrl,
-    mediaUrl4k: requestData?.media?.mediaUrl4k,
-    iOSPlexUrl: requestData?.media?.iOSPlexUrl,
-    iOSPlexUrl4k: requestData?.media?.iOSPlexUrl4k,
-  });
+  const playLinks = useMediaServerPlayLinks(
+    requestData?.media,
+    requestData?.is4k ?? false
+  );
 
   const deleteRequest = async () => {
     await axios.delete(`/api/v1/media/${requestData?.media.id}`);
@@ -175,7 +173,7 @@ const RequestCardError = ({ requestData }: RequestCardErrorProps) => {
                       fileFlowsProgress={requestData.media.fileFlowsProgress}
                       is4k={requestData.is4k}
                       mediaType={requestData.type}
-                      plexUrl={requestData.is4k ? plexUrl4k : plexUrl}
+                      playLinks={playLinks}
                       serviceUrl={
                         requestData.is4k
                           ? requestData.media.serviceUrl4k
@@ -270,12 +268,10 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
     }
   );
 
-  const { mediaUrl: plexUrl, mediaUrl4k: plexUrl4k } = useDeepLinks({
-    mediaUrl: requestData?.media?.mediaUrl,
-    mediaUrl4k: requestData?.media?.mediaUrl4k,
-    iOSPlexUrl: requestData?.media?.iOSPlexUrl,
-    iOSPlexUrl4k: requestData?.media?.iOSPlexUrl4k,
-  });
+  const playLinks = useMediaServerPlayLinks(
+    requestData?.media,
+    requestData?.is4k ?? false
+  );
 
   const modifyRequest = async (type: 'approve' | 'decline') => {
     setUpdatingType(type);
@@ -498,7 +494,7 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                 is4k={requestData.is4k}
                 tmdbId={requestData.media.tmdbId}
                 mediaType={requestData.type}
-                plexUrl={requestData.is4k ? plexUrl4k : plexUrl}
+                playLinks={playLinks}
                 serviceUrl={
                   requestData.is4k
                     ? requestData.media.serviceUrl4k

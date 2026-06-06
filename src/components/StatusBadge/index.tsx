@@ -6,6 +6,7 @@ import useSettings from '@app/hooks/useSettings';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
+import type { MediaServerPlayLink } from '@app/utils/mediaServerPlayLinks';
 import { MediaStatus } from '@server/constants/media';
 import type { DownloadingItem } from '@server/lib/downloadtracker';
 import { useIntl } from 'react-intl';
@@ -28,13 +29,12 @@ interface StatusBadgeProps {
   inProgress?: boolean;
   fileFlowsProcessing?: boolean;
   fileFlowsProgress?: number | null;
-  plexUrl?: string;
+  playLinks?: MediaServerPlayLink[];
   serviceUrl?: string;
   tmdbId?: number;
   mediaType?: 'movie' | 'tv';
   title?: string | string[];
   statusLabelOverride?: string;
-  mediaServerName?: string;
 }
 
 const StatusBadge = ({
@@ -44,28 +44,28 @@ const StatusBadge = ({
   inProgress = false,
   fileFlowsProcessing = false,
   fileFlowsProgress = null,
-  plexUrl,
+  playLinks = [],
   serviceUrl,
   tmdbId,
   mediaType,
   title,
   statusLabelOverride,
-  mediaServerName,
 }: StatusBadgeProps) => {
   const intl = useIntl();
   const { hasPermission } = useUser();
   const settings = useSettings();
 
   let mediaLink: string | undefined;
-  let mediaLinkDescription: string | undefined;
+  let mediaLinkDescription: React.ReactNode;
+  let hasMultiplePlayLinks = false;
 
   const calculateDownloadProgress = (media: DownloadingItem) => {
     return Math.round(((media?.size - media?.sizeLeft) / media?.size) * 100);
   };
 
-  if (
+  const canPlayOnMediaServer =
     mediaType &&
-    plexUrl &&
+    playLinks.length > 0 &&
     hasPermission(
       is4k
         ? [
@@ -87,12 +87,38 @@ const StatusBadge = ({
     (!is4k ||
       (mediaType === 'movie'
         ? settings.currentSettings.movie4kEnabled
-        : settings.currentSettings.series4kEnabled))
-  ) {
-    mediaLink = plexUrl;
-    mediaLinkDescription = intl.formatMessage(messages.playonplex, {
-      mediaServerName: mediaServerName ?? 'Plex',
-    });
+        : settings.currentSettings.series4kEnabled));
+
+  if (canPlayOnMediaServer) {
+    if (playLinks.length === 1) {
+      mediaLink = playLinks[0].url;
+      mediaLinkDescription = intl.formatMessage(messages.playonplex, {
+        mediaServerName: playLinks[0].mediaServerName,
+      });
+    } else {
+      hasMultiplePlayLinks = true;
+      mediaLinkDescription = (
+        <ul>
+          {playLinks.map((link) => (
+            <li
+              key={`${link.mediaServerName}-${link.url}`}
+              className="border-b border-gray-700 last:border-b-0"
+            >
+              <a
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block py-1 text-indigo-300 hover:text-indigo-200 hover:underline"
+              >
+                {intl.formatMessage(messages.playonplex, {
+                  mediaServerName: link.mediaServerName,
+                })}
+              </a>
+            </li>
+          ))}
+        </ul>
+      );
+    }
   } else if (hasPermission(Permission.MANAGE_REQUESTS)) {
     if (mediaType && tmdbId) {
       mediaLink = `/${mediaType}/${tmdbId}?manage=1`;
@@ -155,6 +181,10 @@ const StatusBadge = ({
     />
   );
 
+  const playLinkTooltipConfig = hasMultiplePlayLinks
+    ? { interactive: true, delayHide: 100, followCursor: false }
+    : {};
+
   // FileFlows post-processes a file before or after the *arr imports it, so the
   // persisted status may be PROCESSING or already AVAILABLE. Whenever FileFlows
   // is working on the item — and no *arr download is in progress (that has its
@@ -175,7 +205,10 @@ const StatusBadge = ({
         ? Math.max(0, Math.min(100, Math.round(fileFlowsProgress)))
         : null;
     return (
-      <Tooltip content={mediaLinkDescription}>
+      <Tooltip
+        content={mediaLinkDescription}
+        tooltipConfig={playLinkTooltipConfig}
+      >
         <Badge
           badgeType="default"
           href={mediaLink}
@@ -206,6 +239,7 @@ const StatusBadge = ({
             inProgress && 'hidden max-h-96 w-96 overflow-y-auto sm:block'
           }`}
           tooltipConfig={{
+            ...playLinkTooltipConfig,
             ...(inProgress && { interactive: true, delayHide: 100 }),
           }}
         >
@@ -271,6 +305,7 @@ const StatusBadge = ({
             inProgress && 'hidden max-h-96 w-96 overflow-y-auto sm:block'
           }`}
           tooltipConfig={{
+            ...playLinkTooltipConfig,
             ...(inProgress && { interactive: true, delayHide: 100 }),
           }}
         >
@@ -336,6 +371,7 @@ const StatusBadge = ({
             inProgress && 'hidden max-h-96 w-96 overflow-y-auto sm:block'
           }`}
           tooltipConfig={{
+            ...playLinkTooltipConfig,
             ...(inProgress && { interactive: true, delayHide: 100 }),
           }}
         >
@@ -395,7 +431,10 @@ const StatusBadge = ({
 
     case MediaStatus.PENDING:
       return (
-        <Tooltip content={mediaLinkDescription}>
+        <Tooltip
+          content={mediaLinkDescription}
+          tooltipConfig={playLinkTooltipConfig}
+        >
           <Badge badgeType="warning" href={mediaLink}>
             {intl.formatMessage(is4k ? messages.status4k : messages.status, {
               status: intl.formatMessage(globalMessages.pending),
@@ -406,7 +445,10 @@ const StatusBadge = ({
 
     case MediaStatus.BLOCKLISTED:
       return (
-        <Tooltip content={mediaLinkDescription}>
+        <Tooltip
+          content={mediaLinkDescription}
+          tooltipConfig={playLinkTooltipConfig}
+        >
           <Badge badgeType="danger" href={mediaLink}>
             {intl.formatMessage(is4k ? messages.status4k : messages.status, {
               status:
@@ -425,6 +467,7 @@ const StatusBadge = ({
             inProgress && 'hidden max-h-96 w-96 overflow-y-auto sm:block'
           }`}
           tooltipConfig={{
+            ...playLinkTooltipConfig,
             ...(inProgress && { interactive: true, delayHide: 100 }),
           }}
         >

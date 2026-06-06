@@ -37,6 +37,10 @@ const KeyMap: Record<string, string | KeyMapFunction> = {
     payload.media?.mediaUrl ?? payload.media?.mediaUrl4k ?? '',
   media_jellyfinMediaUrl: (payload) =>
     payload.media?.jellyfinMediaUrl ?? payload.media?.jellyfinMediaUrl4k ?? '',
+  media_embyMediaId: (payload) =>
+    payload.media?.embyMediaId ?? payload.media?.embyMediaId4k ?? '',
+  media_embyMediaUrl: (payload) =>
+    payload.media?.embyMediaUrl ?? payload.media?.embyMediaUrl4k ?? '',
   media_status: (payload) =>
     payload.media ? MediaStatus[payload.media.status] : '',
   media_status4k: (payload) =>
