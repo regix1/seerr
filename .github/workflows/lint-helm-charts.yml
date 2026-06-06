@@ -3,15 +3,14 @@
 name: Lint and Test Charts
 
 on:
+  # Chart-testing's version-increment check is a PR-time check (compares the PR
+  # against its base branch). On a push to develop the target branch IS the
+  # pushed commit, so old==new and `ct lint` can never pass — so we only lint on PRs.
   pull_request:
     branches:
       - develop
     paths:
       - '.github/workflows/lint-helm-charts.yml'
-      - 'charts/**'
-  push:
-    branches: [develop]
-    paths:
       - 'charts/**'
 
 permissions:
