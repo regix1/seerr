@@ -379,7 +379,9 @@ class BaseScanner<T> {
           // If the season is already marked as available, we
           // force it to stay available (to avoid competing scanners)
           existingSeason.status =
-            (season.totalEpisodes === season.episodes && season.episodes > 0) ||
+            (season.totalEpisodes === season.episodes &&
+              season.episodes > 0 &&
+              !season.processing) ||
             existingSeason.status === MediaStatus.AVAILABLE
               ? MediaStatus.AVAILABLE
               : season.episodes > 0
@@ -399,7 +401,8 @@ class BaseScanner<T> {
           existingSeason.status4k =
             (this.enable4kShow &&
               season.episodes4k === season.totalEpisodes &&
-              season.episodes4k > 0) ||
+              season.episodes4k > 0 &&
+              !season.processing) ||
             existingSeason.status4k === MediaStatus.AVAILABLE
               ? MediaStatus.AVAILABLE
               : this.enable4kShow && season.episodes4k > 0
@@ -419,7 +422,9 @@ class BaseScanner<T> {
             new Season({
               seasonNumber: season.seasonNumber,
               status:
-                season.totalEpisodes === season.episodes && season.episodes > 0
+                season.totalEpisodes === season.episodes &&
+                season.episodes > 0 &&
+                !season.processing
                   ? MediaStatus.AVAILABLE
                   : season.episodes > 0
                     ? MediaStatus.PARTIALLY_AVAILABLE
@@ -429,7 +434,8 @@ class BaseScanner<T> {
               status4k:
                 this.enable4kShow &&
                 season.totalEpisodes === season.episodes4k &&
-                season.episodes4k > 0
+                season.episodes4k > 0 &&
+                !season.processing
                   ? MediaStatus.AVAILABLE
                   : this.enable4kShow && season.episodes4k > 0
                     ? MediaStatus.PARTIALLY_AVAILABLE

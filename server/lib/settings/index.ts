@@ -131,6 +131,15 @@ export interface MetadataSettings {
   anime: MetadataProviderType;
 }
 
+export interface FileFlowsSettings {
+  enabled: boolean;
+  hostname: string;
+  port: number;
+  useSsl: boolean;
+  apiKey: string;
+  urlBase: string;
+}
+
 export interface ProxySettings {
   enabled: boolean;
   hostname: string;
@@ -414,6 +423,7 @@ export interface AllSettings {
   jobs: Record<JobId, JobSettings>;
   network: NetworkSettings;
   metadataSettings: MetadataSettings;
+  fileflows: FileFlowsSettings;
   migrations: string[];
 }
 
@@ -498,6 +508,14 @@ class Settings {
       metadataSettings: {
         tv: MetadataProviderType.TMDB,
         anime: MetadataProviderType.TMDB,
+      },
+      fileflows: {
+        enabled: false,
+        hostname: '',
+        port: 19200,
+        useSsl: false,
+        apiKey: '',
+        urlBase: '',
       },
       radarr: [],
       sonarr: [],
@@ -735,6 +753,14 @@ class Settings {
       this.data.metadataSettings,
       data
     );
+  }
+
+  get fileflows(): FileFlowsSettings {
+    return this.data.fileflows;
+  }
+
+  set fileflows(data: FileFlowsSettings) {
+    this.data.fileflows = mergeSettings(this.data.fileflows, data);
   }
 
   get radarr(): RadarrSettings[] {

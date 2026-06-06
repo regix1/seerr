@@ -3,6 +3,7 @@ import RadarrAPI from '@server/api/servarr/radarr';
 import { MediaStatus, MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
+import fileFlowsTracker from '@server/lib/fileflows';
 import type {
   RunnableScanner,
   StatusBase,
@@ -124,13 +125,31 @@ class RadarrScanner
     }
 
     try {
+      let processing = !radarrMovie.hasFile && radarrMovie.monitored;
+
+      // FileFlows gate: if the imported file is still being post-processed by
+      // FileFlows, keep the movie marked as processing so it is not flipped to
+      // available (and the available notification is not sent) prematurely.
+      if (
+        radarrMovie.hasFile &&
+        (await fileFlowsTracker.isFileProcessing(
+          radarrMovie.movieFile?.relativePath ?? radarrMovie.movieFile?.path
+        ))
+      ) {
+        processing = true;
+        this.log(
+          `FileFlows is still processing "${radarrMovie.title}"; deferring availability`,
+          'debug'
+        );
+      }
+
       await this.processMovie(radarrMovie.tmdbId, {
         is4k: server4k,
         serviceId: this.currentServer.id,
         externalServiceId: radarrMovie.id,
         externalServiceSlug: radarrMovie.titleSlug,
         title: radarrMovie.title,
-        processing: !radarrMovie.hasFile && radarrMovie.monitored,
+        processing,
         hasFile: radarrMovie.hasFile,
       });
     } catch (e) {

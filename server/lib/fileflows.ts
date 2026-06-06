@@ -1,0 +1,147 @@
+import FileFlowsAPI from '@server/api/fileflows';
+import { getSettings } from '@server/lib/settings';
+import logger from '@server/logger';
+
+// How long a successful /api/status result is reused before re-fetching. A
+// scanner processes many items per run; this keeps it to ~one request per run.
+const CACHE_TTL_MS = 30 * 1000;
+// If FileFlows stays unreachable longer than this, the last-good cache is
+// discarded so a FileFlows outage can't block "available" notifications forever
+// (fail-open). Brief blips reuse the previous cache (fail-closed / keep gating).
+const STALE_LIMIT_MS = 10 * 60 * 1000;
+
+const basename = (p: string): string =>
+  p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? '';
+
+const stem = (name: string): string => {
+  const dot = name.lastIndexOf('.');
+  return dot > 0 ? name.slice(0, dot) : name;
+};
+
+/**
+ * Tracks which files FileFlows is currently processing so callers can avoid
+ * treating media as "available" while it is still being post-processed.
+ *
+ * Matching is by file basename / stem and by path segment (folder name) rather
+ * than by full path, because the paths FileFlows reports are from its own
+ * mount/container perspective and rarely share a prefix with Sonarr/Radarr's.
+ */
+class FileFlowsProcessingTracker {
+  private basenames = new Set<string>();
+  private stems = new Set<string>();
+  private segments = new Set<string>();
+  private fetchedAt = 0;
+  private lastGoodAt = 0;
+
+  private get isEnabled(): boolean {
+    const { enabled, hostname } = getSettings().fileflows;
+    return enabled && !!hostname;
+  }
+
+  private addPath(rawPath: string): void {
+    if (!rawPath) {
+      return;
+    }
+    const parts = rawPath.replace(/\\/g, '/').split('/').filter(Boolean);
+    const base = parts[parts.length - 1] ?? '';
+    if (base) {
+      this.basenames.add(base.toLowerCase());
+      this.stems.add(stem(base).toLowerCase());
+    }
+    // Every directory segment (folder name) — used for series-folder matching.
+    for (const seg of parts.slice(0, -1)) {
+      this.segments.add(seg.toLowerCase());
+    }
+  }
+
+  private async refresh(): Promise<void> {
+    if (!this.isEnabled) {
+      this.clear();
+      return;
+    }
+
+    if (Date.now() - this.fetchedAt < CACHE_TTL_MS) {
+      return;
+    }
+
+    try {
+      const settings = getSettings().fileflows;
+      const api = new FileFlowsAPI(settings);
+      const status = await api.getStatus();
+
+      this.basenames = new Set();
+      this.stems = new Set();
+      this.segments = new Set();
+      for (const file of status.processingFiles ?? []) {
+        this.addPath(file.name);
+        this.addPath(file.relativePath ?? '');
+      }
+
+      const now = Date.now();
+      this.fetchedAt = now;
+      this.lastGoodAt = now;
+      logger.debug(
+        `FileFlows reports ${
+          status.processingFiles?.length ?? 0
+        } file(s) processing`,
+        { label: 'FileFlows' }
+      );
+    } catch (e) {
+      this.fetchedAt = Date.now();
+      // Keep the previous cache during brief outages so we don't release the
+      // gate prematurely; discard it once the outage is prolonged (fail-open).
+      if (Date.now() - this.lastGoodAt > STALE_LIMIT_MS) {
+        this.clear();
+      }
+      logger.warn('Failed to query FileFlows status', {
+        label: 'FileFlows',
+        errorMessage: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  private clear(): void {
+    this.basenames = new Set();
+    this.stems = new Set();
+    this.segments = new Set();
+  }
+
+  /** True if FileFlows is actively processing at least one file. */
+  public async hasProcessingFiles(): Promise<boolean> {
+    await this.refresh();
+    return this.basenames.size > 0;
+  }
+
+  /** True if the given file (matched by basename/stem) is being processed. */
+  public async isFileProcessing(filePath?: string): Promise<boolean> {
+    if (!filePath) {
+      return false;
+    }
+    await this.refresh();
+    if (this.basenames.size === 0) {
+      return false;
+    }
+    const base = basename(filePath).toLowerCase();
+    return this.basenames.has(base) || this.stems.has(stem(base).toLowerCase());
+  }
+
+  /**
+   * True if FileFlows is processing any file located within a folder whose name
+   * matches `folderName` (e.g. a Sonarr series folder). Matched by folder name,
+   * not full path, to survive differing mount roots between FileFlows and *arr.
+   */
+  public async isFolderProcessing(folderName?: string): Promise<boolean> {
+    if (!folderName) {
+      return false;
+    }
+    await this.refresh();
+    if (this.segments.size === 0) {
+      return false;
+    }
+    return this.segments.has(basename(folderName).toLowerCase());
+  }
+}
+
+const fileFlowsTracker = new FileFlowsProcessingTracker();
+
+export default fileFlowsTracker;

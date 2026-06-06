@@ -10,6 +10,7 @@ import type {
 import { MediaStatus, MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
+import fileFlowsTracker from '@server/lib/fileflows';
 import type {
   ProcessableSeason,
   RunnableScanner,
@@ -184,6 +185,19 @@ class SonarrScanner
           }
         });
 
+      // FileFlows gate: if FileFlows is still post-processing files in this
+      // series' folder, keep its seasons from flipping to available (and the
+      // available notification from firing) until processing completes.
+      const fileFlowsProcessing = await fileFlowsTracker.isFolderProcessing(
+        sonarrSeries.path
+      );
+      if (fileFlowsProcessing) {
+        this.log(
+          `FileFlows is still processing files for "${sonarrSeries.title}"; deferring availability`,
+          'debug'
+        );
+      }
+
       for (const season of filteredSeasons) {
         const totalAvailableEpisodes = season.statistics?.episodeFileCount ?? 0;
 
@@ -192,7 +206,9 @@ class SonarrScanner
           episodes: !server4k ? totalAvailableEpisodes : 0,
           episodes4k: server4k ? totalAvailableEpisodes : 0,
           totalEpisodes: season.statistics?.totalEpisodeCount ?? 0,
-          processing: season.monitored && totalAvailableEpisodes === 0,
+          processing:
+            (season.monitored && totalAvailableEpisodes === 0) ||
+            fileFlowsProcessing,
           is4kOverride: server4k,
         });
       }
