@@ -35,7 +35,11 @@ const ListView = ({
 }: ListViewProps) => {
   const intl = useIntl();
   const { hasPermission } = useUser();
-  useVerticalScroll(onScrollBottom, !isLoading && !isEmpty && !isReachingEnd);
+  useVerticalScroll(
+    onScrollBottom,
+    !isLoading && !isEmpty && !isReachingEnd,
+    items?.length ?? 0
+  );
 
   const blocklistVisibility = hasPermission(
     [Permission.MANAGE_BLOCKLIST, Permission.VIEW_BLOCKLIST],

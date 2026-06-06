@@ -60,6 +60,23 @@ export const SortOptionsIterable = [
 
 export type SortOptions = (typeof SortOptionsIterable)[number];
 
+const TMDB_MIN_VOTE_COUNT_FOR_RATING_SORT = '50';
+
+function getDiscoverVoteCountGte(
+  sortBy: string,
+  voteCountGte?: string
+): string | undefined {
+  if (voteCountGte) {
+    return voteCountGte;
+  }
+
+  if (sortBy.includes('vote_average')) {
+    return TMDB_MIN_VOTE_COUNT_FOR_RATING_SORT;
+  }
+
+  return undefined;
+}
+
 export interface TmdbCertificationResponse {
   certifications: {
     [country: string]: {
@@ -626,7 +643,7 @@ class TheMovieDb extends ExternalAPI implements TvShowProvider {
           include_adult: includeAdult,
           include_video: includeVideo,
           language,
-          region: this.discoverRegion || '',
+          ...(this.discoverRegion ? { region: this.discoverRegion } : {}),
           with_original_language:
             originalLanguage && originalLanguage !== 'all'
               ? originalLanguage
@@ -651,7 +668,7 @@ class TheMovieDb extends ExternalAPI implements TvShowProvider {
           'with_runtime.lte': withRuntimeLte,
           'vote_average.gte': voteAverageGte,
           'vote_average.lte': voteAverageLte,
-          'vote_count.gte': voteCountGte,
+          'vote_count.gte': getDiscoverVoteCountGte(sortBy, voteCountGte),
           'vote_count.lte': voteCountLte,
           watch_region: watchRegion,
           with_watch_providers: watchProviders,
@@ -712,7 +729,7 @@ class TheMovieDb extends ExternalAPI implements TvShowProvider {
           sort_by: sortBy,
           page,
           language,
-          region: this.discoverRegion || '',
+          ...(this.discoverRegion ? { region: this.discoverRegion } : {}),
           // Set our release date values, but check if one is set and not the other,
           // so we can force a past date or a future date. TMDB Requires both values if one is set!
           'first_air_date.gte':
@@ -738,7 +755,7 @@ class TheMovieDb extends ExternalAPI implements TvShowProvider {
           'with_runtime.lte': withRuntimeLte,
           'vote_average.gte': voteAverageGte,
           'vote_average.lte': voteAverageLte,
-          'vote_count.gte': voteCountGte,
+          'vote_count.gte': getDiscoverVoteCountGte(sortBy, voteCountGte),
           'vote_count.lte': voteCountLte,
           with_watch_providers: watchProviders,
           watch_region: watchRegion,

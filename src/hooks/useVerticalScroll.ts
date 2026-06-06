@@ -10,19 +10,29 @@ const BUFFER_HEIGHT = 200;
  *
  * @param callback Callback is executed when page reaches bottom
  * @param shouldFetch Disables callback if true
+ * @param contentLength Number of loaded items; used to re-check when content grows
  */
 const useVerticalScroll = (
   callback: () => void,
-  shouldFetch: boolean
+  shouldFetch: boolean,
+  contentLength = 0
 ): boolean => {
   const [isScrolling, setScrolling] = useState(false);
 
   type SetTimeoutReturnType = ReturnType<typeof setTimeout>;
   const scrollingTimer: MutableRefObject<SetTimeoutReturnType | undefined> =
     useRef(undefined);
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
+  const shouldFetchRef = useRef(shouldFetch);
+  shouldFetchRef.current = shouldFetch;
 
-  const runCallback = () => {
-    if (shouldFetch) {
+  const debouncedCallbackRef = useRef(
+    debounce(() => {
+      if (!shouldFetchRef.current) {
+        return;
+      }
+
       const scrollTop = Math.max(
         window.pageYOffset,
         document.documentElement.scrollTop,
@@ -32,18 +42,19 @@ const useVerticalScroll = (
         window.innerHeight + scrollTop >=
         document.documentElement.offsetHeight - BUFFER_HEIGHT
       ) {
-        callback();
+        callbackRef.current();
       }
-    }
-  };
+    }, 50)
+  );
 
-  const debouncedCallback = debounce(runCallback, 50);
+  // Re-check when content grows (e.g. after fetch) but not on every render
+  useEffect(() => {
+    debouncedCallbackRef.current();
+  }, [shouldFetch, contentLength]);
 
   useEffect(() => {
-    runCallback();
-  });
+    const debouncedCallback = debouncedCallbackRef.current;
 
-  useEffect(() => {
     const onScroll = () => {
       if (scrollingTimer.current !== undefined) {
         clearTimeout(scrollingTimer.current);
@@ -71,8 +82,9 @@ const useVerticalScroll = (
       if (scrollingTimer.current !== undefined) {
         clearTimeout(scrollingTimer.current);
       }
+      debouncedCallback.cancel();
     };
-  });
+  }, [isScrolling]);
 
   return isScrolling;
 };
