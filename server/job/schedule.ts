@@ -2,6 +2,7 @@ import { MediaServerType } from '@server/constants/server';
 import blocklistedTagsProcessor from '@server/job/blocklistedTagsProcessor';
 import availabilitySync from '@server/lib/availabilitySync';
 import downloadTracker from '@server/lib/downloadtracker';
+import fileFlowsTracker from '@server/lib/fileflows';
 import ImageProxy from '@server/lib/imageproxy';
 import refreshToken from '@server/lib/refreshToken';
 import { embyFullScanner, embyRecentScanner } from '@server/lib/scanners/emby';
@@ -248,6 +249,32 @@ export const startJobs = (): void => {
         label: 'Jobs',
       });
       downloadTracker.updateDownloads();
+    }),
+  });
+
+  // Re-check FileFlows post-processing. Only triggers a Radarr/Sonarr scan
+  // while FileFlows is actively processing something, so affected media is
+  // promptly held / released instead of waiting for the next daily scan.
+  scheduledJobs.push({
+    id: 'fileflows-sync',
+    name: 'FileFlows Sync',
+    type: 'command',
+    interval: 'seconds',
+    cronSchedule: jobs['fileflows-sync'].schedule,
+    job: schedule.scheduleJob(jobs['fileflows-sync'].schedule, async () => {
+      if (!(await fileFlowsTracker.hasProcessingFiles())) {
+        return;
+      }
+      logger.info(
+        'FileFlows is processing files; running scan to refresh availability',
+        { label: 'Jobs' }
+      );
+      if (!radarrScanner.status().running) {
+        radarrScanner.run();
+      }
+      if (!sonarrScanner.status().running) {
+        sonarrScanner.run();
+      }
     }),
   });
 

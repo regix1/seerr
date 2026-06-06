@@ -8,6 +8,7 @@ import type { User } from '@server/entity/User';
 import { Watchlist } from '@server/entity/Watchlist';
 import type { DownloadingItem } from '@server/lib/downloadtracker';
 import downloadTracker from '@server/lib/downloadtracker';
+import fileFlowsTracker from '@server/lib/fileflows';
 import { Permission, Permission2 } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -299,6 +300,7 @@ class Media {
   public serviceUrl4k?: string;
   public downloadStatus?: DownloadingItem[] = [];
   public downloadStatus4k?: DownloadingItem[] = [];
+  public fileFlowsProcessing?: boolean = false;
 
   public mediaUrl?: string;
   public mediaUrl4k?: string;
@@ -553,6 +555,11 @@ class Media {
         );
       }
     }
+
+    this.fileFlowsProcessing = fileFlowsTracker.isMediaHeld(
+      this.mediaType,
+      this.mediaType === MediaType.MOVIE ? this.tmdbId : this.tvdbId
+    );
   }
 }
 

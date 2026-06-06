@@ -137,6 +137,7 @@ class RadarrScanner
         ))
       ) {
         processing = true;
+        fileFlowsTracker.markMediaHeld(MediaType.MOVIE, radarrMovie.tmdbId);
         this.log(
           `FileFlows is still processing "${radarrMovie.title}"; deferring availability`,
           'debug'

@@ -1,4 +1,5 @@
 import FileFlowsAPI from '@server/api/fileflows';
+import type { MediaType } from '@server/constants/media';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 
@@ -9,6 +10,10 @@ const CACHE_TTL_MS = 30 * 1000;
 // discarded so a FileFlows outage can't block "available" notifications forever
 // (fail-open). Brief blips reuse the previous cache (fail-closed / keep gating).
 const STALE_LIMIT_MS = 10 * 60 * 1000;
+// A media item stays flagged as "held by FileFlows" (for the UI badge) for this
+// long after it was last marked. The fileflows-sync job re-marks active holds
+// well within this window; once FileFlows finishes, the mark simply expires.
+const HELD_TTL_MS = 5 * 60 * 1000;
 
 const basename = (p: string): string =>
   p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? '';
@@ -31,6 +36,7 @@ class FileFlowsProcessingTracker {
   private stems = new Set<string>();
   private fetchedAt = 0;
   private lastGoodAt = 0;
+  private heldMedia = new Map<string, number>();
 
   private get isEnabled(): boolean {
     const { enabled, hostname } = getSettings().fileflows;
@@ -116,6 +122,32 @@ class FileFlowsProcessingTracker {
     }
     const base = basename(filePath).toLowerCase();
     return this.basenames.has(base) || this.stems.has(stem(base).toLowerCase());
+  }
+
+  /**
+   * Record that a media item is currently being held back because FileFlows is
+   * still processing it. Surfaced to the UI as a "processing in FileFlows"
+   * badge. Keyed by TMDB id for movies and TVDB id for series.
+   */
+  public markMediaHeld(mediaType: MediaType, id: number): void {
+    this.heldMedia.set(`${mediaType}:${id}`, Date.now());
+  }
+
+  /** True if the media item was marked as held by FileFlows recently. */
+  public isMediaHeld(mediaType: MediaType, id?: number): boolean {
+    if (id === undefined) {
+      return false;
+    }
+    const key = `${mediaType}:${id}`;
+    const markedAt = this.heldMedia.get(key);
+    if (markedAt === undefined) {
+      return false;
+    }
+    if (Date.now() - markedAt > HELD_TTL_MS) {
+      this.heldMedia.delete(key);
+      return false;
+    }
+    return true;
   }
 }
 

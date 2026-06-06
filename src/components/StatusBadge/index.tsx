@@ -18,6 +18,7 @@ const messages = defineMessages('components.StatusBadge', {
   managemedia: 'Manage {mediaType}',
   seasonnumber: 'S{seasonNumber}',
   seasonepisodenumber: 'S{seasonNumber}E{episodeNumber}',
+  fileflowsProcessing: 'Processing in FileFlows',
 });
 
 interface StatusBadgeProps {
@@ -25,6 +26,7 @@ interface StatusBadgeProps {
   downloadItem?: DownloadingItem[];
   is4k?: boolean;
   inProgress?: boolean;
+  fileFlowsProcessing?: boolean;
   plexUrl?: string;
   serviceUrl?: string;
   tmdbId?: number;
@@ -39,6 +41,7 @@ const StatusBadge = ({
   downloadItem = [],
   is4k = false,
   inProgress = false,
+  fileFlowsProcessing = false,
   plexUrl,
   serviceUrl,
   tmdbId,
@@ -309,12 +312,20 @@ const StatusBadge = ({
                 {intl.formatMessage(
                   is4k ? messages.status4k : messages.status,
                   {
-                    status: inProgress
-                      ? intl.formatMessage(globalMessages.processing)
-                      : intl.formatMessage(globalMessages.requested),
+                    status:
+                      inProgress || fileFlowsProcessing
+                        ? intl.formatMessage(globalMessages.processing)
+                        : intl.formatMessage(globalMessages.requested),
                   }
                 )}
               </span>
+              {!inProgress && fileFlowsProcessing && (
+                <Tooltip
+                  content={intl.formatMessage(messages.fileflowsProcessing)}
+                >
+                  <Spinner className="ml-1 h-3 w-3" />
+                </Tooltip>
+              )}
               {inProgress && (
                 <>
                   {mediaType === 'tv' &&
