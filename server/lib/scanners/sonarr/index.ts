@@ -214,7 +214,7 @@ class SonarrScanner
           // (fail open) rather than blocking availability.
         }
         if (fileFlowsSeasons.size > 0) {
-          fileFlowsTracker.markMediaHeld(MediaType.TV, sonarrSeries.tvdbId);
+          fileFlowsTracker.markHeld(`tvdb:${sonarrSeries.tvdbId}`);
           this.log(
             `FileFlows is still processing season(s) ${[
               ...fileFlowsSeasons,

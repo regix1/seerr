@@ -556,10 +556,26 @@ class Media {
       }
     }
 
-    this.fileFlowsProcessing = fileFlowsTracker.isMediaHeld(
-      this.mediaType,
-      this.mediaType === MediaType.MOVIE ? this.tmdbId : this.tvdbId
-    );
+    this.fileFlowsProcessing =
+      this.mediaType === MediaType.MOVIE
+        ? fileFlowsTracker.isHeld(
+            `tmdb:${this.tmdbId}`,
+            this.externalServiceId != null
+              ? `radarr:${this.externalServiceId}`
+              : undefined,
+            this.externalServiceId4k != null
+              ? `radarr:${this.externalServiceId4k}`
+              : undefined
+          )
+        : fileFlowsTracker.isHeld(
+            this.tvdbId != null ? `tvdb:${this.tvdbId}` : undefined,
+            this.externalServiceId != null
+              ? `sonarr:${this.externalServiceId}`
+              : undefined,
+            this.externalServiceId4k != null
+              ? `sonarr:${this.externalServiceId4k}`
+              : undefined
+          );
   }
 }
 

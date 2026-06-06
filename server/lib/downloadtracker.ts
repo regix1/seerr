@@ -1,6 +1,7 @@
 import RadarrAPI from '@server/api/servarr/radarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
 import { MediaType } from '@server/constants/media';
+import fileFlowsTracker from '@server/lib/fileflows';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { uniqWith } from 'lodash';
@@ -101,6 +102,15 @@ class DownloadTracker {
               downloadId: item.downloadId,
             }));
 
+            // Flag any queued release FileFlows is still post-processing (e.g.
+            // in the download folder, before import) so the UI can show a
+            // "processing in FileFlows" badge while the item is downloading.
+            for (const item of this.radarrServers[server.id]) {
+              if (await fileFlowsTracker.isReleaseProcessing(item.title)) {
+                fileFlowsTracker.markHeld(`radarr:${item.externalId}`);
+              }
+            }
+
             if (queueItems.length > 0) {
               logger.debug(
                 `Found ${queueItems.length} item(s) in progress on Radarr server: ${server.name}`,
@@ -179,6 +189,14 @@ class DownloadTracker {
               episode: item.episode,
               downloadId: item.downloadId,
             }));
+
+            // Flag any queued release FileFlows is still post-processing so the
+            // UI can show a "processing in FileFlows" badge before import.
+            for (const item of this.sonarrServers[server.id]) {
+              if (await fileFlowsTracker.isReleaseProcessing(item.title)) {
+                fileFlowsTracker.markHeld(`sonarr:${item.externalId}`);
+              }
+            }
 
             if (queueItems.length > 0) {
               logger.debug(

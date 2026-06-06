@@ -1,5 +1,4 @@
 import FileFlowsAPI from '@server/api/fileflows';
-import type { MediaType } from '@server/constants/media';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 
@@ -37,6 +36,7 @@ class FileFlowsProcessingTracker {
   private fetchedAt = 0;
   private lastGoodAt = 0;
   private heldMedia = new Map<string, number>();
+  private inFlight: Promise<void> | null = null;
 
   private get isEnabled(): boolean {
     const { enabled, hostname } = getSettings().fileflows;
@@ -65,6 +65,20 @@ class FileFlowsProcessingTracker {
       return;
     }
 
+    // Dedupe concurrent refreshes: a scan can call this for many items at once,
+    // and fetchedAt isn't updated until the request resolves — without this
+    // guard every concurrent caller would fire its own /api/status request.
+    if (this.inFlight) {
+      return this.inFlight;
+    }
+
+    this.inFlight = this.fetchStatus().finally(() => {
+      this.inFlight = null;
+    });
+    return this.inFlight;
+  }
+
+  private async fetchStatus(): Promise<void> {
     try {
       const settings = getSettings().fileflows;
       const api = new FileFlowsAPI(settings);
@@ -125,29 +139,49 @@ class FileFlowsProcessingTracker {
   }
 
   /**
-   * Record that a media item is currently being held back because FileFlows is
-   * still processing it. Surfaced to the UI as a "processing in FileFlows"
-   * badge. Keyed by TMDB id for movies and TVDB id for series.
+   * True if FileFlows is processing a file matching the given release name
+   * (e.g. a Radarr/Sonarr download-queue title). Queue titles have no file
+   * extension, so they are matched against the processing files' stems — this
+   * catches files FileFlows processes in the download folder before import.
    */
-  public markMediaHeld(mediaType: MediaType, id: number): void {
-    this.heldMedia.set(`${mediaType}:${id}`, Date.now());
+  public async isReleaseProcessing(title?: string): Promise<boolean> {
+    if (!title) {
+      return false;
+    }
+    await this.refresh();
+    if (this.basenames.size === 0) {
+      return false;
+    }
+    const t = title.toLowerCase();
+    return this.stems.has(t) || this.basenames.has(t);
   }
 
-  /** True if the media item was marked as held by FileFlows recently. */
-  public isMediaHeld(mediaType: MediaType, id?: number): boolean {
-    if (id === undefined) {
-      return false;
+  /**
+   * Record a media item as held by FileFlows (surfaced as a UI badge). Callers
+   * key by whatever id they have on hand — TMDB/TVDB id from the scanner, or
+   * `radarr:`/`sonarr:` external service id from the download tracker.
+   */
+  public markHeld(key: string): void {
+    this.heldMedia.set(key, Date.now());
+  }
+
+  /** True if any of the given keys was marked as held by FileFlows recently. */
+  public isHeld(...keys: (string | undefined)[]): boolean {
+    for (const key of keys) {
+      if (!key) {
+        continue;
+      }
+      const markedAt = this.heldMedia.get(key);
+      if (markedAt === undefined) {
+        continue;
+      }
+      if (Date.now() - markedAt > HELD_TTL_MS) {
+        this.heldMedia.delete(key);
+        continue;
+      }
+      return true;
     }
-    const key = `${mediaType}:${id}`;
-    const markedAt = this.heldMedia.get(key);
-    if (markedAt === undefined) {
-      return false;
-    }
-    if (Date.now() - markedAt > HELD_TTL_MS) {
-      this.heldMedia.delete(key);
-      return false;
-    }
-    return true;
+    return false;
   }
 }
 
