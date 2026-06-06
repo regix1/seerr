@@ -38,6 +38,8 @@ interface Episode {
   stillPath?: string;
   voteAverage: number;
   voteCount: number;
+  fileFlowsProcessing?: boolean;
+  fileFlowsProgress?: number | null;
 }
 
 interface Season {

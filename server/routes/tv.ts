@@ -7,6 +7,7 @@ import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import { Watchlist } from '@server/entity/Watchlist';
+import fileFlowsTracker from '@server/lib/fileflows';
 import logger from '@server/logger';
 import { mapTvResult } from '@server/models/Search';
 import { mapSeasonWithEpisodes, mapTvDetails } from '@server/models/Tv';
@@ -88,7 +89,23 @@ tvRoutes.get('/:id/season/:seasonNumber', async (req, res, next) => {
       language: (req.query.language as string) ?? req.locale,
     });
 
-    return res.status(200).json(mapSeasonWithEpisodes(season));
+    const mappedSeason = mapSeasonWithEpisodes(season);
+
+    // Attach per-episode FileFlows processing state. The resolver holds an
+    // actively-processing episode under `tvdb:<id>:s<n>e<m>`, so each episode
+    // row can show the pink "FileFlows Processing" badge.
+    const media = await getRepository(Media).findOne({
+      where: { tmdbId: Number(req.params.id), mediaType: MediaType.TV },
+    });
+    if (media?.tvdbId != null) {
+      for (const episode of mappedSeason.episodes) {
+        const key = `tvdb:${media.tvdbId}:s${episode.seasonNumber}e${episode.episodeNumber}`;
+        episode.fileFlowsProcessing = fileFlowsTracker.isHeld(key);
+        episode.fileFlowsProgress = fileFlowsTracker.getHeldProgress(key);
+      }
+    }
+
+    return res.status(200).json(mappedSeason);
   } catch (e) {
     logger.debug('Something went wrong retrieving season', {
       label: 'API',

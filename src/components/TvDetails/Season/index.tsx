@@ -1,7 +1,9 @@
 import AirDateBadge from '@app/components/AirDateBadge';
 import CachedImage from '@app/components/Common/CachedImage';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
+import StatusBadgeMini from '@app/components/Common/StatusBadgeMini';
 import defineMessages from '@app/utils/defineMessages';
+import { MediaStatus } from '@server/constants/media';
 import type { SeasonWithEpisodes } from '@server/models/Tv';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
@@ -51,6 +53,12 @@ const Season = ({ seasonNumber, tvId }: SeasonProps) => {
                     </h3>
                     {episode.airDate && (
                       <AirDateBadge airDate={episode.airDate} />
+                    )}
+                    {episode.fileFlowsProcessing && (
+                      <StatusBadgeMini
+                        status={MediaStatus.PROCESSING}
+                        fileFlowsProcessing
+                      />
                     )}
                   </div>
                   {episode.overview && <p>{episode.overview}</p>}

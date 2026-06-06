@@ -24,6 +24,10 @@ class Season {
   @Column({ type: 'int', default: MediaStatus.UNKNOWN })
   public status4k: MediaStatus;
 
+  // Computed (non-persisted) FileFlows state, set from Media.getDownloadingItem.
+  public fileFlowsProcessing?: boolean = false;
+  public fileFlowsProgress?: number | null = null;
+
   @ManyToOne(() => Media, (media) => media.seasons, {
     onDelete: 'CASCADE',
   })

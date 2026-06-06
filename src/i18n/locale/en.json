@@ -1437,6 +1437,7 @@
   "components.TvDetails.episodeCount": "{episodeCount, plural, one {# Episode} other {# Episodes}}",
   "components.TvDetails.episodeRuntime": "Episode Runtime",
   "components.TvDetails.episodeRuntimeMinutes": "{runtime} minutes",
+  "components.TvDetails.fileflowsProcessing": "FileFlows Processing",
   "components.TvDetails.firstAirDate": "First Air Date",
   "components.TvDetails.manageseries": "Manage Series",
   "components.TvDetails.network": "{networkCount, plural, one {Network} other {Networks}}",

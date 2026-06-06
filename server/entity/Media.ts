@@ -583,6 +583,26 @@ class Media {
           ];
     this.fileFlowsProcessing = fileFlowsTracker.isHeld(...fileFlowsKeys);
     this.fileFlowsProgress = fileFlowsTracker.getHeldProgress(...fileFlowsKeys);
+
+    // Per-season FileFlows state (the resolver holds TV at season granularity
+    // under `tvdb:<id>:s<n>`), surfaced on mediaInfo.seasons[] for the season
+    // group / overall badge on the details page.
+    if (this.mediaType === MediaType.TV && Array.isArray(this.seasons)) {
+      for (const season of this.seasons) {
+        const seasonKeys = [
+          this.tvdbId != null
+            ? `tvdb:${this.tvdbId}:s${season.seasonNumber}`
+            : undefined,
+          this.tmdbId != null
+            ? `tmdb:${this.tmdbId}:s${season.seasonNumber}`
+            : undefined,
+        ];
+        season.fileFlowsProcessing = fileFlowsTracker.isHeld(...seasonKeys);
+        season.fileFlowsProgress = fileFlowsTracker.getHeldProgress(
+          ...seasonKeys
+        );
+      }
+    }
   }
 }
 

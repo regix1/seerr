@@ -13,6 +13,7 @@ interface StatusBadgeMiniProps {
   status: MediaStatus;
   is4k?: boolean;
   inProgress?: boolean;
+  fileFlowsProcessing?: boolean;
   // Should the badge shrink on mobile to a smaller size? (TitleCard)
   shrink?: boolean;
 }
@@ -21,6 +22,7 @@ const StatusBadgeMini = ({
   status,
   is4k = false,
   inProgress = false,
+  fileFlowsProcessing = false,
   shrink = false,
 }: StatusBadgeMiniProps) => {
   const badgeStyle = [
@@ -30,6 +32,31 @@ const StatusBadgeMini = ({
   ];
 
   let indicatorIcon: React.ReactNode;
+
+  // FileFlows post-processing takes precedence (pink), but never masks the
+  // BLOCKLISTED/DELETED danger states.
+  if (
+    fileFlowsProcessing &&
+    !inProgress &&
+    status !== MediaStatus.BLOCKLISTED &&
+    status !== MediaStatus.DELETED
+  ) {
+    badgeStyle.push(
+      'bg-pink-500/80 border-pink-400 ring-pink-400 text-pink-100'
+    );
+    return (
+      <div
+        className={`relative inline-flex whitespace-nowrap rounded-full border-gray-700 text-xs font-semibold leading-5 ring-gray-700 ${
+          shrink ? '' : 'ring-1'
+        }`}
+      >
+        <div className={badgeStyle.join(' ')}>
+          <Spinner />
+        </div>
+        {is4k && <span className="pl-1 pr-2 text-gray-200">4K</span>}
+      </div>
+    );
+  }
 
   switch (status) {
     case MediaStatus.PROCESSING:

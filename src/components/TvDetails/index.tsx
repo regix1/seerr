@@ -95,6 +95,7 @@ const messages = defineMessages('components.TvDetails', {
   episodeCount: '{episodeCount, plural, one {# Episode} other {# Episodes}}',
   seasonnumber: 'Season {seasonNumber}',
   status4k: '4K {status}',
+  fileflowsProcessing: 'FileFlows Processing',
   rtcriticsscore: 'Rotten Tomatoes Tomatometer',
   rtaudiencescore: 'Rotten Tomatoes Audience Score',
   tmdbuserscore: 'TMDB User Score',
@@ -853,6 +854,11 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                     season.seasonNumber === s.seasonNumber &&
                     s.status4k !== MediaStatus.UNKNOWN
                 );
+                const ffSeason = (data.mediaInfo?.seasons ?? []).find(
+                  (s) =>
+                    season.seasonNumber === s.seasonNumber &&
+                    s.fileFlowsProcessing
+                );
                 const request = (data.mediaInfo?.requests ?? [])
                   .filter(
                     (r) =>
@@ -907,24 +913,52 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                               })}
                             </Badge>
                           </div>
-                          {((!mSeason &&
-                            request?.status === MediaRequestStatus.APPROVED) ||
-                            mSeason?.status === MediaStatus.PROCESSING ||
-                            (request?.status === MediaRequestStatus.APPROVED &&
-                              mSeason?.status === MediaStatus.DELETED)) && (
+                          {ffSeason && (
                             <>
                               <div className="hidden md:flex">
-                                <Badge badgeType="primary">
-                                  {intl.formatMessage(globalMessages.requested)}
+                                <Badge
+                                  badgeType="default"
+                                  className="!border-pink-500 !bg-pink-600 !text-pink-50"
+                                >
+                                  {intl.formatMessage(
+                                    messages.fileflowsProcessing
+                                  )}
+                                  {ffSeason.fileFlowsProgress != null
+                                    ? ` ${ffSeason.fileFlowsProgress}%`
+                                    : ''}
                                 </Badge>
                               </div>
                               <div className="flex md:hidden">
                                 <StatusBadgeMini
                                   status={MediaStatus.PROCESSING}
+                                  fileFlowsProcessing
                                 />
                               </div>
                             </>
                           )}
+                          {!ffSeason &&
+                            ((!mSeason &&
+                              request?.status ===
+                                MediaRequestStatus.APPROVED) ||
+                              mSeason?.status === MediaStatus.PROCESSING ||
+                              (request?.status ===
+                                MediaRequestStatus.APPROVED &&
+                                mSeason?.status === MediaStatus.DELETED)) && (
+                              <>
+                                <div className="hidden md:flex">
+                                  <Badge badgeType="primary">
+                                    {intl.formatMessage(
+                                      globalMessages.requested
+                                    )}
+                                  </Badge>
+                                </div>
+                                <div className="flex md:hidden">
+                                  <StatusBadgeMini
+                                    status={MediaStatus.PROCESSING}
+                                  />
+                                </div>
+                              </>
+                            )}
                           {((!mSeason &&
                             request?.status === MediaRequestStatus.PENDING) ||
                             mSeason?.status === MediaStatus.PENDING) && (

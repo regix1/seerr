@@ -19,6 +19,10 @@ interface ResolvedFile {
   tvdbId: number | null;
   title: string | null;
   source: MappingSource;
+  // TV granularity parsed from the file name, so the hold (and badge) can be
+  // marked per season and per episode, not only series-wide.
+  seasons?: number[];
+  episodes?: { season: number; episode: number }[];
 }
 
 export interface FileFlowsFileMapping {
@@ -378,6 +382,11 @@ class FileFlowsProcessingTracker {
     for (const attempt of attempts) {
       const result = await attempt();
       if (result) {
+        if (result.mediaType === 'tv') {
+          const { seasons, episodes } = parseSeasonEpisode(file);
+          result.seasons = seasons;
+          result.episodes = episodes;
+        }
         return result;
       }
     }
@@ -418,7 +427,21 @@ class FileFlowsProcessingTracker {
       }
       if (resolved.key) {
         // Re-mark every cycle with the latest percent so the badge stays live.
-        this.markHeld(resolved.key, this.fileProgress.get(file.toLowerCase()));
+        const percent = this.fileProgress.get(file.toLowerCase());
+        this.markHeld(resolved.key, percent);
+        // For TV, also hold at season and episode granularity so the badge can
+        // surface on the season group, the season overall, and the episode row.
+        if (resolved.tvdbId != null) {
+          for (const season of resolved.seasons ?? []) {
+            this.markHeld(`tvdb:${resolved.tvdbId}:s${season}`, percent);
+          }
+          for (const ep of resolved.episodes ?? []) {
+            this.markHeld(
+              `tvdb:${resolved.tvdbId}:s${ep.season}e${ep.episode}`,
+              percent
+            );
+          }
+        }
       }
     }
   }
@@ -464,6 +487,38 @@ class FileFlowsProcessingTracker {
 // Clamp a FileFlows step percent to a whole 0-100.
 function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+// Extract season + episode numbers from a release file name. Handles single
+// (S05E08), multi-episode (S01E01E02 / S02E05-E06) and season-pack (Season 5 /
+// S05) forms. Returns the seasons touched and a flat list of episodes.
+//
+// Numbers follow the release/TVDB scheme. For standard shows this matches the
+// TMDB season/episode numbering the details page keys against, so the per-season
+// and per-episode badges line up. For anime or shows with divergent season
+// splits the two can differ, in which case the granular badge may land on the
+// wrong season/episode (or not show) — the series-level badge is unaffected.
+function parseSeasonEpisode(name: string): {
+  seasons: number[];
+  episodes: { season: number; episode: number }[];
+} {
+  const seasons = new Set<number>();
+  const episodes: { season: number; episode: number }[] = [];
+  const match = name.match(/s(\d{1,3})\s*((?:e\d{1,4}[\s._-]*)+)/i);
+  if (match) {
+    const season = parseInt(match[1], 10);
+    seasons.add(season);
+    for (const ep of match[2].matchAll(/e(\d{1,4})/gi)) {
+      episodes.push({ season, episode: parseInt(ep[1], 10) });
+    }
+  } else {
+    // Season pack with no explicit episodes ("Season 5" / "S05").
+    const pack = name.match(/\b(?:season[\s._-]*|s)(\d{1,3})\b/i);
+    if (pack) {
+      seasons.add(parseInt(pack[1], 10));
+    }
+  }
+  return { seasons: [...seasons], episodes };
 }
 
 // Map a FileFlows library name ("Movie: Video Library", "TV Show: Video
