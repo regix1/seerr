@@ -7,13 +7,13 @@ import MediaServerLibrariesPanel from '@app/components/Settings/MediaServerLibra
 import useMediaServerSettings from '@app/hooks/useMediaServerSettings';
 import useScanCompleteToast from '@app/hooks/useScanCompleteToast';
 import useSettings from '@app/hooks/useSettings';
+import useToasts from '@app/hooks/useToasts';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import { ApiErrorCode } from '@server/constants/error';
 import type { EmbySettings } from '@server/lib/settings';
 import axios from 'axios';
 import { FormattedMessage, useIntl } from 'react-intl';
-import useToasts from '@app/hooks/useToasts';
 
 const messages = defineMessages('components.Settings.SettingsEmby', {
   embysettings: 'Emby Settings',

@@ -94,7 +94,8 @@ const Slider = ({
 
     // Move a full "page" of whole cards per click, snapping to the card grid.
     // Fall back to the viewport width when the card width can't be measured.
-    const visibleItems = cardWidth > 0 ? Math.floor(clientWidth / cardWidth) : 0;
+    const visibleItems =
+      cardWidth > 0 ? Math.floor(clientWidth / cardWidth) : 0;
     const scrollOffset = cardWidth > 0 ? scrollPosition % cardWidth : 0;
     const distance = visibleItems > 0 ? visibleItems * cardWidth : clientWidth;
 

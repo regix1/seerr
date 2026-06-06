@@ -8,10 +8,10 @@ import {
 import { ApiErrorCode } from '@server/constants/error';
 import { MediaServerType, ServerType } from '@server/constants/server';
 // MediaServerType used for auth endpoint routing; ServerType used for display labels
+import useToasts from '@app/hooks/useToasts';
 import axios from 'axios';
 import { Field, Form, Formik } from 'formik';
 import { FormattedMessage, useIntl } from 'react-intl';
-import useToasts from '@app/hooks/useToasts';
 import validator from 'validator';
 import * as Yup from 'yup';
 

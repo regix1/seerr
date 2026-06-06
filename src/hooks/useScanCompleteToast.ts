@@ -1,7 +1,7 @@
+import useToasts from '@app/hooks/useToasts';
 import defineMessages from '@app/utils/defineMessages';
 import { useEffect, useRef } from 'react';
 import { useIntl } from 'react-intl';
-import useToasts from '@app/hooks/useToasts';
 
 const messages = defineMessages('components.Settings', {
   scancomplete:
