@@ -622,6 +622,14 @@ components:
         urlBase:
           type: string
           example: ''
+        availabilitySync:
+          type: string
+          enum: [schedule, active]
+          example: schedule
+          description: >-
+            `schedule` refreshes badges/holds only and defers availability flips
+            to the Radarr/Sonarr scan jobs. `active` also triggers those scans
+            while FileFlows is processing or media is still held.
     TautulliSettings:
       type: object
       properties:

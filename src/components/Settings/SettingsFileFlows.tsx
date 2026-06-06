@@ -22,6 +22,11 @@ const messages = defineMessages('components.Settings', {
   enable: 'Enable',
   enableTip:
     'Hold availability of media that FileFlows is still processing. Requires Radarr/Sonarr scanning.',
+  availabilitySync: 'Availability Updates',
+  availabilitySyncTip:
+    'Choose how media is flipped to available after FileFlows finishes. "Follow scan schedule" uses your Radarr/Sonarr scan jobs only. "Trigger scans while processing" also starts scans while FileFlows is active (more responsive, heavier on large libraries).',
+  availabilitySyncSchedule: 'Follow Radarr/Sonarr scan schedule',
+  availabilitySyncActive: 'Trigger scans while FileFlows is processing',
   hostname: 'Hostname or IP Address',
   port: 'Port',
   ssl: 'Use SSL',
@@ -54,6 +59,8 @@ const messages = defineMessages('components.Settings', {
   mappingsNo: 'No',
 });
 
+type FileFlowsAvailabilitySync = 'schedule' | 'active';
+
 interface FileFlowsSettings {
   enabled: boolean;
   hostname: string;
@@ -61,6 +68,7 @@ interface FileFlowsSettings {
   useSsl: boolean;
   apiKey: string;
   urlBase: string;
+  availabilitySync: FileFlowsAvailabilitySync;
 }
 
 interface FileFlowsFileMapping {
@@ -146,6 +154,7 @@ const SettingsFileFlows = () => {
             useSsl: data?.useSsl ?? false,
             urlBase: data?.urlBase ?? '',
             apiKey: data?.apiKey ?? '',
+            availabilitySync: data?.availabilitySync ?? 'schedule',
           }}
           enableReinitialize
           validationSchema={FileFlowsSettingsSchema}
@@ -158,6 +167,7 @@ const SettingsFileFlows = () => {
                 useSsl: values.useSsl,
                 urlBase: values.urlBase,
                 apiKey: values.apiKey,
+                availabilitySync: values.availabilitySync,
               });
 
               addToast(intl.formatMessage(messages.toastSettingsSuccess), {
@@ -235,6 +245,34 @@ const SettingsFileFlows = () => {
                     />
                   </div>
                 </div>
+                {values.enabled && (
+                  <div className="form-row">
+                    <label htmlFor="availabilitySync" className="text-label">
+                      <span className="mr-2">
+                        {intl.formatMessage(messages.availabilitySync)}
+                      </span>
+                      <span className="label-tip">
+                        {intl.formatMessage(messages.availabilitySyncTip)}
+                      </span>
+                    </label>
+                    <div className="form-input-area">
+                      <Field
+                        as="select"
+                        id="availabilitySync"
+                        name="availabilitySync"
+                      >
+                        <option value="schedule">
+                          {intl.formatMessage(
+                            messages.availabilitySyncSchedule
+                          )}
+                        </option>
+                        <option value="active">
+                          {intl.formatMessage(messages.availabilitySyncActive)}
+                        </option>
+                      </Field>
+                    </div>
+                  </div>
+                )}
                 <div className="form-row">
                   <label htmlFor="hostname" className="text-label">
                     {intl.formatMessage(messages.hostname)}

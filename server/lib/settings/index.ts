@@ -131,6 +131,8 @@ export interface MetadataSettings {
   anime: MetadataProviderType;
 }
 
+export type FileFlowsAvailabilitySync = 'schedule' | 'active';
+
 export interface FileFlowsSettings {
   enabled: boolean;
   hostname: string;
@@ -138,6 +140,12 @@ export interface FileFlowsSettings {
   useSsl: boolean;
   apiKey: string;
   urlBase: string;
+  /**
+   * How availability is refreshed while FileFlows is processing:
+   * - `schedule`: badges/holds only; defer flips to the Radarr/Sonarr scan jobs
+   * - `active`: also trigger Radarr/Sonarr scans while processing or held
+   */
+  availabilitySync: FileFlowsAvailabilitySync;
 }
 
 export interface ProxySettings {
@@ -517,6 +525,7 @@ class Settings {
         useSsl: false,
         apiKey: '',
         urlBase: '',
+        availabilitySync: 'schedule',
       },
       radarr: [],
       sonarr: [],
@@ -644,10 +653,10 @@ class Settings {
           schedule: '0 0 5 * * *',
         },
         'radarr-scan': {
-          schedule: '0 0 4 * * *',
+          schedule: '0 */60 * * * *',
         },
         'sonarr-scan': {
-          schedule: '0 30 4 * * *',
+          schedule: '0 30 * * * *',
         },
         'fileflows-sync': {
           schedule: '0 * * * * *',

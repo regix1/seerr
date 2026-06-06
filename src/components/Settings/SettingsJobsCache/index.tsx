@@ -41,6 +41,8 @@ const messages: { [messageName: string]: MessageDescriptor } = defineMessages(
     nextexecution: 'Next Execution',
     runnow: 'Run Now',
     canceljob: 'Cancel Job',
+    cancelJobDisabledFileFlows:
+      'Scans are driven by FileFlows while "Trigger scans while processing" is enabled. Change that under FileFlows settings, or wait for the scan to finish.',
     jobstarted: '{jobname} started.',
     jobcancelled: '{jobname} canceled.',
     process: 'Process',
@@ -160,8 +162,21 @@ const DEFAULT_SCHEDULE = {
 
 const JOB_SCHEDULE_SECONDS_OPTIONS = [5, 10, 15, 20, 30, 45, 60];
 const JOB_SCHEDULE_MINUTES_OPTIONS = [1, 3, 5, 10, 15, 20, 30, 60];
+// Radarr/Sonarr full-library scans are heavier; offer a wider range including
+// sub-hourly intervals for FileFlows users who need faster availability updates.
+const JOB_SCHEDULE_ARR_SCAN_MINUTES_OPTIONS = [
+  5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 360, 720, 1440,
+];
 const JOB_SCHEDULE_HOURS_OPTIONS = [1, 2, 3, 4, 6, 8, 12, 24, 48, 72];
 const JOB_SCHEDULE_DAYS_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 10, 14, 21];
+
+const isArrScanJob = (jobId?: JobId): boolean =>
+  jobId === 'radarr-scan' || jobId === 'sonarr-scan';
+
+const getJobScheduleMinutesOptions = (jobId?: JobId): number[] =>
+  isArrScanJob(jobId)
+    ? JOB_SCHEDULE_ARR_SCAN_MINUTES_OPTIONS
+    : JOB_SCHEDULE_MINUTES_OPTIONS;
 
 const withCurrentScheduleOption = (
   options: number[],
@@ -207,6 +222,16 @@ const parseJobScheduleFromCron = (
         if (scheduleMinutes > 0) {
           return { ...DEFAULT_SCHEDULE, scheduleMinutes };
         }
+      }
+
+      // Hourly at a fixed minute offset (e.g. `0 30 * * * *`)
+      if (second === '0' && hour === '*' && /^\d+$/.test(minute)) {
+        return { ...DEFAULT_SCHEDULE, scheduleMinutes: 60 };
+      }
+
+      // Legacy once-daily at a fixed clock time (e.g. `0 0 4 * * *`)
+      if (second === '0' && minute === '0' && /^\d+$/.test(hour)) {
+        return { ...DEFAULT_SCHEDULE, scheduleMinutes: 1440 };
       }
 
       break;
@@ -288,6 +313,17 @@ const SettingsJobs = () => {
       refreshInterval: 10000,
     }
   );
+  const { data: fileFlowsSettings } = useSWR<{
+    enabled: boolean;
+    availabilitySync: 'schedule' | 'active';
+  }>('/api/v1/settings/fileflows');
+
+  const fileFlowsTriggersArrScans =
+    fileFlowsSettings?.enabled &&
+    fileFlowsSettings?.availabilitySync === 'active';
+
+  const isArrScanCancelDisabled = (job: Job): boolean =>
+    fileFlowsTriggersArrScans && isArrScanJob(job.id);
 
   const [jobModalState, dispatch] = useReducer(jobModalReducer, {
     isOpen: false,
@@ -525,7 +561,7 @@ const SettingsJobs = () => {
                       }
                     >
                       {withCurrentScheduleOption(
-                        JOB_SCHEDULE_MINUTES_OPTIONS,
+                        getJobScheduleMinutesOptions(jobModalState.job?.id),
                         jobModalState.scheduleMinutes
                       ).map((v) => (
                         <option value={v} key={`jobScheduleMinutes-${v}`}>
@@ -662,10 +698,26 @@ const SettingsJobs = () => {
                     </Button>
                   )}
                   {job.running ? (
-                    <Button buttonType="danger" onClick={() => cancelJob(job)}>
-                      <StopIcon />
-                      <span>{intl.formatMessage(messages.canceljob)}</span>
-                    </Button>
+                    isArrScanCancelDisabled(job) ? (
+                      <Button
+                        buttonType="default"
+                        disabled
+                        title={intl.formatMessage(
+                          messages.cancelJobDisabledFileFlows
+                        )}
+                      >
+                        <StopIcon />
+                        <span>{intl.formatMessage(messages.canceljob)}</span>
+                      </Button>
+                    ) : (
+                      <Button
+                        buttonType="danger"
+                        onClick={() => cancelJob(job)}
+                      >
+                        <StopIcon />
+                        <span>{intl.formatMessage(messages.canceljob)}</span>
+                      </Button>
+                    )
                   ) : (
                     <Button buttonType="primary" onClick={() => runJob(job)}>
                       <PlayIcon />

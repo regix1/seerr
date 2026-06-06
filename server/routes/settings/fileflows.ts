@@ -24,6 +24,13 @@ fileflowsRoutes.post('/', async (req, res) => {
   const body = req.body as Partial<FileFlowsSettings>;
 
   // Whitelist known fields to avoid arbitrary settings injection.
+  const availabilitySync =
+    body.availabilitySync === 'active'
+      ? 'active'
+      : body.availabilitySync === 'schedule'
+        ? 'schedule'
+        : settings.fileflows.availabilitySync;
+
   settings.fileflows = {
     enabled: body.enabled ?? settings.fileflows.enabled,
     hostname: body.hostname ?? settings.fileflows.hostname,
@@ -31,6 +38,7 @@ fileflowsRoutes.post('/', async (req, res) => {
     useSsl: body.useSsl ?? settings.fileflows.useSsl,
     apiKey: body.apiKey ?? settings.fileflows.apiKey,
     urlBase: body.urlBase ?? settings.fileflows.urlBase,
+    availabilitySync,
   };
   await settings.save();
 

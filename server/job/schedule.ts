@@ -190,12 +190,12 @@ export const startJobs = (): void => {
     });
   }
 
-  // Run full radarr scan every 24 hours
+  // Full Radarr library scan; frequency is user-configurable (Jobs & Cache).
   scheduledJobs.push({
     id: 'radarr-scan',
     name: 'Radarr Scan',
     type: 'process',
-    interval: 'hours',
+    interval: 'minutes',
     cronSchedule: jobs['radarr-scan'].schedule,
     job: schedule.scheduleJob(jobs['radarr-scan'].schedule, () => {
       logger.info('Starting scheduled job: Radarr Scan', { label: 'Jobs' });
@@ -205,12 +205,12 @@ export const startJobs = (): void => {
     cancelFn: () => radarrScanner.cancel(),
   });
 
-  // Run full sonarr scan every 24 hours
+  // Full Sonarr library scan; frequency is user-configurable (Jobs & Cache).
   scheduledJobs.push({
     id: 'sonarr-scan',
     name: 'Sonarr Scan',
     type: 'process',
-    interval: 'hours',
+    interval: 'minutes',
     cronSchedule: jobs['sonarr-scan'].schedule,
     job: schedule.scheduleJob(jobs['sonarr-scan'].schedule, () => {
       logger.info('Starting scheduled job: Sonarr Scan', { label: 'Jobs' });
@@ -252,19 +252,14 @@ export const startJobs = (): void => {
     }),
   });
 
-  // Re-check FileFlows post-processing. Triggers a Radarr/Sonarr scan while
-  // FileFlows is actively processing something — and for a short tail after,
-  // while media is still held — so affected media is held while processing and
-  // released (flipped to available, notification fired) on the scan that runs
-  // once the holds expire, instead of waiting for the next daily scan.
-  // A one-shot release scan is "armed" per scanner whenever FileFlows is active,
-  // and fired once that scanner is next idle — so a scan already mid-run when the
-  // holds expire can't swallow the release, and it's retried each tick until
-  // dispatched. Armed on startup too (when FileFlows is enabled) so any media
-  // left PROCESSING across a restart is re-evaluated rather than waiting for the
-  // next daily scan.
-  let releaseRadarrScan = getSettings().fileflows.enabled;
-  let releaseSonarrScan = getSettings().fileflows.enabled;
+  // Re-check FileFlows post-processing. Always refreshes holds/badges; when
+  // availabilitySync is `active`, also triggers Radarr/Sonarr scans while
+  // FileFlows is processing or media is still held (see FileFlows settings).
+  const fileFlowsSettings = getSettings().fileflows;
+  let releaseRadarrScan =
+    fileFlowsSettings.enabled &&
+    fileFlowsSettings.availabilitySync === 'active';
+  let releaseSonarrScan = releaseRadarrScan;
   scheduledJobs.push({
     id: 'fileflows-sync',
     name: 'FileFlows Sync',
@@ -272,14 +267,16 @@ export const startJobs = (): void => {
     interval: 'seconds',
     cronSchedule: jobs['fileflows-sync'].schedule,
     job: schedule.scheduleJob(jobs['fileflows-sync'].schedule, async () => {
-      // Always resolve so holds are released the moment a file leaves FileFlows,
-      // not after the HELD_TTL expires (which caused the badge to lag behind the
-      // available notification).
       await fileFlowsTracker.resolveHeldMedia();
+
+      const { enabled, availabilitySync } = getSettings().fileflows;
+      if (!enabled || availabilitySync !== 'active') {
+        return;
+      }
+
       const processing = await fileFlowsTracker.hasProcessingFiles();
 
       if (processing || fileFlowsTracker.hasHeldMedia()) {
-        // Active: refresh scan + (re)arm the release scan for when this ends.
         releaseRadarrScan = true;
         releaseSonarrScan = true;
         logger.info(
@@ -295,8 +292,6 @@ export const startJobs = (): void => {
         return;
       }
 
-      // Idle: fire one fresh release scan per scanner once it is free, so
-      // PROCESSING media (holds now expired) flips to available and notifies.
       if (releaseRadarrScan && !radarrScanner.status().running) {
         releaseRadarrScan = false;
         logger.info('FileFlows idle; running scan to release availability', {
