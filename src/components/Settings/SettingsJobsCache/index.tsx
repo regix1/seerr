@@ -452,10 +452,7 @@ const SettingsJobs = () => {
                         }
                       >
                         {withCurrentScheduleOption(
-                          buildJobScheduleOptions(
-                            jobModalState.job.interval,
-                            jobModalState.job.id
-                          ),
+                          buildJobScheduleOptions(jobModalState.job.interval),
                           jobModalState.scheduleTotalSeconds
                         ).map((option) => (
                           <option

@@ -13,56 +13,53 @@ export interface JobScheduleOption {
   displayValue: number;
 }
 
-const MINUTE_VALUES = [5, 10, 15, 20, 30, 45];
-const ARR_EXTRA_MINUTE_VALUES = [90];
-const HOUR_VALUES = [1, 2, 3, 4, 6, 8, 12, 24, 48, 72];
-const DAY_VALUES = [1, 2, 3, 4, 5, 6, 7, 10, 14, 21];
+// Curated presets — common intervals used for polling, sync, and maintenance jobs
+// (not every second/minute). Labels pick the most natural unit per value.
+const SECONDS_PRESETS = [5, 10, 15, 30, 45, 60];
+const MINUTES_PRESETS = [1, 2, 3, 5, 10, 15, 30, 45];
+const HOURS_PRESETS = [1, 2, 3, 6, 12, 24];
+const DAYS_PRESETS = [1, 2, 3, 7, 14, 30];
 
-const SECONDS_JOB_OPTIONS = Array.from({ length: 60 }, (_, index) => index + 1);
+const totalsFromPresets = (
+  seconds: number[] = [],
+  minutes: number[] = [],
+  hours: number[] = [],
+  days: number[] = []
+): number[] => {
+  const totals = new Set<number>();
+  for (const value of seconds) totals.add(value);
+  for (const value of minutes) totals.add(value * 60);
+  for (const value of hours) totals.add(value * 3600);
+  for (const value of days) totals.add(value * 86400);
+  return [...totals].sort((a, b) => a - b);
+};
 
 export const buildJobScheduleOptions = (
-  interval: JobScheduleInterval,
-  jobId?: string
+  interval: JobScheduleInterval
 ): JobScheduleOption[] => {
-  const includeArrExtras = jobId === 'radarr-scan' || jobId === 'sonarr-scan';
+  let totals: number[] = [];
 
-  const totals = new Set<number>();
-
-  if (interval === 'seconds') {
-    for (const seconds of SECONDS_JOB_OPTIONS) {
-      totals.add(seconds);
-    }
-  } else if (interval === 'minutes') {
-    for (const minutes of MINUTE_VALUES) {
-      totals.add(minutes * 60);
-    }
-    if (includeArrExtras) {
-      for (const minutes of ARR_EXTRA_MINUTE_VALUES) {
-        totals.add(minutes * 60);
-      }
-    }
-    for (const hours of HOUR_VALUES) {
-      totals.add(hours * 3600);
-    }
-    for (const days of DAY_VALUES) {
-      totals.add(days * 86400);
-    }
-  } else if (interval === 'hours') {
-    for (const hours of HOUR_VALUES) {
-      totals.add(hours * 3600);
-    }
-    for (const days of DAY_VALUES) {
-      totals.add(days * 86400);
-    }
-  } else if (interval === 'days') {
-    for (const days of DAY_VALUES) {
-      totals.add(days * 86400);
-    }
+  switch (interval) {
+    case 'seconds':
+      totals = totalsFromPresets(SECONDS_PRESETS);
+      break;
+    case 'minutes':
+      totals = totalsFromPresets(
+        [],
+        MINUTES_PRESETS,
+        HOURS_PRESETS,
+        DAYS_PRESETS
+      );
+      break;
+    case 'hours':
+      totals = totalsFromPresets([], [], HOURS_PRESETS, DAYS_PRESETS);
+      break;
+    case 'days':
+      totals = totalsFromPresets([], [], [], DAYS_PRESETS);
+      break;
   }
 
-  return [...totals]
-    .sort((a, b) => a - b)
-    .map((totalSeconds) => toDisplayOption(totalSeconds));
+  return totals.map((totalSeconds) => toDisplayOption(totalSeconds));
 };
 
 export const toDisplayOption = (totalSeconds: number): JobScheduleOption => {
