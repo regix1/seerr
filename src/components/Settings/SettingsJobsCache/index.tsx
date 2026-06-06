@@ -151,6 +151,91 @@ type JobModalAction =
     }
   | { type: 'open'; job?: Job };
 
+const DEFAULT_SCHEDULE = {
+  scheduleDays: 1,
+  scheduleHours: 1,
+  scheduleMinutes: 5,
+  scheduleSeconds: 30,
+};
+
+const JOB_SCHEDULE_SECONDS_OPTIONS = [5, 10, 15, 20, 30, 45, 60];
+const JOB_SCHEDULE_MINUTES_OPTIONS = [1, 3, 5, 10, 15, 20, 30, 60];
+const JOB_SCHEDULE_HOURS_OPTIONS = [1, 2, 3, 4, 6, 8, 12, 24, 48, 72];
+const JOB_SCHEDULE_DAYS_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 10, 14, 21];
+
+const withCurrentScheduleOption = (
+  options: number[],
+  current: number
+): number[] => {
+  if (!options.includes(current)) {
+    return [...options, current].sort((a, b) => a - b);
+  }
+
+  return options;
+};
+
+const parseJobScheduleFromCron = (
+  cronSchedule: string,
+  interval: Job['interval']
+): typeof DEFAULT_SCHEDULE => {
+  const parts = cronSchedule.trim().split(/\s+/);
+
+  if (parts.length !== 6) {
+    return DEFAULT_SCHEDULE;
+  }
+
+  const [second, minute, hour, , day] = parts;
+
+  switch (interval) {
+    case 'seconds': {
+      if (second.startsWith('*/')) {
+        const scheduleSeconds = Number(second.slice(2));
+        if (scheduleSeconds > 0) {
+          return { ...DEFAULT_SCHEDULE, scheduleSeconds };
+        }
+      }
+
+      if (second === '0' && minute === '*') {
+        return { ...DEFAULT_SCHEDULE, scheduleSeconds: 60 };
+      }
+
+      break;
+    }
+    case 'minutes': {
+      if (minute.startsWith('*/')) {
+        const scheduleMinutes = Number(minute.slice(2));
+        if (scheduleMinutes > 0) {
+          return { ...DEFAULT_SCHEDULE, scheduleMinutes };
+        }
+      }
+
+      break;
+    }
+    case 'hours': {
+      if (hour.startsWith('*/')) {
+        const scheduleHours = Number(hour.slice(2));
+        if (scheduleHours > 0) {
+          return { ...DEFAULT_SCHEDULE, scheduleHours };
+        }
+      }
+
+      break;
+    }
+    case 'days': {
+      if (day.startsWith('*/')) {
+        const scheduleDays = Number(day.slice(2));
+        if (scheduleDays > 0) {
+          return { ...DEFAULT_SCHEDULE, scheduleDays };
+        }
+      }
+
+      break;
+    }
+  }
+
+  return DEFAULT_SCHEDULE;
+};
+
 const jobModalReducer = (
   state: JobModalState,
   action: JobModalAction
@@ -162,15 +247,17 @@ const jobModalReducer = (
         isOpen: false,
       };
 
-    case 'open':
+    case 'open': {
+      const parsedSchedule = action.job
+        ? parseJobScheduleFromCron(action.job.cronSchedule, action.job.interval)
+        : DEFAULT_SCHEDULE;
+
       return {
         isOpen: true,
         job: action.job,
-        scheduleDays: 1,
-        scheduleHours: 1,
-        scheduleMinutes: 5,
-        scheduleSeconds: 30,
+        ...parsedSchedule,
       };
+    }
 
     case 'set':
       return {
@@ -411,7 +498,10 @@ const SettingsJobs = () => {
                         })
                       }
                     >
-                      {[30, 45, 60].map((v) => (
+                      {withCurrentScheduleOption(
+                        JOB_SCHEDULE_SECONDS_OPTIONS,
+                        jobModalState.scheduleSeconds
+                      ).map((v) => (
                         <option value={v} key={`jobScheduleSeconds-${v}`}>
                           {intl.formatMessage(
                             messages.editJobScheduleSelectorSeconds,
@@ -434,7 +524,10 @@ const SettingsJobs = () => {
                         })
                       }
                     >
-                      {[5, 10, 15, 20, 30, 60].map((v) => (
+                      {withCurrentScheduleOption(
+                        JOB_SCHEDULE_MINUTES_OPTIONS,
+                        jobModalState.scheduleMinutes
+                      ).map((v) => (
                         <option value={v} key={`jobScheduleMinutes-${v}`}>
                           {intl.formatMessage(
                             messages.editJobScheduleSelectorMinutes,
@@ -457,7 +550,10 @@ const SettingsJobs = () => {
                         })
                       }
                     >
-                      {[1, 2, 3, 4, 5, 6, 7, 10, 14, 21].map((v) => (
+                      {withCurrentScheduleOption(
+                        JOB_SCHEDULE_DAYS_OPTIONS,
+                        jobModalState.scheduleDays
+                      ).map((v) => (
                         <option value={v} key={`jobScheduleDays-${v}`}>
                           {intl.formatMessage(
                             messages.editJobScheduleSelectorDays,
@@ -480,7 +576,10 @@ const SettingsJobs = () => {
                         })
                       }
                     >
-                      {[1, 2, 3, 4, 6, 8, 12, 24, 48, 72].map((v) => (
+                      {withCurrentScheduleOption(
+                        JOB_SCHEDULE_HOURS_OPTIONS,
+                        jobModalState.scheduleHours
+                      ).map((v) => (
                         <option value={v} key={`jobScheduleHours-${v}`}>
                           {intl.formatMessage(
                             messages.editJobScheduleSelectorHours,
