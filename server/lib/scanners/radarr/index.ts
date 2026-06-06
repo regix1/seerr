@@ -134,16 +134,26 @@ class RadarrScanner
       // survives a rename/-xpost the filename match would miss), then the live
       // filename, then the release/folder name.
       const fileFlowsKey = `tmdb:${radarrMovie.tmdbId}`;
+      // A *fresh* signal that FileFlows is actively working this file right now
+      // (live processing-file name match, or release/folder match). The hold set
+      // by the parser-based resolver is consulted separately, below.
+      const freshlyProcessing =
+        radarrMovie.hasFile &&
+        ((await fileFlowsTracker.isFileProcessing(
+          radarrMovie.movieFile?.relativePath ?? radarrMovie.movieFile?.path
+        )) ||
+          (await fileFlowsTracker.isReleaseProcessing(radarrMovie.title)));
+      if (freshlyProcessing) {
+        // Only (re)assert the hold on a fresh signal — never on isHeld alone, or
+        // the hold would renew its own TTL on every scan and the movie would
+        // never be released back to available once FileFlows finishes.
+        fileFlowsTracker.markHeld(fileFlowsKey);
+      }
       if (
         radarrMovie.hasFile &&
-        (fileFlowsTracker.isHeld(fileFlowsKey) ||
-          (await fileFlowsTracker.isFileProcessing(
-            radarrMovie.movieFile?.relativePath ?? radarrMovie.movieFile?.path
-          )) ||
-          (await fileFlowsTracker.isReleaseProcessing(radarrMovie.title)))
+        (freshlyProcessing || fileFlowsTracker.isHeld(fileFlowsKey))
       ) {
         processing = true;
-        fileFlowsTracker.markHeld(fileFlowsKey);
         this.log(
           `FileFlows is still processing "${radarrMovie.title}"; deferring availability`,
           'debug'

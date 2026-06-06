@@ -43,10 +43,14 @@ const CACHE_TTL_MS = 3 * 1000;
 // discarded so a FileFlows outage can't block "available" notifications forever
 // (fail-open). Brief blips reuse the previous cache (fail-closed / keep gating).
 const STALE_LIMIT_MS = 10 * 60 * 1000;
-// A media item stays flagged as "held by FileFlows" (for the UI badge) for this
-// long after it was last marked. The fileflows-sync job re-marks active holds
-// well within this window; once FileFlows finishes, the mark simply expires.
-const HELD_TTL_MS = 5 * 60 * 1000;
+// A media item stays flagged as "held by FileFlows" (for the UI badge and the
+// availability deferral) for this long after it was last marked. The
+// fileflows-sync job re-marks active holds every ~60s (and the media routes
+// far more often while a page is open), so this is comfortably above the
+// re-mark cadence — no flicker mid-processing — while keeping the release after
+// FileFlows finishes reasonably prompt. The hold is only ever renewed by a
+// *fresh* processing signal, never by its own held state, so it does expire.
+const HELD_TTL_MS = 3 * 60 * 1000;
 
 const basename = (p: string): string =>
   p.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? '';

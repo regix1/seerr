@@ -254,10 +254,17 @@ export const startJobs = (): void => {
 
   // Re-check FileFlows post-processing. Triggers a Radarr/Sonarr scan while
   // FileFlows is actively processing something — and for a short tail after,
-  // while media is still held — so affected media is promptly held while
-  // processing and released (flipped to available, notification fired) on the
-  // first scan after the holds expire, instead of waiting for the next daily
-  // scan.
+  // while media is still held — so affected media is held while processing and
+  // released (flipped to available, notification fired) on the scan that runs
+  // once the holds expire, instead of waiting for the next daily scan.
+  // A one-shot release scan is "armed" per scanner whenever FileFlows is active,
+  // and fired once that scanner is next idle — so a scan already mid-run when the
+  // holds expire can't swallow the release, and it's retried each tick until
+  // dispatched. Armed on startup too (when FileFlows is enabled) so any media
+  // left PROCESSING across a restart is re-evaluated rather than waiting for the
+  // next daily scan.
+  let releaseRadarrScan = getSettings().fileflows.enabled;
+  let releaseSonarrScan = getSettings().fileflows.enabled;
   scheduledJobs.push({
     id: 'fileflows-sync',
     name: 'FileFlows Sync',
@@ -272,19 +279,36 @@ export const startJobs = (): void => {
         // left the *arr queue) so the badge stays accurate and the hold (and
         // its live percent) is refreshed within the TTL.
         await fileFlowsTracker.resolveHeldMedia();
-      } else if (!fileFlowsTracker.hasHeldMedia()) {
-        // Nothing processing and nothing still held — idle.
+      }
+
+      if (processing || fileFlowsTracker.hasHeldMedia()) {
+        // Active: refresh scan + (re)arm the release scan for when this ends.
+        releaseRadarrScan = true;
+        releaseSonarrScan = true;
+        logger.info(
+          'FileFlows post-processing active; running scan to refresh availability',
+          { label: 'Jobs' }
+        );
+        if (!radarrScanner.status().running) {
+          radarrScanner.run();
+        }
+        if (!sonarrScanner.status().running) {
+          sonarrScanner.run();
+        }
         return;
       }
 
-      logger.info(
-        'FileFlows post-processing active; running scan to refresh availability',
-        { label: 'Jobs' }
-      );
-      if (!radarrScanner.status().running) {
+      // Idle: fire one fresh release scan per scanner once it is free, so
+      // PROCESSING media (holds now expired) flips to available and notifies.
+      if (releaseRadarrScan && !radarrScanner.status().running) {
+        releaseRadarrScan = false;
+        logger.info('FileFlows idle; running scan to release availability', {
+          label: 'Jobs',
+        });
         radarrScanner.run();
       }
-      if (!sonarrScanner.status().running) {
+      if (releaseSonarrScan && !sonarrScanner.status().running) {
+        releaseSonarrScan = false;
         sonarrScanner.run();
       }
     }),
