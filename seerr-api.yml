@@ -1484,6 +1484,15 @@ components:
           type: number
           example: 0
           description: 4K availability of the media.
+        fileFlowsProcessing:
+          type: boolean
+          readOnly: true
+          description: Whether FileFlows is currently post-processing this media.
+        fileFlowsProgress:
+          type: number
+          readOnly: true
+          nullable: true
+          description: FileFlows processing percent (0-100), or null when unknown.
         ratingKey:
           type: string
           readOnly: true
@@ -2604,7 +2613,6 @@ paths:
                         source:
                           type: string
                           enum:
-                            - fileflows
                             - arr-parse
                             - none
                         badgeActive:

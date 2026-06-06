@@ -301,6 +301,7 @@ class Media {
   public downloadStatus?: DownloadingItem[] = [];
   public downloadStatus4k?: DownloadingItem[] = [];
   public fileFlowsProcessing?: boolean = false;
+  public fileFlowsProgress?: number | null = null;
 
   public mediaUrl?: string;
   public mediaUrl4k?: string;
@@ -556,29 +557,32 @@ class Media {
       }
     }
 
-    this.fileFlowsProcessing =
+    const fileFlowsKeys =
       this.mediaType === MediaType.MOVIE
-        ? fileFlowsTracker.isHeld(
+        ? [
             `tmdb:${this.tmdbId}`,
             this.externalServiceId != null
               ? `radarr:${this.externalServiceId}`
               : undefined,
             this.externalServiceId4k != null
               ? `radarr:${this.externalServiceId4k}`
-              : undefined
-          )
-        : fileFlowsTracker.isHeld(
+              : undefined,
+          ]
+        : [
+            // The resolver holds series under the Sonarr `tvdb:` key (and the
+            // download tracker under `sonarr:`); `tmdb:` is a defensive fallback
+            // for any future TMDB-keyed TV hold (it carries no live percent).
             this.tvdbId != null ? `tvdb:${this.tvdbId}` : undefined,
-            // FileFlows resolves TV via TheMovieDB, so it marks shows under a
-            // `tmdb:` key — match that too, not only the Sonarr `tvdb:` key.
             this.tmdbId != null ? `tmdb:${this.tmdbId}` : undefined,
             this.externalServiceId != null
               ? `sonarr:${this.externalServiceId}`
               : undefined,
             this.externalServiceId4k != null
               ? `sonarr:${this.externalServiceId4k}`
-              : undefined
-          );
+              : undefined,
+          ];
+    this.fileFlowsProcessing = fileFlowsTracker.isHeld(...fileFlowsKeys);
+    this.fileFlowsProgress = fileFlowsTracker.getHeldProgress(...fileFlowsKeys);
   }
 }
 

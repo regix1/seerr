@@ -48,7 +48,6 @@ const messages = defineMessages('components.Settings', {
   mappingsColBadge: 'Badge active',
   mappingsView: 'View',
   mappingsUnresolved: 'Unresolved',
-  mappingsSourceFileflows: 'FileFlows metadata',
   mappingsSourceArr: 'Radarr/Sonarr parser',
   mappingsSourceNone: '—',
   mappingsYes: 'Yes',
@@ -70,7 +69,7 @@ interface FileFlowsFileMapping {
   mediaType: 'movie' | 'tv' | null;
   tmdbId: number | null;
   tvdbId: number | null;
-  source: 'fileflows' | 'arr-parse' | 'none';
+  source: 'arr-parse' | 'none';
   badgeActive: boolean;
 }
 
@@ -421,13 +420,9 @@ const SettingsFileFlows = () => {
                           )}
                         </td>
                         <td className="py-2 pr-4 text-xs text-gray-400">
-                          {file.source === 'fileflows'
-                            ? intl.formatMessage(
-                                messages.mappingsSourceFileflows
-                              )
-                            : file.source === 'arr-parse'
-                              ? intl.formatMessage(messages.mappingsSourceArr)
-                              : intl.formatMessage(messages.mappingsSourceNone)}
+                          {file.source === 'arr-parse'
+                            ? intl.formatMessage(messages.mappingsSourceArr)
+                            : intl.formatMessage(messages.mappingsSourceNone)}
                         </td>
                         <td className="py-2">
                           <Badge

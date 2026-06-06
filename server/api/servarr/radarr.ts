@@ -268,15 +268,20 @@ class RadarrAPI extends ServarrBase<{ movieId: number }> {
     }
   }
   // Resolve a release/file name (e.g. a FileFlows processing file) to a known
-  // movie's TMDB id using Radarr's own release parser. Handles scene naming
-  // (extra tags, -xpost, etc.) that a plain filename match would miss.
-  public async getTmdbIdFromRelease(title: string): Promise<number | null> {
+  // movie using Radarr's own release parser. Handles scene naming (extra tags,
+  // -xpost, etc.) that a plain filename match would miss. Returns the matched
+  // movie's TMDB id and title, or null when nothing matched.
+  public async getTmdbIdFromRelease(
+    title: string
+  ): Promise<{ tmdbId: number; title: string | null } | null> {
     try {
-      const response = await this.axios.get<{ movie?: { tmdbId?: number } }>(
-        '/parse',
-        { params: { title } }
-      );
-      return response.data?.movie?.tmdbId ?? null;
+      const response = await this.axios.get<{
+        movie?: { tmdbId?: number; title?: string };
+      }>('/parse', { params: { title } });
+      const movie = response.data?.movie;
+      return movie?.tmdbId
+        ? { tmdbId: movie.tmdbId, title: movie.title ?? null }
+        : null;
     } catch {
       return null;
     }

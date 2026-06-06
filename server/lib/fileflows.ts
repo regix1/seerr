@@ -1,23 +1,17 @@
-import FileFlowsAPI, { type FileFlowsMetaInfo } from '@server/api/fileflows';
+import FileFlowsAPI from '@server/api/fileflows';
 import RadarrAPI from '@server/api/servarr/radarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 
-type MappingSource = 'fileflows' | 'arr-parse' | 'none';
+// FileFlows exposes no title/TMDB metadata on its files (its OriginalMetadata/
+// FinalMetadata are codec/resolution only), so the release name is the sole
+// mapping signal — resolved through the Radarr/Sonarr parser.
+type MappingSource = 'arr-parse' | 'none';
 
-// FileFlows' own resolved metadata for a processing file (from a Movie/TV
-// lookup node). tmdbId is null when FileFlows reported only a title or a
-// non-numeric id.
-interface FileFlowsMeta {
-  tmdbId: number | null;
-  mediaType: 'movie' | 'tv' | null;
-  title: string | null;
-}
-
-// A processing file resolved to a media item via FileFlows metadata or the
-// Radarr/Sonarr release parser. `key` is the held-media key (`tmdb:`/`tvdb:`)
-// or null when the file could not be resolved.
+// A processing file resolved to a media item via the Radarr/Sonarr release
+// parser. `key` is the held-media key (`tmdb:`/`tvdb:`) or null when the file
+// could not be resolved.
 interface ResolvedFile {
   key: string | null;
   mediaType: 'movie' | 'tv' | null;
@@ -76,9 +70,15 @@ class FileFlowsProcessingTracker {
   private currentFiles: string[] = [];
   private processingCount = 0;
   private queueCount = 0;
-  // FileFlows' own per-file metadata, keyed by lowercased basename, rebuilt on
-  // every status refresh.
-  private metaByBasename = new Map<string, FileFlowsMeta>();
+  // Per-file movie-vs-tv hint from FileFlows' library name, keyed by lowercased
+  // basename, rebuilt on every status refresh.
+  private libraryHints = new Map<string, 'movie' | 'tv' | null>();
+  // Per-file FileFlows step percent (0-100), keyed by lowercased basename,
+  // rebuilt on every status refresh.
+  private fileProgress = new Map<string, number>();
+  // Latest known progress per held media key, so the UI badge can show a live
+  // percent. Expires together with the held mark.
+  private heldProgress = new Map<string, number>();
   // Cache resolved files (positive results only) so we parse a given file at
   // most once while it is processing.
   private resolveCache = new Map<string, ResolvedFile>();
@@ -139,7 +139,8 @@ class FileFlowsProcessingTracker {
       this.stems = new Set();
       this.folders = new Set();
       this.currentFiles = [];
-      this.metaByBasename = new Map();
+      this.libraryHints = new Map();
+      this.fileProgress = new Map();
       this.processingCount = status.processing ?? 0;
       this.queueCount = status.queue ?? 0;
       for (const file of status.processingFiles ?? []) {
@@ -149,25 +150,13 @@ class FileFlowsProcessingTracker {
         if (name && !this.currentFiles.includes(name)) {
           this.currentFiles.push(name);
         }
-      }
-
-      // Best-effort: enrich with FileFlows' own metadata (title / TMDB id) when
-      // a lookup node populated it. A failure here (older build, route absent)
-      // must not discard the status result captured above.
-      try {
-        const libraryFiles = await api.getProcessingLibraryFiles();
-        for (const lf of libraryFiles) {
-          const base = basename(lf.Name || lf.RelativePath || '').toLowerCase();
-          const meta = this.resolveFromMeta(lf.MetaInfo);
-          if (base && meta) {
-            this.metaByBasename.set(base, meta);
+        if (name) {
+          const key = name.toLowerCase();
+          this.libraryHints.set(key, libraryHint(file.library));
+          if (typeof file.stepPercent === 'number') {
+            this.fileProgress.set(key, clampPercent(file.stepPercent));
           }
         }
-      } catch (e) {
-        logger.debug('FileFlows library-file metadata unavailable', {
-          label: 'FileFlows',
-          errorMessage: e instanceof Error ? e.message : String(e),
-        });
       }
 
       const now = Date.now();
@@ -198,9 +187,15 @@ class FileFlowsProcessingTracker {
     this.stems = new Set();
     this.folders = new Set();
     this.currentFiles = [];
-    this.metaByBasename = new Map();
+    this.libraryHints = new Map();
+    this.fileProgress = new Map();
     this.processingCount = 0;
     this.queueCount = 0;
+    // Release held media immediately when FileFlows is disabled or has been
+    // unreachable past the stale window (fail-open), rather than waiting out the
+    // per-key TTL.
+    this.heldMedia = new Map();
+    this.heldProgress = new Map();
   }
 
   /** True if FileFlows is actively processing at least one file. */
@@ -243,10 +238,15 @@ class FileFlowsProcessingTracker {
   /**
    * Record a media item as held by FileFlows (surfaced as a UI badge). Callers
    * key by whatever id they have on hand — TMDB/TVDB id from the scanner, or
-   * `radarr:`/`sonarr:` external service id from the download tracker.
+   * `radarr:`/`sonarr:` external service id from the download tracker. When the
+   * FileFlows step percent for the item is known it is stored too, so the badge
+   * can show live progress.
    */
-  public markHeld(key: string): void {
+  public markHeld(key: string, percent?: number | null): void {
     this.heldMedia.set(key, Date.now());
+    if (typeof percent === 'number' && Number.isFinite(percent)) {
+      this.heldProgress.set(key, clampPercent(percent));
+    }
   }
 
   /** True if any of the given keys was marked as held by FileFlows recently. */
@@ -261,6 +261,7 @@ class FileFlowsProcessingTracker {
       }
       if (Date.now() - markedAt > HELD_TTL_MS) {
         this.heldMedia.delete(key);
+        this.heldProgress.delete(key);
         continue;
       }
       return true;
@@ -268,46 +269,47 @@ class FileFlowsProcessingTracker {
     return false;
   }
 
-  // Parse FileFlows' MetaInfo into a usable mapping. Returns null only when the
-  // metadata carries neither a title nor a usable id (nothing to surface).
-  private resolveFromMeta(
-    meta?: FileFlowsMetaInfo | null
-  ): FileFlowsMeta | null {
-    if (!meta) {
-      return null;
+  /**
+   * True if any media is still held (within the TTL). Lets the sync job keep
+   * scanning for a short tail after FileFlows stops processing, so the scan that
+   * runs just after the holds expire flips the media to available — without
+   * clearing holds early (a brief gap between files must not release them).
+   * Prunes expired entries as it goes.
+   */
+  public hasHeldMedia(): boolean {
+    const now = Date.now();
+    let held = false;
+    for (const [key, markedAt] of this.heldMedia) {
+      if (now - markedAt > HELD_TTL_MS) {
+        this.heldMedia.delete(key);
+        this.heldProgress.delete(key);
+      } else {
+        held = true;
+      }
     }
-    const tmdbId = numericId(meta.MetaId);
-    const title = meta.Title?.trim() || null;
-    if (!tmdbId && !title) {
-      return null;
-    }
-    // FileFlows only fills SeasonNumber/EpisodeNumber for TV; presence of either
-    // is a reliable movie-vs-tv signal that doesn't depend on enum ordering.
-    const isTv = meta.SeasonNumber != null || meta.EpisodeNumber != null;
-    return { tmdbId, mediaType: isTv ? 'tv' : 'movie', title };
+    return held;
   }
 
-  // Resolve a single processing file to a media item. Prefers FileFlows' own
-  // metadata (no extra network call); otherwise asks each Radarr/Sonarr server
-  // to parse the release name. The *arr parser is scene-aware, so it resolves
-  // names a plain match misses (extra tags like "-xpost", renamed files, etc.).
-  private async resolveFileFull(file: string): Promise<ResolvedFile> {
-    const meta = this.metaByBasename.get(file.toLowerCase());
-
-    if (meta?.tmdbId) {
-      return {
-        key: `tmdb:${meta.tmdbId}`,
-        mediaType: meta.mediaType ?? 'movie',
-        tmdbId: meta.tmdbId,
-        tvdbId: null,
-        title: meta.title,
-        source: 'fileflows',
-      };
+  /**
+   * FileFlows processing percent (0-100) for the first still-held key (in
+   * argument order) that has a known percent, or null when unknown (e.g. held
+   * via the download queue without a live percent).
+   */
+  public getHeldProgress(...keys: (string | undefined)[]): number | null {
+    for (const key of keys) {
+      if (!key || !this.isHeld(key)) {
+        continue;
+      }
+      const percent = this.heldProgress.get(key);
+      if (percent != null) {
+        return percent;
+      }
     }
+    return null;
+  }
 
-    const settings = getSettings();
-
-    for (const server of settings.radarr) {
+  private async parseWithRadarr(file: string): Promise<ResolvedFile | null> {
+    for (const server of getSettings().radarr) {
       if (!server.syncEnabled) {
         continue;
       }
@@ -316,14 +318,14 @@ class FileFlowsProcessingTracker {
           apiKey: server.apiKey,
           url: RadarrAPI.buildUrl(server, '/api/v3'),
         });
-        const tmdbId = await radarr.getTmdbIdFromRelease(file);
-        if (tmdbId) {
+        const match = await radarr.getTmdbIdFromRelease(file);
+        if (match) {
           return {
-            key: `tmdb:${tmdbId}`,
+            key: `tmdb:${match.tmdbId}`,
             mediaType: 'movie',
-            tmdbId,
+            tmdbId: match.tmdbId,
             tvdbId: null,
-            title: meta?.title ?? null,
+            title: match.title,
             source: 'arr-parse',
           };
         }
@@ -331,8 +333,11 @@ class FileFlowsProcessingTracker {
         // try the next server
       }
     }
+    return null;
+  }
 
-    for (const server of settings.sonarr) {
+  private async parseWithSonarr(file: string): Promise<ResolvedFile | null> {
+    for (const server of getSettings().sonarr) {
       if (!server.syncEnabled) {
         continue;
       }
@@ -341,14 +346,14 @@ class FileFlowsProcessingTracker {
           apiKey: server.apiKey,
           url: SonarrAPI.buildUrl(server, '/api/v3'),
         });
-        const tvdbId = await sonarr.getTvdbIdFromRelease(file);
-        if (tvdbId) {
+        const match = await sonarr.getTvdbIdFromRelease(file);
+        if (match) {
           return {
-            key: `tvdb:${tvdbId}`,
+            key: `tvdb:${match.tvdbId}`,
             mediaType: 'tv',
             tmdbId: null,
-            tvdbId,
-            title: meta?.title ?? null,
+            tvdbId: match.tvdbId,
+            title: match.title,
             source: 'arr-parse',
           };
         }
@@ -356,14 +361,33 @@ class FileFlowsProcessingTracker {
         // try the next server
       }
     }
+    return null;
+  }
 
-    // Unresolved — still surface any FileFlows title for the diagnostic view.
+  // Resolve a single processing file to a media item by asking Radarr/Sonarr to
+  // parse the release name. The *arr parser is scene-aware, so it resolves names
+  // a plain match misses (extra tags like "-xpost", renamed files, etc.). The
+  // FileFlows library name hints movie-vs-tv so the right *arr is tried first.
+  private async resolveFileFull(file: string): Promise<ResolvedFile> {
+    const hint = this.libraryHints.get(file.toLowerCase()) ?? null;
+    const attempts =
+      hint === 'tv'
+        ? [() => this.parseWithSonarr(file), () => this.parseWithRadarr(file)]
+        : [() => this.parseWithRadarr(file), () => this.parseWithSonarr(file)];
+
+    for (const attempt of attempts) {
+      const result = await attempt();
+      if (result) {
+        return result;
+      }
+    }
+
     return {
       key: null,
-      mediaType: meta?.mediaType ?? null,
+      mediaType: hint,
       tmdbId: null,
       tvdbId: null,
-      title: meta?.title ?? null,
+      title: null,
       source: 'none',
     };
   }
@@ -393,7 +417,8 @@ class FileFlowsProcessingTracker {
         }
       }
       if (resolved.key) {
-        this.markHeld(resolved.key);
+        // Re-mark every cycle with the latest percent so the badge stays live.
+        this.markHeld(resolved.key, this.fileProgress.get(file.toLowerCase()));
       }
     }
   }
@@ -407,16 +432,14 @@ class FileFlowsProcessingTracker {
     await this.resolveHeldMedia();
 
     const files: FileFlowsFileMapping[] = this.currentFiles.map((file) => {
-      // resolveHeldMedia caches positives; unresolved files fall back to any
-      // FileFlows metadata so the view can still show what FileFlows thinks it
-      // is even when nothing mapped it to an id.
-      const meta = this.metaByBasename.get(file.toLowerCase());
+      // resolveHeldMedia caches positives; unresolved files fall back to the
+      // library hint so the view can still show movie-vs-tv.
       const resolved: ResolvedFile = this.resolveCache.get(file) ?? {
         key: null,
-        mediaType: meta?.mediaType ?? null,
+        mediaType: this.libraryHints.get(file.toLowerCase()) ?? null,
         tmdbId: null,
         tvdbId: null,
-        title: meta?.title ?? null,
+        title: null,
         source: 'none',
       };
       return {
@@ -438,16 +461,28 @@ class FileFlowsProcessingTracker {
   }
 }
 
-// A FileFlows MetaId is treated as a TMDB id only when it is a clean positive
-// integer; FileFlows may instead expose an IMDb-style id ("tt123…") or nothing,
-// in which case the *arr parser is the authoritative resolver.
-function numericId(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) {
-    return value;
+// Clamp a FileFlows step percent to a whole 0-100.
+function clampPercent(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+// Map a FileFlows library name ("Movie: Video Library", "TV Show: Video
+// Library", …) to a movie-vs-tv hint so the right *arr is parsed first.
+function libraryHint(library?: string): 'movie' | 'tv' | null {
+  if (!library) {
+    return null;
   }
-  if (typeof value === 'string' && /^\d+$/.test(value.trim())) {
-    const parsed = Number(value.trim());
-    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+  const l = library.toLowerCase();
+  if (
+    l.includes('tv') ||
+    l.includes('show') ||
+    l.includes('series') ||
+    l.includes('episode')
+  ) {
+    return 'tv';
+  }
+  if (l.includes('movie') || l.includes('film')) {
+    return 'movie';
   }
   return null;
 }

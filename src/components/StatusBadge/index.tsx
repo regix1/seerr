@@ -18,7 +18,7 @@ const messages = defineMessages('components.StatusBadge', {
   managemedia: 'Manage {mediaType}',
   seasonnumber: 'S{seasonNumber}',
   seasonepisodenumber: 'S{seasonNumber}E{episodeNumber}',
-  fileflowsProcessing: 'Processing in FileFlows',
+  fileflowsProcessing: 'FileFlows Processing',
 });
 
 interface StatusBadgeProps {
@@ -27,6 +27,7 @@ interface StatusBadgeProps {
   is4k?: boolean;
   inProgress?: boolean;
   fileFlowsProcessing?: boolean;
+  fileFlowsProgress?: number | null;
   plexUrl?: string;
   serviceUrl?: string;
   tmdbId?: number;
@@ -42,6 +43,7 @@ const StatusBadge = ({
   is4k = false,
   inProgress = false,
   fileFlowsProcessing = false,
+  fileFlowsProgress = null,
   plexUrl,
   serviceUrl,
   tmdbId,
@@ -153,16 +155,51 @@ const StatusBadge = ({
     />
   );
 
-  // FileFlows can post-process a file after the *arr already imported it, so the
-  // persisted status is often AVAILABLE rather than PROCESSING. Surface the
-  // indicator regardless of which status branch renders, as long as a real
-  // download isn't already in progress (that has its own spinner).
-  const fileFlowsIndicator =
-    !inProgress && fileFlowsProcessing ? (
-      <Tooltip content={intl.formatMessage(messages.fileflowsProcessing)}>
-        <Spinner className="ml-1 h-3 w-3" />
+  // FileFlows post-processes a file before or after the *arr imports it, so the
+  // persisted status may be PROCESSING or already AVAILABLE. Whenever FileFlows
+  // is working on the item — and no *arr download is in progress (that has its
+  // own purple badge) — show a distinct pink badge with the live FileFlows
+  // percent, taking precedence over the underlying status. The FileFlows hold
+  // is media-level (not per quality profile), so it is only shown on the
+  // standard badge, never the 4k one (which would be a false positive), and it
+  // never masks the BLOCKLISTED/DELETED danger states.
+  if (
+    fileFlowsProcessing &&
+    !inProgress &&
+    !is4k &&
+    status !== MediaStatus.BLOCKLISTED &&
+    status !== MediaStatus.DELETED
+  ) {
+    const percent =
+      fileFlowsProgress != null
+        ? Math.max(0, Math.min(100, Math.round(fileFlowsProgress)))
+        : null;
+    return (
+      <Tooltip content={mediaLinkDescription}>
+        <Badge
+          badgeType="default"
+          href={mediaLink}
+          className="relative overflow-hidden !border-pink-500 !bg-pink-900/40 !px-0 !text-pink-50 hover:!bg-pink-900/60"
+        >
+          <div
+            className="absolute left-0 top-0 z-10 flex h-full bg-pink-500/80 transition-all duration-200 ease-in-out"
+            style={{ width: `${percent ?? 0}%` }}
+          />
+          <div className="relative z-20 flex items-center px-2 text-pink-50">
+            <span>
+              {intl.formatMessage(messages.status, {
+                status: intl.formatMessage(messages.fileflowsProcessing),
+              })}
+            </span>
+            {percent != null && (
+              <span className="ml-1 tabular-nums">{percent}%</span>
+            )}
+            <Spinner className="ml-1 h-3 w-3" />
+          </div>
+        </Badge>
       </Tooltip>
-    ) : null;
+    );
+  }
 
   switch (status) {
     case MediaStatus.AVAILABLE:
@@ -198,8 +235,7 @@ const StatusBadge = ({
                       : intl.formatMessage(globalMessages.available),
                   }
                 )}
-              </span>
-              {fileFlowsIndicator}
+              </span>{' '}
               {inProgress && (
                 <>
                   {mediaType === 'tv' &&
@@ -264,8 +300,7 @@ const StatusBadge = ({
                       : intl.formatMessage(globalMessages.partiallyavailable),
                   }
                 )}
-              </span>
-              {fileFlowsIndicator}
+              </span>{' '}
               {inProgress && (
                 <>
                   {mediaType === 'tv' &&
@@ -325,14 +360,12 @@ const StatusBadge = ({
                 {intl.formatMessage(
                   is4k ? messages.status4k : messages.status,
                   {
-                    status:
-                      inProgress || fileFlowsProcessing
-                        ? intl.formatMessage(globalMessages.processing)
-                        : intl.formatMessage(globalMessages.requested),
+                    status: inProgress
+                      ? intl.formatMessage(globalMessages.processing)
+                      : intl.formatMessage(globalMessages.requested),
                   }
                 )}
-              </span>
-              {fileFlowsIndicator}
+              </span>{' '}
               {inProgress && (
                 <>
                   {mediaType === 'tv' &&

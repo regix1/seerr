@@ -252,9 +252,12 @@ export const startJobs = (): void => {
     }),
   });
 
-  // Re-check FileFlows post-processing. Only triggers a Radarr/Sonarr scan
-  // while FileFlows is actively processing something, so affected media is
-  // promptly held / released instead of waiting for the next daily scan.
+  // Re-check FileFlows post-processing. Triggers a Radarr/Sonarr scan while
+  // FileFlows is actively processing something — and for a short tail after,
+  // while media is still held — so affected media is promptly held while
+  // processing and released (flipped to available, notification fired) on the
+  // first scan after the holds expire, instead of waiting for the next daily
+  // scan.
   scheduledJobs.push({
     id: 'fileflows-sync',
     name: 'FileFlows Sync',
@@ -262,14 +265,20 @@ export const startJobs = (): void => {
     interval: 'seconds',
     cronSchedule: jobs['fileflows-sync'].schedule,
     job: schedule.scheduleJob(jobs['fileflows-sync'].schedule, async () => {
-      if (!(await fileFlowsTracker.hasProcessingFiles())) {
+      const processing = await fileFlowsTracker.hasProcessingFiles();
+
+      if (processing) {
+        // Resolve in-progress files to media (handles releases that already
+        // left the *arr queue) so the badge stays accurate and the hold (and
+        // its live percent) is refreshed within the TTL.
+        await fileFlowsTracker.resolveHeldMedia();
+      } else if (!fileFlowsTracker.hasHeldMedia()) {
+        // Nothing processing and nothing still held — idle.
         return;
       }
-      // Resolve in-progress files to media (handles releases that already left
-      // the *arr queue) so the "processing in FileFlows" badge stays accurate.
-      await fileFlowsTracker.resolveHeldMedia();
+
       logger.info(
-        'FileFlows is processing files; running scan to refresh availability',
+        'FileFlows post-processing active; running scan to refresh availability',
         { label: 'Jobs' }
       );
       if (!radarrScanner.status().running) {

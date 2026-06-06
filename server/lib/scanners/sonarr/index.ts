@@ -224,17 +224,33 @@ class SonarrScanner
         }
       }
 
+      // A series held by FileFlows (resolved via the release parser, e.g. a
+      // renamed or -xpost file the per-episode filename match misses) keeps its
+      // not-yet-complete seasons in processing, so availability and the
+      // available notification are deferred until FileFlows finishes. Once the
+      // hold expires the next scan restores the real status.
+      const tvHeld = fileFlowsTracker.isHeld(
+        `tvdb:${sonarrSeries.tvdbId}`,
+        `tmdb:${tmdbId}`
+      );
+
       for (const season of filteredSeasons) {
         const totalAvailableEpisodes = season.statistics?.episodeFileCount ?? 0;
+        const totalEpisodes = season.statistics?.totalEpisodeCount ?? 0;
 
         processableSeasons.push({
           seasonNumber: season.seasonNumber,
           episodes: !server4k ? totalAvailableEpisodes : 0,
           episodes4k: server4k ? totalAvailableEpisodes : 0,
-          totalEpisodes: season.statistics?.totalEpisodeCount ?? 0,
+          totalEpisodes,
           processing:
             (season.monitored && totalAvailableEpisodes === 0) ||
-            fileFlowsSeasons.has(season.seasonNumber),
+            fileFlowsSeasons.has(season.seasonNumber) ||
+            // Only defer seasons that are actually monitored or partially
+            // present — never flip an unmonitored, empty season to processing.
+            (tvHeld &&
+              totalAvailableEpisodes < totalEpisodes &&
+              (season.monitored || totalAvailableEpisodes > 0)),
           is4kOverride: server4k,
         });
       }

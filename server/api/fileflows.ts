@@ -3,33 +3,17 @@ import ExternalAPI from '@server/api/externalapi';
 export interface FileFlowsProcessingFile {
   name: string;
   relativePath?: string;
+  // The FileFlows library a file belongs to, e.g. "Movie: Video Library" or
+  // "TV Show: Video Library" — a cheap movie-vs-tv hint for resolution.
+  library?: string;
+  step?: string;
+  stepPercent?: number;
 }
 
 export interface FileFlowsStatus {
   processing: number;
   queue: number;
   processingFiles: FileFlowsProcessingFile[];
-}
-
-// Rich per-file metadata FileFlows attaches once a Movie/TV "lookup" node has
-// run in the flow. Fields are PascalCase (FileFlows serializes its .NET objects
-// verbatim) and every field is optional — MetaInfo stays empty until a lookup
-// node populates it, so callers must always be able to fall back to the name.
-export interface FileFlowsMetaInfo {
-  MetaId?: string | number | null;
-  Title?: string | null;
-  Subtitle?: string | null;
-  SeasonNumber?: number | null;
-  EpisodeNumber?: number | null;
-  LastEpisodeNumber?: number | null;
-  Type?: number | null;
-}
-
-export interface FileFlowsLibraryFile {
-  Uid?: string;
-  Name?: string;
-  RelativePath?: string;
-  MetaInfo?: FileFlowsMetaInfo | null;
 }
 
 interface FileFlowsAPIOptions {
@@ -74,21 +58,6 @@ class FileFlowsAPI extends ExternalAPI {
    */
   public async getStatus(): Promise<FileFlowsStatus> {
     return this.get<FileFlowsStatus>('/status', undefined, 0);
-  }
-
-  /**
-   * List the files FileFlows is currently Processing (FileStatus 2), including
-   * the rich MetaInfo (title / TMDB id / season-episode) FileFlows resolved for
-   * each. Best-effort: older builds, or instances whose flow never ran a lookup
-   * node, return sparse objects — callers must treat every field as optional
-   * and fall back to parsing the file name.
-   */
-  public async getProcessingLibraryFiles(): Promise<FileFlowsLibraryFile[]> {
-    const response = await this.axios.get<FileFlowsLibraryFile[]>(
-      '/library-file',
-      { params: { status: 2 } }
-    );
-    return Array.isArray(response.data) ? response.data : [];
   }
 }
 

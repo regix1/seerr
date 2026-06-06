@@ -130,14 +130,20 @@ class RadarrScanner
       // FileFlows gate: if the imported file is still being post-processed by
       // FileFlows, keep the movie marked as processing so it is not flipped to
       // available (and the available notification is not sent) prematurely.
+      // Checks the persisted hold (set by the parser-based resolver, which
+      // survives a rename/-xpost the filename match would miss), then the live
+      // filename, then the release/folder name.
+      const fileFlowsKey = `tmdb:${radarrMovie.tmdbId}`;
       if (
         radarrMovie.hasFile &&
-        (await fileFlowsTracker.isFileProcessing(
-          radarrMovie.movieFile?.relativePath ?? radarrMovie.movieFile?.path
-        ))
+        (fileFlowsTracker.isHeld(fileFlowsKey) ||
+          (await fileFlowsTracker.isFileProcessing(
+            radarrMovie.movieFile?.relativePath ?? radarrMovie.movieFile?.path
+          )) ||
+          (await fileFlowsTracker.isReleaseProcessing(radarrMovie.title)))
       ) {
         processing = true;
-        fileFlowsTracker.markHeld(`tmdb:${radarrMovie.tmdbId}`);
+        fileFlowsTracker.markHeld(fileFlowsKey);
         this.log(
           `FileFlows is still processing "${radarrMovie.title}"; deferring availability`,
           'debug'

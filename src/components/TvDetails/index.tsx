@@ -555,6 +555,7 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
               title={data.name}
               inProgress={(data.mediaInfo?.downloadStatus ?? []).length > 0}
               fileFlowsProcessing={data.mediaInfo?.fileFlowsProcessing}
+              fileFlowsProgress={data.mediaInfo?.fileFlowsProgress}
               tmdbId={data.mediaInfo?.tmdbId}
               mediaType="tv"
               plexUrl={plexUrl}
@@ -581,6 +582,7 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                     (data.mediaInfo?.downloadStatus4k ?? []).length > 0
                   }
                   fileFlowsProcessing={data.mediaInfo?.fileFlowsProcessing}
+                  fileFlowsProgress={data.mediaInfo?.fileFlowsProgress}
                   tmdbId={data.mediaInfo?.tmdbId}
                   mediaType="tv"
                   plexUrl={plexUrl4k}
