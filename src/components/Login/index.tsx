@@ -154,7 +154,7 @@ const Login = () => {
               {hasMediaServerLogin && (
                 <div className="flex w-full flex-col gap-3 lg:flex-row lg:gap-3">
                   {plexLoginEnabled && (
-                    <div className="flex-1">
+                    <div className="flex flex-1">
                       <PlexLoginButton
                         isProcessing={isProcessing}
                         onAuthToken={(authToken: string) =>
@@ -165,7 +165,7 @@ const Login = () => {
                     </div>
                   )}
                   {jellyfinLoginEnabled && (
-                    <div className="flex-1">
+                    <div className="flex flex-1">
                       <JellyfinLoginButton
                         onClick={() => setShowJellyfinModal(true)}
                         disabled={isProcessing}
@@ -174,7 +174,7 @@ const Login = () => {
                     </div>
                   )}
                   {embyLoginEnabled && (
-                    <div className="flex-1">
+                    <div className="flex flex-1">
                       <EmbyLoginButton
                         onClick={() => setShowEmbyModal(true)}
                         disabled={isProcessing}
