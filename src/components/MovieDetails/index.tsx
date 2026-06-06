@@ -517,7 +517,6 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
               inProgress={(data.mediaInfo?.downloadStatus ?? []).length > 0}
               fileFlowsProcessing={data.mediaInfo?.fileFlowsProcessing}
               fileFlowsProgress={data.mediaInfo?.fileFlowsProgress}
-              fileFlowsStep={data.mediaInfo?.fileFlowsStep}
               tmdbId={data.mediaInfo?.tmdbId}
               mediaType="movie"
               plexUrl={plexUrl}
@@ -545,7 +544,6 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
                   }
                   fileFlowsProcessing={data.mediaInfo?.fileFlowsProcessing}
                   fileFlowsProgress={data.mediaInfo?.fileFlowsProgress}
-                  fileFlowsStep={data.mediaInfo?.fileFlowsStep}
                   tmdbId={data.mediaInfo?.tmdbId}
                   mediaType="movie"
                   plexUrl={plexUrl4k}

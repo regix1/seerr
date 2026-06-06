@@ -1,20 +1,21 @@
 import ExternalAPI from '@server/api/externalapi';
+import type {
+  FileFlowsFileStatus,
+  FileFlowsLibraryDto,
+  FileFlowsLibraryFileDto,
+  FileFlowsLibraryFileSearchQuery,
+  FileFlowsLibraryFileSearchRowDto,
+  FileFlowsStatusDto,
+} from '@server/models/FileFlows';
 
-export interface FileFlowsProcessingFile {
-  name: string;
-  relativePath?: string;
-  // The FileFlows library a file belongs to, e.g. "Movie: Video Library" or
-  // "TV Show: Video Library" — a cheap movie-vs-tv hint for resolution.
-  library?: string;
-  step?: string;
-  stepPercent?: number;
-}
-
-export interface FileFlowsStatus {
-  processing: number;
-  queue: number;
-  processingFiles: FileFlowsProcessingFile[];
-}
+export type {
+  FileFlowsLibraryDto,
+  FileFlowsLibraryFileDto,
+  FileFlowsLibraryFileSearchQuery,
+  FileFlowsLibraryFileSearchRowDto,
+  FileFlowsProcessingFileDto,
+  FileFlowsStatusDto,
+} from '@server/models/FileFlows';
 
 interface FileFlowsAPIOptions {
   hostname: string;
@@ -56,8 +57,50 @@ class FileFlowsAPI extends ExternalAPI {
    * FileFlows is actively processing right now. ttl 0 disables caching here —
    * the FileFlows tracker owns the short-lived cache.
    */
-  public async getStatus(): Promise<FileFlowsStatus> {
-    return this.get<FileFlowsStatus>('/status', undefined, 0);
+  public async getStatus(): Promise<FileFlowsStatusDto> {
+    return this.get<FileFlowsStatusDto>('/status', undefined, 0);
+  }
+
+  /** Library files in a given FileFlows status. */
+  public async getLibraryFiles(
+    status: FileFlowsFileStatus
+  ): Promise<FileFlowsLibraryFileDto[]> {
+    return this.get<FileFlowsLibraryFileDto[]>(
+      '/library-file',
+      {
+        params: { status },
+      },
+      0
+    );
+  }
+
+  /** Full library-file record — includes ExecutedNodes while a file is running. */
+  public async getLibraryFile(uid: string): Promise<FileFlowsLibraryFileDto> {
+    return this.get<FileFlowsLibraryFileDto>(
+      `/library-file/${uid}`,
+      undefined,
+      0
+    );
+  }
+
+  /** Library config — includes the flow assigned to the library. */
+  public async getLibrary(uid: string): Promise<FileFlowsLibraryDto> {
+    return this.get<FileFlowsLibraryDto>(`/library/${uid}`, undefined, 0);
+  }
+
+  /**
+   * Search library files. Use Status=Processed + Library + Limit=1 to sample
+   * ExecutedNodes.length for the library's flow step total.
+   */
+  public async searchLibraryFiles(
+    query: FileFlowsLibraryFileSearchQuery
+  ): Promise<FileFlowsLibraryFileSearchRowDto[]> {
+    return this.post<FileFlowsLibraryFileSearchRowDto[]>(
+      '/library-file/search',
+      query as unknown as Record<string, unknown>,
+      undefined,
+      0
+    );
   }
 }
 

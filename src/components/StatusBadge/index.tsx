@@ -28,7 +28,6 @@ interface StatusBadgeProps {
   inProgress?: boolean;
   fileFlowsProcessing?: boolean;
   fileFlowsProgress?: number | null;
-  fileFlowsStep?: string | null;
   plexUrl?: string;
   serviceUrl?: string;
   tmdbId?: number;
@@ -45,7 +44,6 @@ const StatusBadge = ({
   inProgress = false,
   fileFlowsProcessing = false,
   fileFlowsProgress = null,
-  fileFlowsStep = null,
   plexUrl,
   serviceUrl,
   tmdbId,
@@ -188,10 +186,7 @@ const StatusBadge = ({
             style={{ width: `${percent ?? 0}%` }}
           />
           <div className="relative z-20 flex items-center px-2 text-pink-50">
-            <span>
-              {fileFlowsStep ??
-                intl.formatMessage(messages.fileflowsProcessing)}
-            </span>
+            <span>{intl.formatMessage(messages.fileflowsProcessing)}</span>
             {percent != null && (
               <span className="ml-1 tabular-nums">{percent}%</span>
             )}

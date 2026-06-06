@@ -3,6 +3,14 @@ import RadarrAPI from '@server/api/servarr/radarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import type { FileFlowsFlowStepTotal } from '@server/models/FileFlows';
+import {
+  buildFileFlowsProcessingSnapshot,
+  clampFileFlowsPercent,
+  FileFlowsFileStatus,
+  FileFlowsModelError,
+  resolveFileFlowsFlowStepTotal,
+} from '@server/models/FileFlows';
 
 // FileFlows exposes no title/TMDB metadata on its files (its OriginalMetadata/
 // FinalMetadata are codec/resolution only), so the release name is the sole
@@ -39,6 +47,9 @@ export interface FileFlowsFileMapping {
 // Concurrent callers within a run are still deduped via `inFlight`; this short
 // TTL keeps the live processing percent reasonably current for the UI badge.
 const CACHE_TTL_MS = 3 * 1000;
+// Flow step totals change only when a flow is edited — refresh at most once per
+// minute per library while status polling stays at CACHE_TTL_MS.
+const FLOW_STEP_TOTAL_TTL_MS = 60 * 1000;
 // If FileFlows stays unreachable longer than this, the last-good cache is
 // discarded so a FileFlows outage can't block "available" notifications forever
 // (fail-open). Brief blips reuse the previous cache (fail-closed / keep gating).
@@ -97,18 +108,20 @@ class FileFlowsProcessingTracker {
   // Per-file FileFlows step percent (0-100), keyed by lowercased basename,
   // rebuilt on every status refresh.
   private fileProgress = new Map<string, number>();
-  // Per-file FileFlows step NAME, keyed by lowercased basename, rebuilt on every
-  // status refresh. Surfaced to the badge (with the percent) as the current node.
-  private fileStep = new Map<string, string>();
+  // Per-file monotonic overall percent — never decreases while a file is active.
+  private fileMonotonicProgress = new Map<string, number>();
+  // Flow step totals keyed by library uid — refreshed from the API (see TTL).
+  private flowStepTotals = new Map<string, FileFlowsFlowStepTotal>();
+  private flowStepTotalsFetchedAt = new Map<string, number>();
   // Latest known progress per held media key, so the UI badge can show a live
   // percent. Expires together with the held mark.
   private heldProgress = new Map<string, number>();
-  // Latest known FileFlows step/node name per held media key, shown beside the
-  // percent so the badge reads "<node> <percent>%". Expires with the held mark.
-  private heldStep = new Map<string, string>();
   // Cache resolved files (positive results only) so we parse a given file at
   // most once while it is processing.
   private resolveCache = new Map<string, ResolvedFile>();
+  // Media keys last refreshed by resolveHeldMedia — used to release holds as
+  // soon as a file leaves the FileFlows queue instead of waiting out the TTL.
+  private resolverLiveKeys = new Set<string>();
 
   private get isEnabled(): boolean {
     const { enabled, hostname } = getSettings().fileflows;
@@ -169,9 +182,66 @@ class FileFlowsProcessingTracker {
       this.libraryHints = new Map();
       this.fileFolder = new Map();
       this.fileProgress = new Map();
-      this.fileStep = new Map();
       this.processingCount = status.processing ?? 0;
       this.queueCount = status.queue ?? 0;
+
+      // Match active files to library-file records so ExecutedNodes can drive a
+      // single 0→100 overall percent (stepPercent alone is per-node only).
+      let libraryFiles: Awaited<ReturnType<FileFlowsAPI['getLibraryFiles']>> =
+        [];
+      try {
+        libraryFiles = await api.getLibraryFiles(
+          FileFlowsFileStatus.Processing
+        );
+      } catch (e) {
+        logger.warn('Failed to list FileFlows processing library files', {
+          label: 'FileFlows',
+          errorMessage: e instanceof Error ? e.message : String(e),
+        });
+      }
+
+      const detailByBasename = new Map<
+        string,
+        Awaited<ReturnType<FileFlowsAPI['getLibraryFile']>>
+      >();
+      await Promise.all(
+        (status.processingFiles ?? []).map(async (file) => {
+          const fullPath = file.name || file.relativePath || '';
+          const name = basename(fullPath);
+          if (!name) {
+            return;
+          }
+          const uid = findLibraryFileUid(name, libraryFiles);
+          if (!uid) {
+            logger.debug(
+              `No library-file list match for processing file ${name}`,
+              { label: 'FileFlows' }
+            );
+            return;
+          }
+          try {
+            detailByBasename.set(
+              name.toLowerCase(),
+              await api.getLibraryFile(uid)
+            );
+          } catch (e) {
+            logger.warn(`Failed to fetch library-file detail for ${name}`, {
+              label: 'FileFlows',
+              errorMessage: e instanceof Error ? e.message : String(e),
+            });
+          }
+        })
+      );
+
+      const libraryUids = [
+        ...new Set(
+          [...detailByBasename.values()]
+            .map((d) => d.LibraryUid)
+            .filter((uid): uid is string => !!uid)
+        ),
+      ];
+      await this.refreshFlowStepTotals(api, libraryUids);
+
       for (const file of status.processingFiles ?? []) {
         this.addPath(file.name);
         this.addPath(file.relativePath ?? '');
@@ -187,12 +257,47 @@ class FileFlowsProcessingTracker {
           if (folder && folder.toLowerCase() !== key) {
             this.fileFolder.set(key, folder);
           }
-          if (file.step) {
-            this.fileStep.set(key, file.step);
+          const detail = detailByBasename.get(key);
+          if (!detail?.LibraryUid) {
+            continue;
           }
-          if (typeof file.stepPercent === 'number') {
-            this.fileProgress.set(key, clampPercent(file.stepPercent));
+          const stepTotal = this.flowStepTotals.get(detail.LibraryUid);
+          if (!stepTotal) {
+            logger.debug(
+              `No flow step total for library ${detail.LibraryUid}; badge will show spinner only`,
+              { label: 'FileFlows', file: name }
+            );
+            continue;
           }
+          try {
+            const snapshot = buildFileFlowsProcessingSnapshot({
+              fileBasename: name,
+              detail,
+              statusFile: file,
+              stepTotal,
+              previousOverallPercent: this.fileMonotonicProgress.get(key),
+            });
+            this.fileMonotonicProgress.set(key, snapshot.overallPercent);
+            this.fileProgress.set(key, snapshot.overallPercent);
+          } catch (e) {
+            const message =
+              e instanceof FileFlowsModelError
+                ? e.message
+                : e instanceof Error
+                  ? e.message
+                  : String(e);
+            logger.warn(
+              `Could not build FileFlows progress snapshot for ${name}`,
+              { label: 'FileFlows', errorMessage: message }
+            );
+          }
+        }
+      }
+
+      const activeKeys = new Set(this.currentFiles.map((f) => f.toLowerCase()));
+      for (const key of this.fileMonotonicProgress.keys()) {
+        if (!activeKeys.has(key)) {
+          this.fileMonotonicProgress.delete(key);
         }
       }
 
@@ -227,7 +332,6 @@ class FileFlowsProcessingTracker {
     this.libraryHints = new Map();
     this.fileFolder = new Map();
     this.fileProgress = new Map();
-    this.fileStep = new Map();
     this.processingCount = 0;
     this.queueCount = 0;
     // Release held media immediately when FileFlows is disabled or has been
@@ -235,6 +339,11 @@ class FileFlowsProcessingTracker {
     // per-key TTL.
     this.heldMedia = new Map();
     this.heldProgress = new Map();
+    this.fileMonotonicProgress = new Map();
+    this.flowStepTotals = new Map();
+    this.flowStepTotalsFetchedAt = new Map();
+    this.resolveCache = new Map();
+    this.resolverLiveKeys = new Set();
   }
 
   /** True if FileFlows is actively processing at least one file. */
@@ -281,29 +390,17 @@ class FileFlowsProcessingTracker {
    * FileFlows step percent for the item is known it is stored too, so the badge
    * can show live progress.
    */
-  public markHeld(
-    key: string,
-    percent?: number | null,
-    step?: string | null
-  ): void {
+  public markHeld(key: string, percent?: number | null): void {
     this.heldMedia.set(key, Date.now());
-    // `undefined` means the caller has no opinion on this value (e.g. a hold from
-    // the *arr download queue) — leave any existing value untouched. A value
-    // (including `null`) is authoritative: store it, or clear a stale one when
-    // FileFlows moves to a node that reports none. Clearing on `null` stops a
-    // finished node's percent/name from sticking after it moves on.
+    // `undefined` means the caller has no opinion on the percent (e.g. a hold from
+    // the *arr download queue) — leave any existing percent untouched. A value
+    // (including `null`) is authoritative: store it, or clear when the file
+    // leaves the FileFlows queue and resolveHeldMedia passes null.
     if (percent !== undefined) {
       if (typeof percent === 'number' && Number.isFinite(percent)) {
-        this.heldProgress.set(key, clampPercent(percent));
+        this.heldProgress.set(key, clampFileFlowsPercent(percent));
       } else {
         this.heldProgress.delete(key);
-      }
-    }
-    if (step !== undefined) {
-      if (step) {
-        this.heldStep.set(key, step);
-      } else {
-        this.heldStep.delete(key);
       }
     }
   }
@@ -321,7 +418,6 @@ class FileFlowsProcessingTracker {
       if (Date.now() - markedAt > HELD_TTL_MS) {
         this.heldMedia.delete(key);
         this.heldProgress.delete(key);
-        this.heldStep.delete(key);
         continue;
       }
       return true;
@@ -330,10 +426,9 @@ class FileFlowsProcessingTracker {
   }
 
   /**
-   * True if any media is still held (within the TTL). Lets the sync job keep
-   * scanning for a short tail after FileFlows stops processing, so the scan that
-   * runs just after the holds expire flips the media to available — without
-   * clearing holds early (a brief gap between files must not release them).
+   * True if any media is still held (within the TTL). Resolver-managed keys are
+   * released immediately when a file leaves the queue (see
+   * releaseStaleResolverHolds); scanner/download-tracker keys still expire here.
    * Prunes expired entries as it goes.
    */
   public hasHeldMedia(): boolean {
@@ -343,7 +438,6 @@ class FileFlowsProcessingTracker {
       if (now - markedAt > HELD_TTL_MS) {
         this.heldMedia.delete(key);
         this.heldProgress.delete(key);
-        this.heldStep.delete(key);
       } else {
         held = true;
       }
@@ -369,22 +463,25 @@ class FileFlowsProcessingTracker {
     return null;
   }
 
+  /** Clear live progress for keys that were not refreshed this resolve cycle. */
+  private releaseHeld(key: string): void {
+    this.heldMedia.delete(key);
+    this.heldProgress.delete(key);
+  }
+
   /**
-   * FileFlows step/node name for the first still-held key (in argument order)
-   * that has one, or null when unknown. Pairs with getHeldProgress so the badge
-   * can show "<node> <percent>%".
+   * Drop resolver-managed holds as soon as a file leaves the FileFlows queue.
+   * Without this, heldMedia survives up to HELD_TTL_MS after processing ends,
+   * so the badge can still read "FileFlows Processing" after the available
+   * notification has already fired.
    */
-  public getHeldStep(...keys: (string | undefined)[]): string | null {
-    for (const key of keys) {
-      if (!key || !this.isHeld(key)) {
-        continue;
-      }
-      const step = this.heldStep.get(key);
-      if (step != null) {
-        return step;
+  private releaseStaleResolverHolds(liveKeys: Set<string>): void {
+    for (const key of this.resolverLiveKeys) {
+      if (!liveKeys.has(key)) {
+        this.releaseHeld(key);
       }
     }
-    return null;
+    this.resolverLiveKeys = liveKeys;
   }
 
   private async parseWithRadarr(file: string): Promise<ResolvedFile | null> {
@@ -521,6 +618,8 @@ class FileFlowsProcessingTracker {
       }
     }
 
+    const liveKeys = new Set<string>();
+
     for (const file of this.currentFiles) {
       let resolved = this.resolveCache.get(file);
       if (!resolved?.key) {
@@ -531,32 +630,75 @@ class FileFlowsProcessingTracker {
         }
       }
       if (resolved.key) {
-        // Re-mark every cycle so the badge stays live. FileFlows runs each file
-        // through a chain of nodes and reports the CURRENT node's name plus its
-        // percent (0-100, which resets to 0 at each node). Surface BOTH so the
-        // badge shows "<node> <percent>%" — the node name makes the per-node
-        // reset understandable instead of looking like a looping bar. A `null`
-        // percent clears any stale value when a node reports none.
+        // Re-mark every cycle so the badge stays live. Overall percent is derived
+        // from ExecutedNodes + the current node's stepPercent so the bar runs
+        // once from 0→100 across the whole flow (see fetchStatus). When the file
+        // leaves the FileFlows queue, releaseStaleResolverHolds clears the hold
+        // immediately so the badge doesn't outlive the available notification.
         const fileKey = file.toLowerCase();
         const percent = this.fileProgress.get(fileKey) ?? null;
-        const step = this.fileStep.get(fileKey) ?? null;
-        this.markHeld(resolved.key, percent, step);
+        this.markHeld(resolved.key, percent);
+        liveKeys.add(resolved.key);
         // For TV, also hold at season and episode granularity so the badge can
         // surface on the season group, the season overall, and the episode row.
         if (resolved.tvdbId != null) {
           for (const season of resolved.seasons ?? []) {
-            this.markHeld(`tvdb:${resolved.tvdbId}:s${season}`, percent, step);
+            const seasonKey = `tvdb:${resolved.tvdbId}:s${season}`;
+            this.markHeld(seasonKey, percent);
+            liveKeys.add(seasonKey);
           }
           for (const ep of resolved.episodes ?? []) {
-            this.markHeld(
-              `tvdb:${resolved.tvdbId}:s${ep.season}e${ep.episode}`,
-              percent,
-              step
-            );
+            const epKey = `tvdb:${resolved.tvdbId}:s${ep.season}e${ep.episode}`;
+            this.markHeld(epKey, percent);
+            liveKeys.add(epKey);
           }
         }
       }
     }
+
+    this.releaseStaleResolverHolds(liveKeys);
+  }
+
+  /**
+   * Pull the flow step total from FileFlows on each status refresh: find one
+   * processed file in the same library and use its ExecutedNodes.length (the
+   * flow graph Part count is much lower and not usable for overall percent).
+   */
+  private async refreshFlowStepTotals(
+    api: FileFlowsAPI,
+    libraryUids: string[]
+  ): Promise<void> {
+    const now = Date.now();
+    const due = libraryUids.filter((libraryUid) => {
+      const fetchedAt = this.flowStepTotalsFetchedAt.get(libraryUid) ?? 0;
+      return (
+        !this.flowStepTotals.has(libraryUid) ||
+        now - fetchedAt >= FLOW_STEP_TOTAL_TTL_MS
+      );
+    });
+
+    await Promise.all(
+      due.map(async (libraryUid) => {
+        try {
+          const stepTotal = await resolveFileFlowsFlowStepTotal(
+            api,
+            libraryUid
+          );
+          this.flowStepTotals.set(libraryUid, stepTotal);
+          this.flowStepTotalsFetchedAt.set(libraryUid, now);
+        } catch (e) {
+          this.flowStepTotals.delete(libraryUid);
+          this.flowStepTotalsFetchedAt.delete(libraryUid);
+          logger.warn(
+            `Failed to resolve flow step total for library ${libraryUid}`,
+            {
+              label: 'FileFlows',
+              errorMessage: e instanceof Error ? e.message : String(e),
+            }
+          );
+        }
+      })
+    );
   }
 
   /** Diagnostic mapping of each processing file to the media it resolved to. */
@@ -597,9 +739,23 @@ class FileFlowsProcessingTracker {
   }
 }
 
-// Clamp a FileFlows step percent to a whole 0-100.
-function clampPercent(value: number): number {
-  return Math.max(0, Math.min(100, Math.round(value)));
+function findLibraryFileUid(
+  fileBasename: string,
+  libraryFiles: { Uid: string; Name?: string }[]
+): string | null {
+  const base = fileBasename.toLowerCase();
+  for (const entry of libraryFiles) {
+    if (basename(entry.Name ?? '').toLowerCase() === base) {
+      return entry.Uid;
+    }
+  }
+  for (const entry of libraryFiles) {
+    const path = entry.Name?.replace(/\\/g, '/').toLowerCase() ?? '';
+    if (path.endsWith(`/${base}`)) {
+      return entry.Uid;
+    }
+  }
+  return null;
 }
 
 // Extract season + episode numbers from a release file name. Handles single

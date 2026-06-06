@@ -272,14 +272,11 @@ export const startJobs = (): void => {
     interval: 'seconds',
     cronSchedule: jobs['fileflows-sync'].schedule,
     job: schedule.scheduleJob(jobs['fileflows-sync'].schedule, async () => {
+      // Always resolve so holds are released the moment a file leaves FileFlows,
+      // not after the HELD_TTL expires (which caused the badge to lag behind the
+      // available notification).
+      await fileFlowsTracker.resolveHeldMedia();
       const processing = await fileFlowsTracker.hasProcessingFiles();
-
-      if (processing) {
-        // Resolve in-progress files to media (handles releases that already
-        // left the *arr queue) so the badge stays accurate and the hold (and
-        // its live percent) is refreshed within the TTL.
-        await fileFlowsTracker.resolveHeldMedia();
-      }
 
       if (processing || fileFlowsTracker.hasHeldMedia()) {
         // Active: refresh scan + (re)arm the release scan for when this ends.

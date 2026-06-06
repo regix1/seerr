@@ -559,7 +559,6 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
               inProgress={(data.mediaInfo?.downloadStatus ?? []).length > 0}
               fileFlowsProcessing={data.mediaInfo?.fileFlowsProcessing}
               fileFlowsProgress={data.mediaInfo?.fileFlowsProgress}
-              fileFlowsStep={data.mediaInfo?.fileFlowsStep}
               tmdbId={data.mediaInfo?.tmdbId}
               mediaType="tv"
               plexUrl={plexUrl}
@@ -587,7 +586,6 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                   }
                   fileFlowsProcessing={data.mediaInfo?.fileFlowsProcessing}
                   fileFlowsProgress={data.mediaInfo?.fileFlowsProgress}
-                  fileFlowsStep={data.mediaInfo?.fileFlowsStep}
                   tmdbId={data.mediaInfo?.tmdbId}
                   mediaType="tv"
                   plexUrl={plexUrl4k}
@@ -924,10 +922,9 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                                   badgeType="default"
                                   className="!border-pink-500 !bg-pink-600 !text-pink-50"
                                 >
-                                  {ffSeason.fileFlowsStep ??
-                                    intl.formatMessage(
-                                      messages.fileflowsProcessing
-                                    )}
+                                  {intl.formatMessage(
+                                    messages.fileflowsProcessing
+                                  )}
                                   {ffSeason.fileFlowsProgress != null
                                     ? ` ${Math.max(0, Math.min(100, Math.round(ffSeason.fileFlowsProgress)))}%`
                                     : ''}
