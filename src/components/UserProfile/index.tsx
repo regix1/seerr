@@ -83,14 +83,15 @@ const UserProfile = () => {
 
   const { data: watchlistItems, error: watchlistError } =
     useSWR<WatchlistResponse>(
-      user?.id === currentUser?.id ||
-        currentHasPermission(
-          [Permission.MANAGE_REQUESTS, Permission.WATCHLIST_VIEW],
-          {
-            type: 'or',
-          }
-        )
-        ? `/api/v1/user/${user?.id}/watchlist`
+      user &&
+        (user.id === currentUser?.id ||
+          currentHasPermission(
+            [Permission.MANAGE_REQUESTS, Permission.WATCHLIST_VIEW],
+            {
+              type: 'or',
+            }
+          ))
+        ? `/api/v1/user/${user.id}/watchlist`
         : null,
       {
         revalidateOnMount: true,
