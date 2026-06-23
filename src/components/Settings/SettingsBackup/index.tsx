@@ -7,6 +7,10 @@ import Table from '@app/components/Common/Table';
 import useToasts from '@app/hooks/useToasts';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
+import {
+  cronToDailyTime,
+  dailyTimeToCron,
+} from '@app/utils/jobScheduleOptions';
 import { formatBytes } from '@app/utils/numberHelpers';
 import { Transition } from '@headlessui/react';
 import {
@@ -104,46 +108,6 @@ interface ScheduleJob {
   interval: 'seconds' | 'minutes' | 'hours' | 'days' | 'fixed';
   cronSchedule: string;
 }
-
-const DEFAULT_BACKUP_TIME = '04:00';
-
-// The backup runs once a day at a user-chosen time. Convert between a "HH:MM"
-// time-of-day and a 6-field node-schedule cron ("0 MM HH * * *" = daily at HH:MM).
-const cronToDailyTime = (cron: string | undefined): string => {
-  if (!cron) {
-    return DEFAULT_BACKUP_TIME;
-  }
-  const parts = cron.trim().split(/\s+/);
-  // 6-field "s m h dom mon dow" (with seconds) or 5-field "m h dom mon dow".
-  const [minuteStr, hourStr] =
-    parts.length >= 6 ? [parts[1], parts[2]] : [parts[0], parts[1]];
-  const hour = Number(hourStr);
-  const minute = Number(minuteStr);
-  if (
-    Number.isInteger(hour) &&
-    hour >= 0 &&
-    hour <= 23 &&
-    Number.isInteger(minute) &&
-    minute >= 0 &&
-    minute <= 59
-  ) {
-    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(
-      2,
-      '0'
-    )}`;
-  }
-  return DEFAULT_BACKUP_TIME;
-};
-
-const dailyTimeToCron = (time: string): string => {
-  const [hourStr, minuteStr] = time.split(':');
-  const hour = Number(hourStr);
-  const minute = Number(minuteStr);
-  const hh = Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : 4;
-  const mm =
-    Number.isInteger(minute) && minute >= 0 && minute <= 59 ? minute : 0;
-  return `0 ${mm} ${hh} * * *`;
-};
 
 interface DeleteConfirmState {
   isOpen: boolean;

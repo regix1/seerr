@@ -208,3 +208,43 @@ export const totalSecondsToCron = (
 
   return cron.join(' ');
 };
+
+export const DEFAULT_DAILY_TIME = '04:00';
+
+// Daily time-of-day schedule helpers (used by the backup job + its settings
+// tab): convert between a "HH:MM" time and a 6-field cron "0 MM HH * * *".
+export const cronToDailyTime = (cron: string | undefined): string => {
+  if (!cron) {
+    return DEFAULT_DAILY_TIME;
+  }
+  const parts = cron.trim().split(/\s+/);
+  // 6-field "s m h dom mon dow" (with seconds) or 5-field "m h dom mon dow".
+  const [minuteStr, hourStr] =
+    parts.length >= 6 ? [parts[1], parts[2]] : [parts[0], parts[1]];
+  const hour = Number(hourStr);
+  const minute = Number(minuteStr);
+  if (
+    Number.isInteger(hour) &&
+    hour >= 0 &&
+    hour <= 23 &&
+    Number.isInteger(minute) &&
+    minute >= 0 &&
+    minute <= 59
+  ) {
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(
+      2,
+      '0'
+    )}`;
+  }
+  return DEFAULT_DAILY_TIME;
+};
+
+export const dailyTimeToCron = (time: string): string => {
+  const [hourStr, minuteStr] = time.split(':');
+  const hour = Number(hourStr);
+  const minute = Number(minuteStr);
+  const hh = Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : 4;
+  const mm =
+    Number.isInteger(minute) && minute >= 0 && minute <= 59 ? minute : 0;
+  return `0 ${mm} ${hh} * * *`;
+};

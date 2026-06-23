@@ -13,6 +13,8 @@ import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import {
   buildJobScheduleOptions,
+  cronToDailyTime,
+  dailyTimeToCron,
   parseCronToTotalSeconds,
   totalSecondsToCron,
   withCurrentScheduleOption,
@@ -145,12 +147,17 @@ type JobModalState = {
   isOpen?: boolean;
   job?: Job;
   scheduleTotalSeconds: number;
+  scheduleTime: string;
 };
 
 type JobModalAction =
   | {
       type: 'set';
       scheduleTotalSeconds: number;
+    }
+  | {
+      type: 'setTime';
+      scheduleTime: string;
     }
   | {
       type: 'close';
@@ -161,6 +168,10 @@ const DEFAULT_SCHEDULE_TOTAL_SECONDS = 300;
 
 const isArrScanJob = (jobId?: JobId): boolean =>
   jobId === 'radarr-scan' || jobId === 'sonarr-scan';
+
+// Jobs that run once a day at a user-chosen time use a time-of-day picker
+// instead of the frequency-interval selector (matching the Backup settings tab).
+const isDailyTimeJob = (jobId?: JobId): boolean => jobId === 'db-backup';
 
 const formatScheduleOptionLabel = (
   intl: IntlShape,
@@ -211,6 +222,7 @@ const jobModalReducer = (
         isOpen: true,
         job: action.job,
         scheduleTotalSeconds,
+        scheduleTime: cronToDailyTime(action.job?.cronSchedule),
       };
     }
 
@@ -218,6 +230,12 @@ const jobModalReducer = (
       return {
         ...state,
         scheduleTotalSeconds: action.scheduleTotalSeconds,
+      };
+
+    case 'setTime':
+      return {
+        ...state,
+        scheduleTime: action.scheduleTime,
       };
   }
 };
@@ -256,6 +274,7 @@ const SettingsJobs = () => {
   const [jobModalState, dispatch] = useReducer(jobModalReducer, {
     isOpen: false,
     scheduleTotalSeconds: DEFAULT_SCHEDULE_TOTAL_SECONDS,
+    scheduleTime: cronToDailyTime(undefined),
   });
   const [isSaving, setIsSaving] = useState(false);
   const settings = useSettings();
@@ -346,22 +365,28 @@ const SettingsJobs = () => {
 
   const scheduleJob = async () => {
     try {
-      if (!jobModalState.job || jobModalState.job.interval === 'fixed') {
+      const job = jobModalState.job;
+      if (!job) {
         throw new Error();
       }
 
-      const schedule = totalSecondsToCron(
-        jobModalState.scheduleTotalSeconds,
-        jobModalState.job.interval
-      );
+      let schedule: string;
+      if (isDailyTimeJob(job.id)) {
+        schedule = dailyTimeToCron(jobModalState.scheduleTime);
+      } else {
+        if (job.interval === 'fixed') {
+          throw new Error();
+        }
+        schedule = totalSecondsToCron(
+          jobModalState.scheduleTotalSeconds,
+          job.interval
+        );
+      }
 
       setIsSaving(true);
-      await axios.post(
-        `/api/v1/settings/jobs/${jobModalState.job.id}/schedule`,
-        {
-          schedule,
-        }
-      );
+      await axios.post(`/api/v1/settings/jobs/${job.id}/schedule`, {
+        schedule,
+      });
 
       addToast(intl.formatMessage(messages.jobScheduleEditSaved), {
         appearance: 'success',
@@ -441,6 +466,24 @@ const SettingsJobs = () => {
                 </label>
                 <div className="form-input-area">
                   {jobModalState.job &&
+                    isDailyTimeJob(jobModalState.job.id) && (
+                      <div className="form-input-field">
+                        <input
+                          type="time"
+                          name="jobSchedule"
+                          className="block"
+                          value={jobModalState.scheduleTime}
+                          onChange={(e) =>
+                            dispatch({
+                              type: 'setTime',
+                              scheduleTime: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                    )}
+                  {jobModalState.job &&
+                    !isDailyTimeJob(jobModalState.job.id) &&
                     jobModalState.job.interval !== 'fixed' && (
                       <select
                         name="jobSchedule"
