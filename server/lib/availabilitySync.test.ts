@@ -239,6 +239,7 @@ function configureJellyfin(): void {
   settings.main.mediaServerType = MediaServerType.JELLYFIN;
   settings.jellyfin = {
     ...settings.jellyfin,
+    ip: '127.0.0.1',
     apiKey: 'test-api-key',
   };
 }
@@ -246,6 +247,10 @@ function configureJellyfin(): void {
 function configurePlex(): void {
   const settings = getSettings();
   settings.main.mediaServerType = MediaServerType.PLEX;
+  settings.plex = {
+    ...settings.plex,
+    ip: '127.0.0.1',
+  };
 }
 
 // --- Jellyfin helpers ---

@@ -230,17 +230,18 @@ describe('Jellyfin Scanner', () => {
     getTvShowImpl = async () => fakeTmdbShow(1);
 
     const userRepository = getRepository(User);
-    const existingAdmin = await userRepository.findOne({ where: { id: 1 } });
-    if (!existingAdmin) {
-      const admin = new User();
-      admin.id = 1;
-      admin.jellyfinUserId = 'admin-user-id';
-      admin.jellyfinDeviceId = 'admin-device-id';
-      admin.email = 'admin@test.com';
-      admin.permissions = 2;
-      admin.username = 'admin';
-      await userRepository.save(admin);
-    }
+    // The shared test DB seed always creates an admin (id=1) without Jellyfin
+    // credentials, so we link them here. findAdminScanUser requires the admin
+    // to have a jellyfinUserId before the scanner will run.
+    const admin =
+      (await userRepository.findOne({ where: { id: 1 } })) ?? new User();
+    admin.id = 1;
+    admin.jellyfinUserId = 'admin-user-id';
+    admin.jellyfinDeviceId = 'admin-device-id';
+    admin.email = admin.email ?? 'admin@test.com';
+    admin.permissions = admin.permissions ?? 2;
+    admin.username = admin.username ?? 'admin';
+    await userRepository.save(admin);
   });
 
   describe('empty TMDB season handling', () => {
