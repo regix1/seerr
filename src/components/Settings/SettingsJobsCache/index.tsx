@@ -107,6 +107,39 @@ const messages: { [messageName: string]: MessageDescriptor } = defineMessages(
     'image-cache-cleanup': 'Image Cache Cleanup',
     'process-blocklisted-tags': 'Process Blocklisted Tags',
     'db-backup': 'Database Backup',
+    'plex-recently-added-scanDescription': 'Checks Plex for newly added media.',
+    'plex-full-scanDescription':
+      'Scans your entire Plex library for available media.',
+    'plex-watchlist-syncDescription':
+      "Imports requests from users' Plex watchlists.",
+    'plex-refresh-tokenDescription':
+      'Refreshes the stored Plex authentication token.',
+    'jellyfin-full-scanDescription':
+      'Scans your entire Jellyfin library for available media.',
+    'jellyfin-recently-added-scanDescription':
+      'Checks Jellyfin for newly added media.',
+    'emby-full-scanDescription':
+      'Scans your entire Emby library for available media.',
+    'emby-recently-added-scanDescription': 'Checks Emby for newly added media.',
+    'availability-syncDescription':
+      "Keeps request statuses in sync with what's on your servers.",
+    'download-completion-checkDescription':
+      'Marks requests available once their download finishes.',
+    'radarr-scanDescription':
+      'Syncs movie availability and quality profiles from Radarr.',
+    'sonarr-scanDescription':
+      'Syncs series availability and quality profiles from Sonarr.',
+    'fileflows-syncDescription':
+      'Updates media processing status from FileFlows.',
+    'download-syncDescription':
+      'Refreshes active downloads from your download clients.',
+    'download-sync-resetDescription':
+      'Clears and rebuilds the active download list.',
+    'image-cache-cleanupDescription':
+      'Removes expired images from the local cache.',
+    'process-blocklisted-tagsDescription':
+      'Removes media matching your blocklisted tags.',
+    'db-backupDescription': 'Creates a scheduled backup of the database.',
     editJobSchedule: 'Modify Job',
     jobScheduleEditSaved: 'Job edited successfully!',
     jobScheduleEditFailed: 'Something went wrong while saving the job.',
@@ -544,6 +577,11 @@ const SettingsJobs = () => {
                     </span>
                     {job.running && <Spinner className="ml-2 h-5 w-5" />}
                   </div>
+                  {messages[`${job.id}Description`] && (
+                    <div className="mt-1 text-xs leading-4 text-gray-400">
+                      {intl.formatMessage(messages[`${job.id}Description`])}
+                    </div>
+                  )}
                 </Table.TD>
                 <Table.TD>
                   <Badge
