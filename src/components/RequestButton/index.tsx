@@ -1,5 +1,6 @@
 import ButtonWithDropdown from '@app/components/Common/ButtonWithDropdown';
 import RequestModal from '@app/components/RequestModal';
+import { revalidateRequests } from '@app/hooks/useRevalidateRequests';
 import useSettings from '@app/hooks/useSettings';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
@@ -17,7 +18,6 @@ import type { MediaRequest } from '@server/entity/MediaRequest';
 import axios from 'axios';
 import { useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
-import { mutate } from 'swr';
 
 const messages = defineMessages('components.RequestButton', {
   viewrequest: 'View Request',
@@ -111,7 +111,7 @@ const RequestButton = ({
 
       if (response) {
         onUpdate();
-        mutate('/api/v1/request/count');
+        revalidateRequests();
       }
     } catch {
       addToast(
@@ -144,7 +144,7 @@ const RequestButton = ({
       );
 
       onUpdate();
-      mutate('/api/v1/request/count');
+      revalidateRequests();
     } catch {
       addToast(
         intl.formatMessage(

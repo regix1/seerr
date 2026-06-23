@@ -5,6 +5,7 @@ import type { RequestOverrides } from '@app/components/RequestModal/AdvancedRequ
 import AdvancedRequester from '@app/components/RequestModal/AdvancedRequester';
 import QuotaDisplay from '@app/components/RequestModal/QuotaDisplay';
 import SearchByNameModal from '@app/components/RequestModal/SearchByNameModal';
+import { revalidateRequests } from '@app/hooks/useRevalidateRequests';
 import useSettings from '@app/hooks/useSettings';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, Permission2, useUser } from '@app/hooks/useUser';
@@ -20,7 +21,7 @@ import type { TvDetails } from '@server/models/Tv';
 import axios from 'axios';
 import { useState } from 'react';
 import { useIntl } from 'react-intl';
-import useSWR, { mutate } from 'swr';
+import useSWR from 'swr';
 
 const messages = defineMessages('components.RequestModal', {
   requestadmin: 'This request will be approved automatically.',
@@ -106,7 +107,6 @@ const TvRequestModal = ({
 
     if (onUpdating) {
       onUpdating(true);
-      mutate('/api/v1/request/count');
     }
 
     try {
@@ -128,8 +128,7 @@ const TvRequestModal = ({
       } else {
         await axios.delete(`/api/v1/request/${editRequest.id}`);
       }
-      mutate('/api/v1/request?filter=all&take=10&sort=modified&skip=0');
-      mutate('/api/v1/request/count');
+      revalidateRequests();
 
       addToast(
         <span>
@@ -178,7 +177,6 @@ const TvRequestModal = ({
 
     if (onUpdating) {
       onUpdating(true);
-      mutate('/api/v1/request/count');
     }
 
     try {
@@ -205,7 +203,7 @@ const TvRequestModal = ({
             ),
         ...overrideParams,
       });
-      mutate('/api/v1/request?filter=all&take=10&sort=modified&skip=0');
+      revalidateRequests();
 
       if (response.data) {
         if (onComplete) {

@@ -73,6 +73,9 @@ const messages = defineMessages('components.Settings.SettingsMain', {
   validationApplicationUrlTrailingSlash: 'URL must not end in a trailing slash',
   partialRequestsEnabled: 'Allow Partial Series Requests',
   enableSpecialEpisodes: 'Allow Special Episodes Requests',
+  includeDisabledServers: 'Check Disabled Servers',
+  includeDisabledServersTip:
+    'Also re-check items whose Radarr/Sonarr server has scanning disabled (Availability Check only)',
   locale: 'Display Language',
   youtubeUrl: 'YouTube URL',
   youtubeUrlTip:
@@ -200,6 +203,7 @@ const SettingsMain = () => {
             blocklistedTagsLimit: data?.blocklistedTagsLimit || 50,
             partialRequestsEnabled: data?.partialRequestsEnabled,
             enableSpecialEpisodes: data?.enableSpecialEpisodes,
+            includeDisabledServers: data?.includeDisabledServers,
             cacheImages: data?.cacheImages,
             youtubeUrl: data?.youtubeUrl,
             localLogin: data?.localLogin,
@@ -226,6 +230,7 @@ const SettingsMain = () => {
                 blocklistedTagsLimit: values.blocklistedTagsLimit,
                 partialRequestsEnabled: values.partialRequestsEnabled,
                 enableSpecialEpisodes: values.enableSpecialEpisodes,
+                includeDisabledServers: values.includeDisabledServers,
                 cacheImages: values.cacheImages,
                 youtubeUrl: values.youtubeUrl,
                 localLogin: values.localLogin,
@@ -608,6 +613,32 @@ const SettingsMain = () => {
                         setFieldValue(
                           'enableSpecialEpisodes',
                           !values.enableSpecialEpisodes
+                        );
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label
+                    htmlFor="includeDisabledServers"
+                    className="checkbox-label"
+                  >
+                    <span className="mr-2">
+                      {intl.formatMessage(messages.includeDisabledServers)}
+                    </span>
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.includeDisabledServersTip)}
+                    </span>
+                  </label>
+                  <div className="form-input-area">
+                    <Field
+                      type="checkbox"
+                      id="includeDisabledServers"
+                      name="includeDisabledServers"
+                      onChange={() => {
+                        setFieldValue(
+                          'includeDisabledServers',
+                          !values.includeDisabledServers
                         );
                       }}
                     />

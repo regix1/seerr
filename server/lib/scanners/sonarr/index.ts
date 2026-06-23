@@ -53,6 +53,14 @@ class SonarrScanner
   }
 
   public async run(): Promise<void> {
+    if (this.running) {
+      this.log(
+        'A Sonarr scan or availability check is already running. Skipping.',
+        'info'
+      );
+      return;
+    }
+
     const settings = getSettings();
     const sessionId = this.startRun();
     this.scannedTvdbIds.clear();
@@ -267,6 +275,77 @@ class SonarrScanner
         errorMessage: e.message,
         title: sonarrSeries.title,
       });
+    }
+  }
+
+  /**
+   * Targeted availability check for a single series that is still PROCESSING.
+   *
+   * Reuses the same per-item path as the full scan (processSonarrSeries ->
+   * processShow), so it inherits TMDB season-mapping + special-episode
+   * filtering, the FileFlows gate + held seasons, the per-tmdbId DB lock, and
+   * the MediaSubscriber notification cascade. It does NOT run a full library
+   * scan.
+   *
+   * Serialized against the full scan: if a full Sonarr scan is already running
+   * (this.running) the call is a no-op, since that scan will pick the item up
+   * anyway and we must not race the shared instance state (currentServer /
+   * sonarrApi). For its own (short) duration it flips `running` so a scheduled
+   * full scan that checks `status().running` will not start mid-check.
+   */
+  public async checkPendingSeries(
+    server: SonarrSettings,
+    sonarrId: number,
+    is4k: boolean
+  ): Promise<void> {
+    if (this.running) {
+      this.log(
+        `Skipping availability check for Sonarr id ${sonarrId}: a full Sonarr scan is already running`,
+        'debug'
+      );
+      return;
+    }
+
+    this.running = true;
+    try {
+      const settings = getSettings();
+      this.enable4kShow = settings.sonarr.some((sonarr) => sonarr.is4k);
+      this.currentServer = server;
+      this.sonarrApi = new SonarrAPI({
+        apiKey: server.apiKey,
+        url: SonarrAPI.buildUrl(server, '/api/v3'),
+      });
+
+      const sonarrSeries = await this.sonarrApi.getSeriesById(sonarrId);
+
+      // Upgrade-only: a targeted availability check must never downgrade a
+      // still-incomplete item. processSonarrSeries -> processShow can flip a
+      // season (and the series rollup) PROCESSING -> UNKNOWN when a monitored
+      // season reports zero episode files and is no longer processing. When no
+      // season has any episode file there is nothing to upgrade, so skip and
+      // leave the item in PROCESSING; the next check (or a full scan) will
+      // pick it up.
+      const hasAnyEpisodeFile = sonarrSeries.seasons.some(
+        (season) => (season.statistics?.episodeFileCount ?? 0) > 0
+      );
+
+      if (!hasAnyEpisodeFile) {
+        this.log(
+          `Availability check: Sonarr id ${sonarrId} has no episode files yet; leaving as processing`,
+          'debug'
+        );
+        return;
+      }
+
+      await this.processSonarrSeries(sonarrSeries);
+    } catch (e) {
+      this.log('Failed to check Sonarr media availability', 'error', {
+        errorMessage: e.message,
+        sonarrId,
+        is4k,
+      });
+    } finally {
+      this.running = false;
     }
   }
 

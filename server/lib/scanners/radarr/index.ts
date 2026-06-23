@@ -45,6 +45,14 @@ class RadarrScanner
   }
 
   public async run(): Promise<void> {
+    if (this.running) {
+      this.log(
+        'A Radarr scan or availability check is already running. Skipping.',
+        'info'
+      );
+      return;
+    }
+
     const settings = getSettings();
     const sessionId = this.startRun();
     this.scannedTmdbIds.clear();
@@ -174,6 +182,71 @@ class RadarrScanner
         errorMessage: e.message,
         title: radarrMovie.title,
       });
+    }
+  }
+
+  /**
+   * Targeted availability check for a single movie that is still PROCESSING.
+   *
+   * Reuses the same per-item path as the full scan (processRadarrMovie ->
+   * processMovie), so it inherits the FileFlows gate, the AVAILABLE/PROCESSING
+   * status math, the per-tmdbId DB lock, and the MediaSubscriber notification
+   * cascade. It does NOT run a full library scan.
+   *
+   * Serialized against the full scan: if a full Radarr scan is already running
+   * (this.running) the call is a no-op, since that scan will pick the item up
+   * anyway and we must not race the shared instance state (currentServer /
+   * radarrApi). For its own (short) duration it flips `running` so a scheduled
+   * full scan that checks `status().running` will not start mid-check.
+   */
+  public async checkPendingMovie(
+    server: RadarrSettings,
+    radarrId: number,
+    is4k: boolean
+  ): Promise<void> {
+    if (this.running) {
+      this.log(
+        `Skipping availability check for Radarr id ${radarrId}: a full Radarr scan is already running`,
+        'debug'
+      );
+      return;
+    }
+
+    this.running = true;
+    try {
+      const settings = getSettings();
+      this.enable4kMovie = settings.radarr.some((radarr) => radarr.is4k);
+      this.currentServer = server;
+      this.radarrApi = new RadarrAPI({
+        apiKey: server.apiKey,
+        url: RadarrAPI.buildUrl(server, '/api/v3'),
+      });
+
+      const radarrMovie = await this.radarrApi.getMovie({ id: radarrId });
+
+      // Upgrade-only: a targeted availability check must never downgrade a
+      // still-incomplete item. processRadarrMovie -> processMovie can flip
+      // PROCESSING -> UNKNOWN when the *arr item has no file and is not
+      // processing (e.g. unmonitored/removed). When there is no file there is
+      // nothing to upgrade, so skip and leave the item in PROCESSING; the next
+      // check (or a full scan) will pick it up.
+      if (!radarrMovie.hasFile) {
+        this.log(
+          `Availability check: Radarr id ${radarrId} has no file yet; leaving as processing`,
+          'debug'
+        );
+        return;
+      }
+
+      await this.processRadarrMovie(radarrMovie);
+    } catch (e) {
+      this.log('Failed to check Radarr media availability', 'error', {
+        errorMessage: e.message,
+        radarrId,
+        is4k,
+      });
+    } finally {
+      this.running = false;
     }
   }
 

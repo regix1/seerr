@@ -53,9 +53,13 @@ const testConfig: DataSourceOptions = {
   synchronize: true,
   dropSchema: true,
   logging: boolFromEnv('DB_LOG_QUERIES'),
-  entities: ['server/entity/**/*.ts'],
+  // Exclude co-located *.test.ts files so TypeORM does not load a test module
+  // (and run its top-level setupTestDb/mocks) as an entity/subscriber. TypeORM's
+  // loader ignores standalone negative globs, so the exclusion must live inside
+  // a single extglob pattern.
+  entities: ['server/entity/**/!(*.test).ts'],
   migrations: ['server/migration/sqlite/**/*.ts'],
-  subscribers: ['server/subscriber/**/*.ts'],
+  subscribers: ['server/subscriber/**/!(*.test).ts'],
 };
 
 const devConfig: DataSourceOptions = {
@@ -67,9 +71,9 @@ const devConfig: DataSourceOptions = {
   migrationsRun: false,
   logging: boolFromEnv('DB_LOG_QUERIES'),
   enableWAL: true,
-  entities: ['server/entity/**/*.ts'],
+  entities: ['server/entity/**/!(*.test).ts'],
   migrations: ['server/migration/sqlite/**/*.ts'],
-  subscribers: ['server/subscriber/**/*.ts'],
+  subscribers: ['server/subscriber/**/!(*.test).ts'],
 };
 
 const prodConfig: DataSourceOptions = {
@@ -100,9 +104,9 @@ const postgresDevConfig: DataSourceOptions = {
   synchronize: false,
   migrationsRun: true,
   logging: boolFromEnv('DB_LOG_QUERIES'),
-  entities: ['server/entity/**/*.ts'],
+  entities: ['server/entity/**/!(*.test).ts'],
   migrations: ['server/migration/postgres/**/*.ts'],
-  subscribers: ['server/subscriber/**/*.ts'],
+  subscribers: ['server/subscriber/**/!(*.test).ts'],
 };
 
 const postgresProdConfig: DataSourceOptions = {

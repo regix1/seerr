@@ -5,6 +5,7 @@ import Modal from '@app/components/Common/Modal';
 import type { RequestOverrides } from '@app/components/RequestModal/AdvancedRequester';
 import AdvancedRequester from '@app/components/RequestModal/AdvancedRequester';
 import QuotaDisplay from '@app/components/RequestModal/QuotaDisplay';
+import { revalidateRequests } from '@app/hooks/useRevalidateRequests';
 import useToasts from '@app/hooks/useToasts';
 import { useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
@@ -17,7 +18,7 @@ import type { Collection } from '@server/models/Collection';
 import axios from 'axios';
 import { useCallback, useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
-import useSWR, { mutate } from 'swr';
+import useSWR from 'swr';
 
 const messages = defineMessages('components.RequestModal', {
   requestadmin: 'This request will be approved automatically.',
@@ -211,13 +212,14 @@ const CollectionRequestModal = ({
         })
       );
 
+      revalidateRequests();
+
       if (onComplete) {
         onComplete(
           selectedParts.length === (data?.parts ?? []).length
             ? MediaStatus.UNKNOWN
             : MediaStatus.PARTIALLY_AVAILABLE
         );
-        mutate('/api/v1/request/count');
       }
 
       addToast(

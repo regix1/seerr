@@ -118,6 +118,7 @@ settingsRoutes.post('/main', async (req, res) => {
     'embyLoginEnabled',
     'partialRequestsEnabled',
     'enableSpecialEpisodes',
+    'includeDisabledServers',
     'locale',
     'discoverRegion',
     'streamingRegion',

@@ -733,7 +733,15 @@ export class MediaRequest {
   @AfterInsert()
   public async autoapprovalNotification(): Promise<void> {
     if (this.status === MediaRequestStatus.APPROVED) {
-      this.notifyApprovedOrDeclined(true);
+      try {
+        await this.notifyApprovedOrDeclined(true);
+      } catch (e) {
+        logger.error('Failed to send auto-approval notification', {
+          label: 'Media Request',
+          requestId: this.id,
+          errorMessage: e instanceof Error ? e.message : String(e),
+        });
+      }
     }
   }
 

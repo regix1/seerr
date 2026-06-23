@@ -26,6 +26,7 @@ import type {
   EntitySubscriberInterface,
   InsertEvent,
   RemoveEvent,
+  TransactionCommitEvent,
   UpdateEvent,
 } from 'typeorm';
 import { EventSubscriber, Not } from 'typeorm';
@@ -38,6 +39,30 @@ const sanitizeDisplayName = (displayName: string): string => {
     .replace(/[^a-z0-9-]/gi, '')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
+};
+
+/**
+ * Key under which we stash the ids of requests whose network-heavy *arr
+ * submission must run AFTER the surrounding transaction commits. We use
+ * `queryRunner.data` (shared between the insert/update event and the
+ * afterTransactionCommit hook for the same query runner) so the HTTP response
+ * is not gated on the Radarr/Sonarr round-trips.
+ */
+const ARR_DISPATCH_QUEUE_KEY = 'mediaRequestArrDispatchQueue';
+
+const getArrDispatchQueue = (
+  data: Record<string, unknown> | undefined
+): Set<number> => {
+  if (!data) {
+    return new Set<number>();
+  }
+  const existing = data[ARR_DISPATCH_QUEUE_KEY];
+  if (existing instanceof Set) {
+    return existing as Set<number>;
+  }
+  const queue = new Set<number>();
+  data[ARR_DISPATCH_QUEUE_KEY] = queue;
+  return queue;
 };
 
 @EventSubscriber()
@@ -943,6 +968,132 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
     }
   }
 
+  /**
+   * Synchronous (DB-only) determination of the "already available -> COMPLETED"
+   * outcome. Mirrors the early-return branches in sendToRadarr/sendToSonarr but
+   * performs NO Radarr/Sonarr/TMDB calls, so it is safe to run inside the
+   * awaited save() and keeps the HTTP response body accurate.
+   *
+   * Returns true when the request was marked COMPLETED (the caller should then
+   * skip the deferred *arr dispatch).
+   */
+  private async markCompletedIfAlreadyAvailable(
+    entity: MediaRequest
+  ): Promise<boolean> {
+    if (entity.status !== MediaRequestStatus.APPROVED) {
+      return false;
+    }
+
+    const mediaRepository = getRepository(Media);
+    const media = await mediaRepository.findOne({
+      where: { id: entity.media.id },
+    });
+
+    if (!media) {
+      return false;
+    }
+
+    if (media[entity.is4k ? 'status4k' : 'status'] !== MediaStatus.AVAILABLE) {
+      return false;
+    }
+
+    logger.warn('Media already exists, marking request as COMPLETED', {
+      label: 'Media Request',
+      requestId: entity.id,
+      mediaId: entity.media.id,
+    });
+
+    const requestRepository = getRepository(MediaRequest);
+    entity.status = MediaRequestStatus.COMPLETED;
+    if (entity.type === MediaType.TV && entity.seasons) {
+      entity.seasons.forEach((season) => {
+        season.status = MediaRequestStatus.COMPLETED;
+      });
+    }
+    await requestRepository.save(entity);
+    return true;
+  }
+
+  /**
+   * Runs the network-heavy *arr submission for a request AFTER its transaction
+   * has committed (invoked from afterTransactionCommit via setImmediate). The
+   * request is reloaded fresh with the relations sendToRadarr/sendToSonarr need.
+   */
+  /**
+   * Cheap, synchronous (settings-only, no network) guard that decides whether a
+   * request has any *arr work to defer. Mirrors the early-return conditions in
+   * sendToRadarr/sendToSonarr (request must be APPROVED and a matching server
+   * must be configured) so we never queue a deferred dispatch that would just
+   * no-op.
+   */
+  private shouldDispatchToArr(entity: MediaRequest): boolean {
+    if (entity.status !== MediaRequestStatus.APPROVED) {
+      return false;
+    }
+
+    const settings = getSettings();
+
+    if (entity.type === MediaType.MOVIE) {
+      return settings.radarr.length > 0 && !!settings.radarr[0];
+    }
+
+    if (entity.type === MediaType.TV) {
+      return settings.sonarr.length > 0 && !!settings.sonarr[0];
+    }
+
+    return false;
+  }
+
+  public async dispatchToArr(requestId: number): Promise<void> {
+    const requestRepository = getRepository(MediaRequest);
+    const request = await requestRepository.findOne({
+      where: { id: requestId },
+      relations: { media: true, requestedBy: true, seasons: true },
+    });
+
+    if (!request) {
+      // The request was removed (e.g. missing TVDB id) before dispatch.
+      return;
+    }
+
+    try {
+      await this.sendToRadarr(request);
+      await this.sendToSonarr(request);
+    } catch (e) {
+      logger.error('Error while dispatching request to *arr after commit', {
+        label: 'Media Request',
+        requestId,
+        errorMessage: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  public async afterTransactionCommit(
+    event: TransactionCommitEvent
+  ): Promise<void> {
+    const queue = getArrDispatchQueue(event.queryRunner.data);
+    if (queue.size === 0) {
+      return;
+    }
+
+    const requestIds = [...queue];
+    queue.clear();
+
+    // Dispatch on the next tick so the committing save() (and therefore the
+    // HTTP response) is never blocked on the Radarr/Sonarr round-trips.
+    for (const requestId of requestIds) {
+      setImmediate(() => {
+        void this.dispatchToArr(requestId).catch((e: unknown) => {
+          logger.error('Deferred *arr dispatch failed', {
+            label: 'Media Request',
+            requestId,
+            errorMessage: e instanceof Error ? e.message : String(e),
+          });
+        });
+      });
+    }
+  }
+
   public async handleRemoveParentUpdate(
     manager: EntityManager,
     entity: MediaRequest
@@ -1008,26 +1159,37 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       return;
     }
 
+    const entity = event.entity as MediaRequest;
+
+    // Synchronous, DB-only determination of the COMPLETED outcome so the HTTP
+    // response body stays accurate (already-AVAILABLE media -> COMPLETED). This
+    // does NOT hit Radarr/Sonarr/TMDB.
+    let completedSynchronously = false;
     try {
-      await this.sendToRadarr(event.entity as MediaRequest);
-      await this.sendToSonarr(event.entity as MediaRequest);
+      completedSynchronously =
+        await this.markCompletedIfAlreadyAvailable(entity);
     } catch (e) {
-      logger.error('Error while sending to *arr in afterUpdate subscriber', {
-        label: 'Media Request',
-        requestId: (event.entity as MediaRequest).id,
-        errorMessage: e instanceof Error ? e.message : String(e),
-      });
+      logger.error(
+        'Error while determining completed status in afterUpdate subscriber',
+        {
+          label: 'Media Request',
+          requestId: entity.id,
+          errorMessage: e instanceof Error ? e.message : String(e),
+        }
+      );
     }
 
+    // Keep the parent media status (-> PROCESSING) and child-season approvals
+    // synchronous so the response reflects them. No network calls happen here.
     try {
-      await this.updateParentStatus(event.entity as MediaRequest);
+      await this.updateParentStatus(entity);
 
-      if (event.entity.status === MediaRequestStatus.COMPLETED) {
-        if (event.entity.media.mediaType === MediaType.MOVIE) {
-          await this.notifyAvailableMovie(event.entity as MediaRequest, event);
+      if (entity.status === MediaRequestStatus.COMPLETED) {
+        if (entity.media.mediaType === MediaType.MOVIE) {
+          await this.notifyAvailableMovie(entity, event);
         }
-        if (event.entity.media.mediaType === MediaType.TV) {
-          await this.notifyAvailableSeries(event.entity as MediaRequest, event);
+        if (entity.media.mediaType === MediaType.TV) {
+          await this.notifyAvailableSeries(entity, event);
         }
       }
     } catch (e) {
@@ -1035,10 +1197,18 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         'Error while updating parent status in afterUpdate subscriber',
         {
           label: 'Media Request',
-          requestId: (event.entity as MediaRequest).id,
+          requestId: entity.id,
           errorMessage: e instanceof Error ? e.message : String(e),
         }
       );
+    }
+
+    // Defer the network-heavy *arr submission until the transaction commits so
+    // the response is not blocked on it. Skip when we already resolved the
+    // request to COMPLETED above, or when there is no matching *arr server to
+    // dispatch to (both would make the deferred dispatch a no-op).
+    if (!completedSynchronously && this.shouldDispatchToArr(entity)) {
+      getArrDispatchQueue(event.queryRunner.data).add(entity.id);
     }
   }
 
@@ -1047,28 +1217,47 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       return;
     }
 
+    const entity = event.entity as MediaRequest;
+
+    // Synchronous, DB-only determination of the COMPLETED outcome so the HTTP
+    // response body stays accurate (already-AVAILABLE media -> COMPLETED). This
+    // does NOT hit Radarr/Sonarr/TMDB.
+    let completedSynchronously = false;
     try {
-      await this.sendToRadarr(event.entity as MediaRequest);
-      await this.sendToSonarr(event.entity as MediaRequest);
+      completedSynchronously =
+        await this.markCompletedIfAlreadyAvailable(entity);
     } catch (e) {
-      logger.error('Error while sending to *arr in afterInsert subscriber', {
-        label: 'Media Request',
-        requestId: (event.entity as MediaRequest).id,
-        errorMessage: e instanceof Error ? e.message : String(e),
-      });
+      logger.error(
+        'Error while determining completed status in afterInsert subscriber',
+        {
+          label: 'Media Request',
+          requestId: entity.id,
+          errorMessage: e instanceof Error ? e.message : String(e),
+        }
+      );
     }
 
+    // Keep the parent media status (-> PROCESSING) synchronous so the response
+    // reflects it. No network calls happen here.
     try {
-      await this.updateParentStatus(event.entity as MediaRequest);
+      await this.updateParentStatus(entity);
     } catch (e) {
       logger.error(
         'Error while updating parent status in afterInsert subscriber',
         {
           label: 'Media Request',
-          requestId: (event.entity as MediaRequest).id,
+          requestId: entity.id,
           errorMessage: e instanceof Error ? e.message : String(e),
         }
       );
+    }
+
+    // Defer the network-heavy *arr submission until the transaction commits so
+    // the response is not blocked on it. Skip when we already resolved the
+    // request to COMPLETED above, or when there is no matching *arr server to
+    // dispatch to (both would make the deferred dispatch a no-op).
+    if (!completedSynchronously && this.shouldDispatchToArr(entity)) {
+      getArrDispatchQueue(event.queryRunner.data).add(entity.id);
     }
   }
 

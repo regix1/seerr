@@ -1,5 +1,6 @@
 import { MediaServerType } from '@server/constants/server';
 import blocklistedTagsProcessor from '@server/job/blocklistedTagsProcessor';
+import availabilityCheck from '@server/lib/availabilityCheck';
 import availabilitySync from '@server/lib/availabilitySync';
 import downloadTracker from '@server/lib/downloadtracker';
 import fileFlowsTracker from '@server/lib/fileflows';
@@ -235,6 +236,25 @@ export const startJobs = (): void => {
     }),
     running: () => availabilitySync.running,
     cancelFn: () => availabilitySync.cancel(),
+  });
+
+  // Re-check media still stuck in PROCESSING against its linked Radarr/Sonarr
+  // server and flip it to available without a full library scan; frequency is
+  // user-configurable (Jobs & Cache).
+  scheduledJobs.push({
+    id: 'availability-check',
+    name: 'Availability Check',
+    type: 'process',
+    interval: 'minutes',
+    cronSchedule: jobs['availability-check'].schedule,
+    job: schedule.scheduleJob(jobs['availability-check'].schedule, () => {
+      logger.info('Starting scheduled job: Availability Check', {
+        label: 'Jobs',
+      });
+      availabilityCheck.run();
+    }),
+    running: () => availabilityCheck.status().running,
+    cancelFn: () => availabilityCheck.cancel(),
   });
 
   // Run download sync every minute

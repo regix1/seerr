@@ -193,6 +193,13 @@ export interface MainSettings {
   embyLoginEnabled?: boolean;
   partialRequestsEnabled: boolean;
   enableSpecialEpisodes: boolean;
+  /**
+   * When enabled, the Availability Check job also re-checks media linked to
+   * Radarr/Sonarr servers that have `syncEnabled=false`. The bulk scanners
+   * still skip those servers; this only affects the lightweight per-item
+   * availability check. Defaults to `false` to match scanner behavior.
+   */
+  includeDisabledServers: boolean;
   locale: string;
   youtubeUrl: string;
   githubRepo: string;
@@ -418,6 +425,7 @@ export type JobId =
   | 'emby-full-scan'
   | 'image-cache-cleanup'
   | 'availability-sync'
+  | 'availability-check'
   | 'process-blocklisted-tags';
 
 export interface AllSettings {
@@ -484,6 +492,7 @@ class Settings {
         embyLoginEnabled: false,
         partialRequestsEnabled: true,
         enableSpecialEpisodes: false,
+        includeDisabledServers: false,
         locale: 'en',
         youtubeUrl: '',
         githubRepo: 'regix1/seerr',
@@ -669,6 +678,9 @@ class Settings {
         },
         'availability-sync': {
           schedule: '0 0 5 * * *',
+        },
+        'availability-check': {
+          schedule: '0 */15 * * * *',
         },
         'download-sync': {
           schedule: '*/5 * * * * *',

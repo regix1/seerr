@@ -1,6 +1,7 @@
 import { sliderTitles } from '@app/components/Discover/constants';
 import RequestCard from '@app/components/RequestCard';
 import Slider from '@app/components/Slider';
+import { RECENT_REQUESTS_KEY } from '@app/hooks/useRevalidateRequests';
 import { Permission, useUser } from '@app/hooks/useUser';
 import defineMessages from '@app/utils/defineMessages';
 import {
@@ -21,12 +22,10 @@ const RecentRequestsSlider = () => {
   const intl = useIntl();
   const { hasPermission } = useUser();
   const { data: requests, error: requestError } =
-    useSWR<RequestResultsResponse>(
-      '/api/v1/request?filter=all&take=10&sort=modified&skip=0',
-      {
-        revalidateOnMount: true,
-      }
-    );
+    useSWR<RequestResultsResponse>(RECENT_REQUESTS_KEY, {
+      revalidateOnMount: true,
+      refreshInterval: 10000,
+    });
 
   if (requests && requests.results.length === 0 && !requestError) {
     return null;

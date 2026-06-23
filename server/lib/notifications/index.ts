@@ -106,11 +106,25 @@ class NotificationManager {
       subject: payload.subject,
     });
 
-    this.activeAgents.forEach((agent) => {
-      if (agent.shouldSend()) {
-        agent.send(type, payload);
-      }
-    });
+    // Fan out to every active agent in isolation: a slow or rejecting agent
+    // must neither block the others nor surface as an unhandled rejection.
+    void Promise.allSettled(
+      this.activeAgents
+        .filter((agent) => agent.shouldSend())
+        .map((agent) =>
+          Promise.resolve()
+            .then(() => agent.send(type, payload))
+            .catch((e: unknown) => {
+              logger.error('Notification agent failed to send', {
+                label: 'Notifications',
+                type: Notification[type],
+                subject: payload.subject,
+                errorMessage: e instanceof Error ? e.message : String(e),
+              });
+              return false;
+            })
+        )
+    );
   }
 }
 
