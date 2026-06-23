@@ -3,6 +3,7 @@ import { MediaServerType } from '@server/constants/server';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
 import type { AllSettings } from '@server/lib/settings';
+import { isUserTableReady } from '@server/lib/settings/migrations/dbReady';
 import type { LegacySettings } from '@server/lib/settings/migrations/types';
 import { getHostname } from '@server/utils/getHostname';
 
@@ -15,6 +16,11 @@ const migrateApiTokens = async (
     (mediaServerType === MediaServerType.JELLYFIN ||
       mediaServerType === MediaServerType.EMBY)
   ) {
+    // Fresh installs have no `user` table yet (settings migrations run before
+    // the schema migrations); there is no admin to read a token from, so skip.
+    if (!(await isUserTableReady())) {
+      return settings;
+    }
     const userRepository = getRepository(User);
     const admin = await userRepository.findOne({
       where: { id: 1 },

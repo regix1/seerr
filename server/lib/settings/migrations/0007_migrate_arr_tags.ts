@@ -3,6 +3,7 @@ import SonarrAPI from '@server/api/servarr/sonarr';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
 import type { AllSettings } from '@server/lib/settings';
+import { isUserTableReady } from '@server/lib/settings/migrations/dbReady';
 import type { LegacySettings } from '@server/lib/settings/migrations/types';
 import logger from '@server/logger';
 
@@ -13,6 +14,14 @@ const migrationArrTags = async (
     Array.isArray(settings.migrations) &&
     settings.migrations.includes('0007_migrate_arr_tags')
   ) {
+    return settings;
+  }
+
+  // Fresh installs have no `user` table yet (settings migrations run before the
+  // schema migrations) and no Radarr/Sonarr configured, so there is nothing to
+  // rename. Skip without recording the marker so the migration runs normally on
+  // a later boot once the schema exists.
+  if (!(await isUserTableReady())) {
     return settings;
   }
 

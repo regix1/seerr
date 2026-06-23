@@ -68,13 +68,27 @@ app
     // Run Overseerr to Seerr migration
     await checkOverseerrMerge();
 
-    // Load settings before TypeORM migrations so settings migrations can
-    // write legacy markers consumed by DB data migrations.
-    const settings = await getSettings().load();
-
+    // Initialize the datasource BEFORE loading settings. Some settings
+    // migrations (e.g. 0002/0007) query the User repository, which requires
+    // TypeORM entity metadata to exist. On a brand-new config dir those
+    // migrations would otherwise throw `EntityMetadataNotFoundError: No
+    // metadata for "User"` because the datasource had not been initialized
+    // yet. Initialization only sets up the connection and metadata; it does
+    // not run migrations (migrationsRun is false), so no schema/data changes
+    // happen here.
     const dbConnection = dataSource.isInitialized
       ? dataSource
       : await dataSource.initialize();
+
+    // Load settings AFTER datasource init (so settings migrations have entity
+    // metadata) but BEFORE the TypeORM migrations below. Settings migration
+    // 0010 writes the legacy marker file that the Emby data migrations
+    // (AddEmbyUserParams / AddEmbyMediaIdColumns) consume, so it must run
+    // first. The DB-touching settings migrations (0002/0007) defensively skip
+    // their repository queries when the `user` table does not exist yet (fresh
+    // install pre-migration); on existing installs the table is present and
+    // they behave exactly as before.
+    const settings = await getSettings().load();
 
     // Run migrations in production
     if (process.env.NODE_ENV === 'production') {
