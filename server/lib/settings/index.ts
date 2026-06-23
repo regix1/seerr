@@ -194,10 +194,10 @@ export interface MainSettings {
   partialRequestsEnabled: boolean;
   enableSpecialEpisodes: boolean;
   /**
-   * When enabled, the Availability Check job also re-checks media linked to
-   * Radarr/Sonarr servers that have `syncEnabled=false`. The bulk scanners
+   * When enabled, the Download Completion Check job also re-checks media linked
+   * to Radarr/Sonarr servers that have `syncEnabled=false`. The bulk scanners
    * still skip those servers; this only affects the lightweight per-item
-   * availability check. Defaults to `false` to match scanner behavior.
+   * download completion check. Defaults to `false` to match scanner behavior.
    */
   includeDisabledServers: boolean;
   locale: string;
@@ -425,7 +425,7 @@ export type JobId =
   | 'emby-full-scan'
   | 'image-cache-cleanup'
   | 'availability-sync'
-  | 'availability-check'
+  | 'download-completion-check'
   | 'process-blocklisted-tags';
 
 export interface AllSettings {
@@ -679,7 +679,7 @@ class Settings {
         'availability-sync': {
           schedule: '0 0 5 * * *',
         },
-        'availability-check': {
+        'download-completion-check': {
           schedule: '0 */15 * * * *',
         },
         'download-sync': {

@@ -221,11 +221,11 @@ function configureSonarr(overrides: Partial<SonarrSettings>[] = [{}]): void {
 import { radarrScanner } from '@server/lib/scanners/radarr';
 import { sonarrScanner } from '@server/lib/scanners/sonarr';
 
-import { availabilityCheck } from '@server/lib/availabilityCheck';
+import { downloadCompletionCheck } from '@server/lib/downloadCompletionCheck';
 
 setupTestDb();
 
-describe('AvailabilityCheck', () => {
+describe('DownloadCompletionCheck', () => {
   beforeEach(() => {
     getMovieImpl = async () => {
       throw new Error('404');
@@ -255,7 +255,7 @@ describe('AvailabilityCheck', () => {
 
     getMovieImpl = async () => fakeRadarrMovie({ hasFile: true });
 
-    await availabilityCheck.run();
+    await downloadCompletionCheck.run();
 
     const updated = await mediaRepository.findOneOrFail({
       where: { tmdbId: 550 },
@@ -279,7 +279,7 @@ describe('AvailabilityCheck', () => {
     getMovieImpl = async () =>
       fakeRadarrMovie({ tmdbId: 551, hasFile: false, monitored: true });
 
-    await availabilityCheck.run();
+    await downloadCompletionCheck.run();
 
     const updated = await mediaRepository.findOneOrFail({
       where: { tmdbId: 551 },
@@ -325,7 +325,7 @@ describe('AvailabilityCheck', () => {
     // 5 of 10 episodes present.
     getSeriesByIdImpl = async () => fakeSonarrSeries({ 1: 5 }, 1);
 
-    await availabilityCheck.run();
+    await downloadCompletionCheck.run();
 
     const updated = await mediaRepository.findOneOrFail({
       where: { tmdbId: 600 },
@@ -362,7 +362,7 @@ describe('AvailabilityCheck', () => {
       return fakeRadarrMovie({ tmdbId: 701, hasFile: true });
     };
 
-    await availabilityCheck.run();
+    await downloadCompletionCheck.run();
 
     const failingUpdated = await mediaRepository.findOneOrFail({
       where: { tmdbId: 700 },
@@ -375,7 +375,7 @@ describe('AvailabilityCheck', () => {
     assert.strictEqual(okUpdated.status, MediaStatus.AVAILABLE);
   });
 
-  // (e) availability check skipped when the scanner status().running is true.
+  // (e) download completion check skipped when the scanner status().running is true.
   it('does not check availability when a full scan is already running', async () => {
     configureRadarr([{ syncEnabled: true }]);
     const mediaRepository = getRepository(Media);
@@ -396,7 +396,7 @@ describe('AvailabilityCheck', () => {
 
     (radarrScanner as unknown as { running: boolean }).running = true;
     try {
-      await availabilityCheck.run();
+      await downloadCompletionCheck.run();
     } finally {
       (radarrScanner as unknown as { running: boolean }).running = false;
     }
@@ -433,7 +433,7 @@ describe('AvailabilityCheck', () => {
       return fakeRadarrMovie({ hasFile: true });
     };
 
-    await availabilityCheck.run();
+    await downloadCompletionCheck.run();
 
     assert.strictEqual(fetched, false, 'no excluded row should be checked');
 
@@ -470,7 +470,7 @@ describe('AvailabilityCheck', () => {
       return fakeRadarrMovie({ tmdbId: 1000, hasFile: false });
     };
 
-    await availabilityCheck.run();
+    await downloadCompletionCheck.run();
 
     const updated = await mediaRepository.findOneOrFail({
       where: { tmdbId: 1000 },
@@ -503,7 +503,7 @@ describe('AvailabilityCheck', () => {
 
     settings.main.includeDisabledServers = true;
     try {
-      await availabilityCheck.run();
+      await downloadCompletionCheck.run();
     } finally {
       settings.main.includeDisabledServers = previousIncludeDisabledServers;
     }

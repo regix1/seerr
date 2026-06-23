@@ -96,7 +96,7 @@ const messages: { [messageName: string]: MessageDescriptor } = defineMessages(
     'emby-full-scan': 'Emby Full Library Scan',
     'emby-recently-added-scan': 'Emby Recently Added Scan',
     'availability-sync': 'Media Availability Sync',
-    'availability-check': 'Availability Check',
+    'download-completion-check': 'Download Completion Check',
     'radarr-scan': 'Radarr Scan',
     'sonarr-scan': 'Sonarr Scan',
     'fileflows-sync': 'FileFlows Sync',

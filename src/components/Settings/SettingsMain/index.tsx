@@ -75,7 +75,7 @@ const messages = defineMessages('components.Settings.SettingsMain', {
   enableSpecialEpisodes: 'Allow Special Episodes Requests',
   includeDisabledServers: 'Check Disabled Servers',
   includeDisabledServersTip:
-    'Also re-check items whose Radarr/Sonarr server has scanning disabled (Availability Check only)',
+    'Also re-check items whose Radarr/Sonarr server has scanning disabled (Download Completion Check only)',
   locale: 'Display Language',
   youtubeUrl: 'YouTube URL',
   youtubeUrlTip:

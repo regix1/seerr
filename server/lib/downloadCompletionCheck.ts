@@ -10,12 +10,12 @@ import { MoreThan } from 'typeorm';
 
 const PAGE_SIZE = 50;
 
-interface AvailabilityCheckStatus {
+interface DownloadCompletionCheckStatus {
   running: boolean;
 }
 
 /**
- * AvailabilityCheck
+ * DownloadCompletionCheck
  *
  * A lightweight, user-scheduled job that re-checks media still stuck in
  * PROCESSING against its linked Radarr/Sonarr server and flips it to
@@ -29,10 +29,10 @@ interface AvailabilityCheckStatus {
  * MediaSubscriber cascade for free. It only ever upgrades PROCESSING media; it
  * never downgrades or deletes.
  */
-class AvailabilityCheck {
+class DownloadCompletionCheck {
   private running = false;
 
-  public status(): AvailabilityCheckStatus {
+  public status(): DownloadCompletionCheckStatus {
     return { running: this.running };
   }
 
@@ -42,8 +42,8 @@ class AvailabilityCheck {
 
   public async run(): Promise<void> {
     if (this.running) {
-      logger.warn('Availability check is already running. Skipping.', {
-        label: 'Availability Check',
+      logger.warn('Download completion check is already running. Skipping.', {
+        label: 'Download Completion Check',
       });
       return;
     }
@@ -53,8 +53,8 @@ class AvailabilityCheck {
     // Default behavior matches the bulk scanners: only check items on
     // sync-enabled servers. Disabling sync on a server intentionally opts it
     // out of availability changes. When `includeDisabledServers` is enabled,
-    // the availability check ALSO re-checks items on sync-disabled servers
-    // (the bulk scanners still skip them).
+    // the download completion check ALSO re-checks items on sync-disabled
+    // servers (the bulk scanners still skip them).
     const includeDisabledServers = settings.main.includeDisabledServers;
     const radarrServers = new Map<number, RadarrSettings>(
       settings.radarr
@@ -68,15 +68,15 @@ class AvailabilityCheck {
     );
 
     this.running = true;
-    logger.info('Starting availability check.', {
-      label: 'Availability Check',
+    logger.info('Starting download completion check.', {
+      label: 'Download Completion Check',
     });
 
     try {
       for await (const media of this.loadProcessingMediaPaginated(PAGE_SIZE)) {
         if (!this.running) {
-          logger.info('Availability check was canceled.', {
-            label: 'Availability Check',
+          logger.info('Download completion check was canceled.', {
+            label: 'Download Completion Check',
           });
           break;
         }
@@ -90,7 +90,7 @@ class AvailabilityCheck {
         } catch (e) {
           // Fail open per item: log and continue with the rest of the batch.
           logger.error('Failed to check media item.', {
-            label: 'Availability Check',
+            label: 'Download Completion Check',
             errorMessage: e.message,
             mediaId: media.id,
             tmdbId: media.tmdbId,
@@ -98,12 +98,12 @@ class AvailabilityCheck {
         }
       }
 
-      logger.info('Availability check complete.', {
-        label: 'Availability Check',
+      logger.info('Download completion check complete.', {
+        label: 'Download Completion Check',
       });
     } catch (e) {
-      logger.error('Availability check interrupted.', {
-        label: 'Availability Check',
+      logger.error('Download completion check interrupted.', {
+        label: 'Download Completion Check',
         errorMessage: e.message,
       });
     } finally {
@@ -241,6 +241,6 @@ class AvailabilityCheck {
   }
 }
 
-export const availabilityCheck = new AvailabilityCheck();
+export const downloadCompletionCheck = new DownloadCompletionCheck();
 
-export default availabilityCheck;
+export default downloadCompletionCheck;

@@ -1,7 +1,7 @@
 import { MediaServerType } from '@server/constants/server';
 import blocklistedTagsProcessor from '@server/job/blocklistedTagsProcessor';
-import availabilityCheck from '@server/lib/availabilityCheck';
 import availabilitySync from '@server/lib/availabilitySync';
+import downloadCompletionCheck from '@server/lib/downloadCompletionCheck';
 import downloadTracker from '@server/lib/downloadtracker';
 import fileFlowsTracker from '@server/lib/fileflows';
 import ImageProxy from '@server/lib/imageproxy';
@@ -242,19 +242,22 @@ export const startJobs = (): void => {
   // server and flip it to available without a full library scan; frequency is
   // user-configurable (Jobs & Cache).
   scheduledJobs.push({
-    id: 'availability-check',
-    name: 'Availability Check',
+    id: 'download-completion-check',
+    name: 'Download Completion Check',
     type: 'process',
     interval: 'minutes',
-    cronSchedule: jobs['availability-check'].schedule,
-    job: schedule.scheduleJob(jobs['availability-check'].schedule, () => {
-      logger.info('Starting scheduled job: Availability Check', {
-        label: 'Jobs',
-      });
-      availabilityCheck.run();
-    }),
-    running: () => availabilityCheck.status().running,
-    cancelFn: () => availabilityCheck.cancel(),
+    cronSchedule: jobs['download-completion-check'].schedule,
+    job: schedule.scheduleJob(
+      jobs['download-completion-check'].schedule,
+      () => {
+        logger.info('Starting scheduled job: Download Completion Check', {
+          label: 'Jobs',
+        });
+        downloadCompletionCheck.run();
+      }
+    ),
+    running: () => downloadCompletionCheck.status().running,
+    cancelFn: () => downloadCompletionCheck.cancel(),
   });
 
   // Run download sync every minute
