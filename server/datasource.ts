@@ -85,9 +85,13 @@ const prodConfig: DataSourceOptions = {
   migrationsRun: false,
   logging: boolFromEnv('DB_LOG_QUERIES'),
   enableWAL: true,
-  entities: ['dist/entity/**/*.js'],
-  migrations: ['dist/migration/sqlite/**/*.js'],
-  subscribers: ['dist/subscriber/**/*.js'],
+  // Exclude any *.test.js that may have leaked into dist so TypeORM never loads
+  // a compiled test module (whose top-level setupTestDb/node:test would run at
+  // boot, hijack the schema, and break migrations). Belt-and-suspenders with the
+  // build tsconfig excluding *.test.ts from the dist output.
+  entities: ['dist/entity/**/!(*.test).js'],
+  migrations: ['dist/migration/sqlite/**/!(*.test).js'],
+  subscribers: ['dist/subscriber/**/!(*.test).js'],
 };
 
 const postgresDevConfig: DataSourceOptions = {
@@ -123,9 +127,10 @@ const postgresProdConfig: DataSourceOptions = {
   synchronize: false,
   migrationsRun: false,
   logging: boolFromEnv('DB_LOG_QUERIES'),
-  entities: ['dist/entity/**/*.js'],
-  migrations: ['dist/migration/postgres/**/*.js'],
-  subscribers: ['dist/subscriber/**/*.js'],
+  // See prodConfig: exclude any *.test.js leaked into dist.
+  entities: ['dist/entity/**/!(*.test).js'],
+  migrations: ['dist/migration/postgres/**/!(*.test).js'],
+  subscribers: ['dist/subscriber/**/!(*.test).js'],
 };
 
 export const isPgsql = process.env.DB_TYPE === 'postgres';
