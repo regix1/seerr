@@ -11,6 +11,7 @@ import type {
 import BaseScanner from '@server/lib/scanners/baseScanner';
 import type { RadarrSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
+import logger from '@server/logger';
 import { uniqWith } from 'lodash';
 
 type SyncStatus = StatusBase & {
@@ -240,11 +241,25 @@ class RadarrScanner
 
       await this.processRadarrMovie(radarrMovie);
     } catch (e) {
-      this.log('Failed to check Radarr media availability', 'error', {
-        errorMessage: e.message,
-        radarrId,
-        is4k,
-      });
+      const statusCode = (e as { cause?: { response?: { status?: number } } })
+        .cause?.response?.status;
+      const notFound =
+        statusCode === 404 || /\b404\b/.test(String(e.message ?? ''));
+      if (notFound) {
+        // A stale externalServiceId (the movie was removed from Radarr, or a
+        // link left over from a reset) returns 404. This is expected during a
+        // targeted check, not an error: skip the item quietly and leave it as-is.
+        logger.debug(
+          `Radarr id ${radarrId} not found in Radarr (stale link); skipping`,
+          { label: 'Download Completion Check', radarrId, is4k }
+        );
+      } else {
+        this.log('Failed to check Radarr media availability', 'error', {
+          errorMessage: e.message,
+          radarrId,
+          is4k,
+        });
+      }
     } finally {
       this.running = false;
     }
