@@ -7,14 +7,6 @@ import Table from '@app/components/Common/Table';
 import useToasts from '@app/hooks/useToasts';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
-import {
-  buildJobScheduleOptions,
-  parseCronToTotalSeconds,
-  totalSecondsToCron,
-  withCurrentScheduleOption,
-  type JobScheduleDisplayUnit,
-  type JobScheduleOption,
-} from '@app/utils/jobScheduleOptions';
 import { formatBytes } from '@app/utils/numberHelpers';
 import { Transition } from '@headlessui/react';
 import {
@@ -22,12 +14,11 @@ import {
   PlayIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
-import { PencilIcon } from '@heroicons/react/24/solid';
 import axios from 'axios';
 import cronstrue from 'cronstrue/i18n';
 import { Field, Form, Formik } from 'formik';
-import { Fragment, useReducer, useState } from 'react';
-import type { IntlShape, MessageDescriptor } from 'react-intl';
+import { Fragment, useState } from 'react';
+import type { MessageDescriptor } from 'react-intl';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
 import * as Yup from 'yup';
@@ -46,8 +37,8 @@ const messages: { [messageName: string]: MessageDescriptor } = defineMessages(
     retentionLabel: 'Retention',
     retentionTip:
       'Number of recent backups to keep. Older backups are deleted automatically.',
-    scheduleLabel: 'Schedule',
-    scheduleTip: 'How often to run the automatic backup job.',
+    scheduleLabel: 'Backup Time',
+    scheduleTip: 'The time of day to run the daily backup.',
     saveSettings: 'Save Changes',
     saving: 'Saving…',
     settingsSaved: 'Backup settings saved successfully.',
@@ -114,64 +105,44 @@ interface ScheduleJob {
   cronSchedule: string;
 }
 
-type ScheduleModalState = {
-  isOpen: boolean;
-  scheduleTotalSeconds: number;
-  job?: ScheduleJob;
-};
+const DEFAULT_BACKUP_TIME = '04:00';
 
-type ScheduleModalAction =
-  | { type: 'open'; job: ScheduleJob }
-  | { type: 'close' }
-  | { type: 'set'; scheduleTotalSeconds: number };
-
-const DEFAULT_SCHEDULE_TOTAL_SECONDS = 14400; // 4 hours
-
-const scheduleModalReducer = (
-  state: ScheduleModalState,
-  action: ScheduleModalAction
-): ScheduleModalState => {
-  switch (action.type) {
-    case 'open': {
-      const scheduleTotalSeconds = parseCronToTotalSeconds(
-        action.job.cronSchedule,
-        action.job.interval
-      );
-      return { isOpen: true, job: action.job, scheduleTotalSeconds };
-    }
-    case 'close':
-      return { ...state, isOpen: false };
-    case 'set':
-      return { ...state, scheduleTotalSeconds: action.scheduleTotalSeconds };
+// The backup runs once a day at a user-chosen time. Convert between a "HH:MM"
+// time-of-day and a 6-field node-schedule cron ("0 MM HH * * *" = daily at HH:MM).
+const cronToDailyTime = (cron: string | undefined): string => {
+  if (!cron) {
+    return DEFAULT_BACKUP_TIME;
   }
+  const parts = cron.trim().split(/\s+/);
+  // 6-field "s m h dom mon dow" (with seconds) or 5-field "m h dom mon dow".
+  const [minuteStr, hourStr] =
+    parts.length >= 6 ? [parts[1], parts[2]] : [parts[0], parts[1]];
+  const hour = Number(hourStr);
+  const minute = Number(minuteStr);
+  if (
+    Number.isInteger(hour) &&
+    hour >= 0 &&
+    hour <= 23 &&
+    Number.isInteger(minute) &&
+    minute >= 0 &&
+    minute <= 59
+  ) {
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(
+      2,
+      '0'
+    )}`;
+  }
+  return DEFAULT_BACKUP_TIME;
 };
 
-const formatScheduleOptionLabel = (
-  intl: IntlShape,
-  option: JobScheduleOption
-): string => {
-  const messageByUnit: Record<
-    JobScheduleDisplayUnit,
-    (value: number) => string
-  > = {
-    seconds: (value) =>
-      intl.formatMessage(messages.editJobScheduleSelectorSeconds, {
-        jobScheduleSeconds: value,
-      }),
-    minutes: (value) =>
-      intl.formatMessage(messages.editJobScheduleSelectorMinutes, {
-        jobScheduleMinutes: value,
-      }),
-    hours: (value) =>
-      intl.formatMessage(messages.editJobScheduleSelectorHours, {
-        jobScheduleHours: value,
-      }),
-    days: (value) =>
-      intl.formatMessage(messages.editJobScheduleSelectorDays, {
-        jobScheduleDays: value,
-      }),
-  };
-  return messageByUnit[option.displayUnit](option.displayValue);
+const dailyTimeToCron = (time: string): string => {
+  const [hourStr, minuteStr] = time.split(':');
+  const hour = Number(hourStr);
+  const minute = Number(minuteStr);
+  const hh = Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : 4;
+  const mm =
+    Number.isInteger(minute) && minute >= 0 && minute <= 59 ? minute : 0;
+  return `0 ${mm} ${hh} * * *`;
 };
 
 interface DeleteConfirmState {
@@ -205,16 +176,17 @@ const SettingsBackup = () => {
   const dbBackupJob = jobData?.find((j) => j.id === 'db-backup');
 
   const [isBackingUp, setIsBackingUp] = useState(false);
-  const [scheduleModal, dispatchSchedule] = useReducer(scheduleModalReducer, {
-    isOpen: false,
-    scheduleTotalSeconds: DEFAULT_SCHEDULE_TOTAL_SECONDS,
-  });
-  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+  const [scheduleTime, setScheduleTime] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>({
     isOpen: false,
     backupId: null,
   });
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // The time shown in the picker: the user's edit if they've touched it,
+  // otherwise the current daily time derived from the job's cron.
+  const effectiveScheduleTime =
+    scheduleTime ?? cronToDailyTime(dbBackupJob?.cronSchedule);
 
   if (!data && !error) {
     return <LoadingSpinner />;
@@ -276,33 +248,6 @@ const SettingsBackup = () => {
     }
   };
 
-  const handleScheduleSave = async () => {
-    if (!scheduleModal.job || scheduleModal.job.interval === 'fixed') return;
-    setIsSavingSchedule(true);
-    try {
-      const schedule = totalSecondsToCron(
-        scheduleModal.scheduleTotalSeconds,
-        scheduleModal.job.interval
-      );
-      await axios.post('/api/v1/settings/jobs/db-backup/schedule', {
-        schedule,
-      });
-      addToast(intl.formatMessage(messages.scheduleEditSaved), {
-        appearance: 'success',
-        autoDismiss: true,
-      });
-      dispatchSchedule({ type: 'close' });
-      revalidate();
-    } catch {
-      addToast(intl.formatMessage(messages.scheduleEditFailed), {
-        appearance: 'error',
-        autoDismiss: true,
-      });
-    } finally {
-      setIsSavingSchedule(false);
-    }
-  };
-
   return (
     <>
       <PageTitle
@@ -311,82 +256,6 @@ const SettingsBackup = () => {
           intl.formatMessage(globalMessages.settings),
         ]}
       />
-
-      {/* Schedule edit modal */}
-      <Transition
-        as={Fragment}
-        enter="transition-opacity duration-300"
-        enterFrom="opacity-0"
-        enterTo="opacity-100"
-        leave="transition-opacity duration-300"
-        leaveFrom="opacity-100"
-        leaveTo="opacity-0"
-        show={scheduleModal.isOpen}
-      >
-        <Modal
-          title={intl.formatMessage(messages.editSchedule)}
-          okText={
-            isSavingSchedule
-              ? intl.formatMessage(globalMessages.saving)
-              : intl.formatMessage(globalMessages.save)
-          }
-          okDisabled={isSavingSchedule}
-          onCancel={() => dispatchSchedule({ type: 'close' })}
-          onOk={handleScheduleSave}
-        >
-          <div className="section">
-            <form className="mb-6">
-              <div className="form-row">
-                <label className="text-label">
-                  {intl.formatMessage(messages.currentFrequency)}
-                </label>
-                <div className="form-input-area mb-1 mt-2">
-                  <div>
-                    {scheduleModal.job &&
-                      cronstrue.toString(scheduleModal.job.cronSchedule)}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {scheduleModal.job?.cronSchedule}
-                  </div>
-                </div>
-              </div>
-              <div className="form-row">
-                <label htmlFor="backupSchedule" className="text-label">
-                  {intl.formatMessage(messages.newFrequency)}
-                </label>
-                <div className="form-input-area">
-                  {scheduleModal.job &&
-                    scheduleModal.job.interval !== 'fixed' && (
-                      <select
-                        name="backupSchedule"
-                        className="inline"
-                        value={scheduleModal.scheduleTotalSeconds}
-                        onChange={(e) =>
-                          dispatchSchedule({
-                            type: 'set',
-                            scheduleTotalSeconds: Number(e.target.value),
-                          })
-                        }
-                      >
-                        {withCurrentScheduleOption(
-                          buildJobScheduleOptions(scheduleModal.job.interval),
-                          scheduleModal.scheduleTotalSeconds
-                        ).map((option) => (
-                          <option
-                            value={option.totalSeconds}
-                            key={`backupSchedule-${option.totalSeconds}`}
-                          >
-                            {formatScheduleOptionLabel(intl, option)}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                </div>
-              </div>
-            </form>
-          </div>
-        </Modal>
-      </Transition>
 
       {/* Delete confirmation modal */}
       <Transition
@@ -437,6 +306,11 @@ const SettingsBackup = () => {
               await axios.post('/api/v1/settings/backup', {
                 enabled: values.enabled,
                 retention: Number(values.retention),
+              });
+              // Save the daily backup time alongside the config so one Save
+              // applies both. The schedule lives on the job system.
+              await axios.post('/api/v1/settings/jobs/db-backup/schedule', {
+                schedule: dailyTimeToCron(effectiveScheduleTime),
               });
               addToast(intl.formatMessage(messages.settingsSaved), {
                 appearance: 'success',
@@ -494,32 +368,27 @@ const SettingsBackup = () => {
                 </div>
               </div>
               <div className="form-row">
-                <label className="text-label">
+                <label htmlFor="backupTime" className="text-label">
                   <span>{intl.formatMessage(messages.scheduleLabel)}</span>
                   <span className="label-tip">
                     {intl.formatMessage(messages.scheduleTip)}
                   </span>
                 </label>
-                <div className="form-input-area mt-2 flex items-center gap-3">
-                  <div className="text-sm text-white">
+                <div className="form-input-area">
+                  <div className="form-input-field">
+                    <input
+                      id="backupTime"
+                      type="time"
+                      className="block"
+                      value={effectiveScheduleTime}
+                      onChange={(e) => setScheduleTime(e.target.value)}
+                    />
+                  </div>
+                  <div className="mt-1 text-sm text-gray-400">
                     {dbBackupJob
                       ? cronstrue.toString(dbBackupJob.cronSchedule)
                       : '—'}
                   </div>
-                  {dbBackupJob && dbBackupJob.interval !== 'fixed' && (
-                    <Button
-                      buttonType="warning"
-                      buttonSize="sm"
-                      type="button"
-                      onClick={() =>
-                        dispatchSchedule({ type: 'open', job: dbBackupJob })
-                      }
-                    >
-                      <PencilIcon />
-                      <span>{intl.formatMessage(messages.editSchedule)}</span>
-                    </Button>
-                  )}
-                  {isBackingUp && <Spinner className="ml-2 h-5 w-5" />}
                 </div>
               </div>
               <div className="mt-8 border-t border-gray-700 pt-5">
