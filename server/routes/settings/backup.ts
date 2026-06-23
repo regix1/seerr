@@ -123,11 +123,9 @@ backupRoutes.get('/:id/download', async (req, res, next) => {
     }
 
     if (type !== 'db' && type !== 'settings') {
-      return res
-        .status(400)
-        .json({
-          message: 'Query parameter "type" must be "db" or "settings".',
-        });
+      return res.status(400).json({
+        message: 'Query parameter "type" must be "db" or "settings".',
+      });
     }
 
     const filePath = databaseBackup.getBackupFilePath(id, type);
