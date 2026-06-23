@@ -510,10 +510,25 @@ class BaseScanner<T> {
           (s) => s.seasonNumber !== 0
         );
 
-        const standardSeasonsForRollup = nonSpecialSeasons.filter(
-          (s) =>
-            (seasons.find((season) => season.seasonNumber === s.seasonNumber)
-              ?.totalEpisodes ?? Infinity) > 0
+        // DB-only seasons block the rollup unless UNKNOWN (orphan placeholders
+        // can never be revisited by a scan and would pin the show forever).
+        const countsTowardsRollup = (
+          s: Season,
+          statusKey: 'status' | 'status4k'
+        ): boolean => {
+          const scannedSeason = seasons.find(
+            (season) => season.seasonNumber === s.seasonNumber
+          );
+
+          if (scannedSeason) {
+            return scannedSeason.totalEpisodes > 0;
+          }
+
+          return s[statusKey] !== MediaStatus.UNKNOWN;
+        };
+
+        const standardSeasonsForRollup = nonSpecialSeasons.filter((s) =>
+          countsTowardsRollup(s, 'status')
         );
         const isAllStandardSeasonsAvailable =
           standardSeasonsForRollup.length > 0 &&
@@ -521,10 +536,8 @@ class BaseScanner<T> {
             (s) => s.status === MediaStatus.AVAILABLE
           );
 
-        const seasons4kForRollup = nonSpecialSeasons.filter(
-          (s) =>
-            (seasons.find((season) => season.seasonNumber === s.seasonNumber)
-              ?.totalEpisodes ?? Infinity) > 0
+        const seasons4kForRollup = nonSpecialSeasons.filter((s) =>
+          countsTowardsRollup(s, 'status4k')
         );
         const isAll4kSeasonsAvailable =
           seasons4kForRollup.length > 0 &&
@@ -573,25 +586,22 @@ class BaseScanner<T> {
           (s) => s.seasonNumber !== 0
         );
 
-        const standardSeasonsForRollup = nonSpecialNewSeasons.filter(
+        // New media only has freshly-scanned seasons, so a missing scanner
+        // entry means no episodes (default 0), never an orphan DB placeholder.
+        const newSeasonsForRollup = nonSpecialNewSeasons.filter(
           (s) =>
             (seasons.find((season) => season.seasonNumber === s.seasonNumber)
-              ?.totalEpisodes ?? Infinity) > 0
+              ?.totalEpisodes ?? 0) > 0
         );
         const isAllStandardSeasonsAvailable =
-          standardSeasonsForRollup.length > 0 &&
-          standardSeasonsForRollup.every(
-            (s) => s.status === MediaStatus.AVAILABLE
-          );
+          newSeasonsForRollup.length > 0 &&
+          newSeasonsForRollup.every((s) => s.status === MediaStatus.AVAILABLE);
 
-        const seasons4kForRollup = nonSpecialNewSeasons.filter(
-          (s) =>
-            (seasons.find((season) => season.seasonNumber === s.seasonNumber)
-              ?.totalEpisodes ?? Infinity) > 0
-        );
         const isAll4kSeasonsAvailable =
-          seasons4kForRollup.length > 0 &&
-          seasons4kForRollup.every((s) => s.status4k === MediaStatus.AVAILABLE);
+          newSeasonsForRollup.length > 0 &&
+          newSeasonsForRollup.every(
+            (s) => s.status4k === MediaStatus.AVAILABLE
+          );
 
         const newMedia = new Media({
           mediaType: MediaType.TV,
