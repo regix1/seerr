@@ -14,6 +14,7 @@ import Media from '@server/entity/Media';
 import MediaRequest from '@server/entity/MediaRequest';
 import type Season from '@server/entity/Season';
 import { User } from '@server/entity/User';
+import { findAdminScanUser } from '@server/lib/scanners/utils/findAdminScanUser';
 import type { RadarrSettings, SonarrSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -92,17 +93,33 @@ class AvailabilitySync {
         mediaServerType === MediaServerType.JELLYFIN
       ) {
         if (settings.jellyfin.ip && settings.jellyfin.apiKey) {
-          const jellyfinAdmin = await userRepository.findOne({
-            where: { id: 1 },
-            select: ['id', 'jellyfinUserId', 'jellyfinDeviceId'],
-            order: { id: 'ASC' },
-          });
+          // Resolve an admin user that actually has Jellyfin credentials linked.
+          // Mirrors the media-server scanner: if no admin has a jellyfinUserId we
+          // must NOT construct the client (setUserId throws on an empty value),
+          // so we warn and skip Jellyfin instead of aborting the whole sync.
+          const { user: jellyfinAdmin, reason } =
+            await findAdminScanUser('jellyfin');
 
-          if (jellyfinAdmin) {
+          if (reason === 'no-admin-creds' || !jellyfinAdmin) {
+            logger.warn(
+              'Jellyfin availability sync cannot run: no admin user has Jellyfin credentials linked. ' +
+                'Have a seerr admin sign in via the Jellyfin login button to enable availability sync.',
+              {
+                label: 'AvailabilitySync',
+              }
+            );
+          } else {
+            // findAdminScanUser only selects credential fields, so load the
+            // device ID separately to construct the client correctly.
+            const jellyfinAdminWithDevice = await userRepository.findOne({
+              where: { id: jellyfinAdmin.id },
+              select: ['id', 'jellyfinUserId', 'jellyfinDeviceId'],
+            });
+
             this.jellyfinClient = JellyfinAPI.forJellyfin(
               settings.jellyfin,
               settings.jellyfin.apiKey,
-              jellyfinAdmin.jellyfinDeviceId
+              jellyfinAdminWithDevice?.jellyfinDeviceId
             );
 
             this.jellyfinClient.setUserId(jellyfinAdmin.jellyfinUserId ?? '');
@@ -119,10 +136,6 @@ class AvailabilitySync {
               });
               this.jellyfinClient = undefined;
             }
-          } else {
-            logger.warn('Jellyfin admin is not configured.', {
-              label: 'AvailabilitySync',
-            });
           }
         }
       }
@@ -130,17 +143,32 @@ class AvailabilitySync {
       // Build embyClient independently when embyLoginEnabled and emby hostname is configured
       if (embyLoginEnabled || mediaServerType === MediaServerType.EMBY) {
         if (settings.emby.ip && settings.emby.apiKey) {
-          const embyAdmin = await userRepository.findOne({
-            where: { id: 1 },
-            select: ['id', 'embyUserId', 'embyDeviceId'],
-            order: { id: 'ASC' },
-          });
+          // Resolve an admin user that actually has Emby credentials linked.
+          // Mirrors the media-server scanner: if no admin has an embyUserId we
+          // must NOT construct the client (setUserId throws on an empty value),
+          // so we warn and skip Emby instead of aborting the whole sync.
+          const { user: embyAdmin, reason } = await findAdminScanUser('emby');
 
-          if (embyAdmin) {
+          if (reason === 'no-admin-creds' || !embyAdmin) {
+            logger.warn(
+              'Emby availability sync cannot run: no admin user has Emby credentials linked. ' +
+                'Have a seerr admin sign in via the Emby login button to enable availability sync.',
+              {
+                label: 'AvailabilitySync',
+              }
+            );
+          } else {
+            // findAdminScanUser only selects credential fields, so load the
+            // device ID separately to construct the client correctly.
+            const embyAdminWithDevice = await userRepository.findOne({
+              where: { id: embyAdmin.id },
+              select: ['id', 'embyUserId', 'embyDeviceId'],
+            });
+
             this.embyClient = JellyfinAPI.forEmby(
               settings.emby,
               settings.emby.apiKey,
-              embyAdmin.embyDeviceId
+              embyAdminWithDevice?.embyDeviceId
             );
 
             this.embyClient.setUserId(embyAdmin.embyUserId ?? '');
@@ -157,10 +185,6 @@ class AvailabilitySync {
               });
               this.embyClient = undefined;
             }
-          } else {
-            logger.warn('Emby admin is not configured.', {
-              label: 'AvailabilitySync',
-            });
           }
         }
       }

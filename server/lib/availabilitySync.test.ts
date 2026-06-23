@@ -418,19 +418,21 @@ describe('AvailabilitySync', () => {
         }))
       );
 
+    // resetTestDb (run by setupTestDb's beforeEach) reseeds admin id=1 without
+    // any Jellyfin credentials. Availability sync now resolves the admin scan
+    // user via findAdminScanUser, which requires a linked jellyfinUserId, so we
+    // ensure the seeded admin always has Jellyfin credentials for these tests.
     const userRepository = getRepository(User);
-    const existingAdmin = await userRepository.findOne({ where: { id: 1 } });
-    if (!existingAdmin) {
-      const admin = new User();
-      admin.id = 1;
-      admin.plexToken = 'test-plex-token';
-      admin.jellyfinUserId = 'admin-user-id';
-      admin.jellyfinDeviceId = 'admin-device-id';
-      admin.email = 'admin@test.com';
-      admin.permissions = 2;
-      admin.username = 'admin';
-      await userRepository.save(admin);
-    }
+    const admin =
+      (await userRepository.findOne({ where: { id: 1 } })) ?? new User();
+    admin.id = 1;
+    admin.plexToken = 'test-plex-token';
+    admin.jellyfinUserId = 'admin-user-id';
+    admin.jellyfinDeviceId = 'admin-device-id';
+    admin.email = admin.email ?? 'admin@test.com';
+    admin.permissions = 2;
+    admin.username = admin.username ?? 'admin';
+    await userRepository.save(admin);
   });
 
   describe('TV season availability - Jellyfin', () => {
@@ -899,6 +901,81 @@ describe('AvailabilitySync', () => {
         updated.status,
         MediaStatus.PARTIALLY_AVAILABLE,
         'Show should be PARTIALLY_AVAILABLE when some seasons are available and some are unknown'
+      );
+    });
+  });
+
+  describe('Jellyfin unconfigured admin (no jellyfinUserId)', () => {
+    it('should warn and skip Jellyfin without throwing or deleting media when admin has no jellyfinUserId', async () => {
+      configureJellyfin();
+      configureSonarr([{ syncEnabled: true }]);
+
+      // Simulate the production state: Jellyfin is configured (ip + apiKey),
+      // but no admin user has a linked jellyfinUserId. The old code passed an
+      // empty string to setUserId, which throws and aborts the whole sync.
+      const userRepository = getRepository(User);
+      const admin = await userRepository.findOneOrFail({ where: { id: 1 } });
+      admin.jellyfinUserId = null;
+      admin.jellyfinDeviceId = null;
+      await userRepository.save(admin);
+
+      const mediaRepository = getRepository(Media);
+
+      const movie = new Media();
+      movie.tmdbId = 5000;
+      movie.mediaType = MediaType.MOVIE;
+      movie.status = MediaStatus.AVAILABLE;
+      movie.jellyfinMediaId = 'jellyfin-orphan-movie-id';
+      await mediaRepository.save(movie);
+
+      const show = new Media();
+      show.tmdbId = 5001;
+      show.mediaType = MediaType.TV;
+      show.status = MediaStatus.AVAILABLE;
+      show.jellyfinMediaId = 'jellyfin-orphan-show-id';
+      show.seasons = [
+        new Season({
+          seasonNumber: 1,
+          status: MediaStatus.AVAILABLE,
+          status4k: MediaStatus.UNKNOWN,
+        }),
+      ];
+      await mediaRepository.save(show);
+
+      // If the Jellyfin path were to run, getItemData would resolve and keep
+      // media. We make it return undefined so that, had the client been built,
+      // media would be (incorrectly) eligible for deletion — proving the skip
+      // is what protects the media, not the mock data.
+      getItemDataImpl = async () => undefined;
+
+      // run() must complete without throwing even though Jellyfin is
+      // configured but has no resolvable admin user.
+      await assert.doesNotReject(async () => {
+        await availabilitySync.run();
+      });
+
+      const updatedMovie = await mediaRepository.findOneOrFail({
+        where: { tmdbId: 5000 },
+      });
+      assert.strictEqual(
+        updatedMovie.status,
+        MediaStatus.AVAILABLE,
+        'Movie must remain AVAILABLE when Jellyfin is skipped (must not be marked DELETED)'
+      );
+
+      const updatedShow = await mediaRepository.findOneOrFail({
+        where: { tmdbId: 5001 },
+        relations: ['seasons'],
+      });
+      assert.strictEqual(
+        updatedShow.status,
+        MediaStatus.AVAILABLE,
+        'Show must remain AVAILABLE when Jellyfin is skipped (must not be marked DELETED)'
+      );
+      assert.strictEqual(
+        updatedShow.seasons[0].status,
+        MediaStatus.AVAILABLE,
+        'Season must remain AVAILABLE when Jellyfin is skipped'
       );
     });
   });
