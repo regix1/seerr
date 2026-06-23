@@ -217,10 +217,27 @@ const SettingsBackup = () => {
           autoDismiss: true,
         });
       } else {
-        addToast(intl.formatMessage(messages.backupFailed), {
-          appearance: 'error',
-          autoDismiss: true,
-        });
+        const serverMessage =
+          err &&
+          typeof err === 'object' &&
+          'response' in err &&
+          err.response &&
+          typeof err.response === 'object' &&
+          'data' in err.response &&
+          err.response.data &&
+          typeof err.response.data === 'object' &&
+          'message' in err.response.data
+            ? String((err.response.data as { message: unknown }).message)
+            : '';
+        addToast(
+          serverMessage
+            ? `${intl.formatMessage(messages.backupFailed)} ${serverMessage}`
+            : intl.formatMessage(messages.backupFailed),
+          {
+            appearance: 'error',
+            autoDismiss: true,
+          }
+        );
       }
     } finally {
       setIsBackingUp(false);

@@ -93,7 +93,7 @@ backupRoutes.post('/', async (req, res, next) => {
   }
 });
 
-backupRoutes.post('/run', async (_req, res, next) => {
+backupRoutes.post('/run', async (_req, res) => {
   try {
     if (databaseBackup.status().running) {
       return res
@@ -105,11 +105,14 @@ backupRoutes.post('/run', async (_req, res, next) => {
 
     return res.status(200).json(info);
   } catch (e) {
+    const errorMessage = e instanceof Error ? e.message : String(e);
     logger.error('Failed to run backup', {
       label: 'Database Backup',
-      errorMessage: e instanceof Error ? e.message : String(e),
+      errorMessage,
     });
-    return next(e);
+    // Surface the real reason to the admin UI so a failed backup is
+    // self-diagnosing instead of a generic toast.
+    return res.status(500).json({ message: errorMessage });
   }
 });
 
