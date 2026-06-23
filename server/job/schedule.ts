@@ -1,6 +1,7 @@
 import { MediaServerType } from '@server/constants/server';
 import blocklistedTagsProcessor from '@server/job/blocklistedTagsProcessor';
 import availabilitySync from '@server/lib/availabilitySync';
+import databaseBackup from '@server/lib/backup';
 import downloadCompletionCheck from '@server/lib/downloadCompletionCheck';
 import downloadTracker from '@server/lib/downloadtracker';
 import fileFlowsTracker from '@server/lib/fileflows';
@@ -377,6 +378,24 @@ export const startJobs = (): void => {
     }),
     running: () => blocklistedTagsProcessor.status().running,
     cancelFn: () => blocklistedTagsProcessor.cancel(),
+  });
+
+  // Scheduled database + settings backup; frequency is user-configurable
+  // (Jobs & Cache or the Backup settings tab).
+  scheduledJobs.push({
+    id: 'db-backup',
+    name: 'Database Backup',
+    type: 'process',
+    interval: 'hours',
+    cronSchedule: jobs['db-backup'].schedule,
+    job: schedule.scheduleJob(jobs['db-backup'].schedule, () => {
+      logger.info('Starting scheduled job: Database Backup', {
+        label: 'Jobs',
+      });
+      databaseBackup.run();
+    }),
+    running: () => databaseBackup.status().running,
+    cancelFn: () => databaseBackup.cancel(),
   });
 
   logger.info('Scheduled jobs loaded', { label: 'Jobs' });

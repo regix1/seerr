@@ -21,6 +21,7 @@ const messages = defineMessages('components.Settings', {
   menuAbout: 'About',
   menuMetadataProviders: 'Metadata Providers',
   menuFileFlows: 'FileFlows',
+  menuBackup: 'Backup',
 });
 
 type SettingsLayoutProps = {
@@ -83,6 +84,11 @@ const SettingsLayout = ({ children }: SettingsLayoutProps) => {
       text: intl.formatMessage(messages.menuFileFlows),
       route: '/settings/fileflows',
       regex: /^\/settings\/fileflows/,
+    },
+    {
+      text: intl.formatMessage(messages.menuBackup),
+      route: '/settings/backup',
+      regex: /^\/settings\/backup/,
     },
     {
       text: intl.formatMessage(messages.menuNotifications),

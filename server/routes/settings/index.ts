@@ -50,6 +50,7 @@ import { rescheduleJob } from 'node-schedule';
 import path from 'path';
 import semver from 'semver';
 import { URL } from 'url';
+import backupRoutes from './backup';
 import fileflowsRoutes from './fileflows';
 import metadataRoutes from './metadata';
 import notificationRoutes from './notifications';
@@ -75,6 +76,7 @@ settingsRoutes.use('/sonarr', sonarrRoutes);
 settingsRoutes.use('/discover', discoverSettingRoutes);
 settingsRoutes.use('/metadatas', metadataRoutes);
 settingsRoutes.use('/fileflows', fileflowsRoutes);
+settingsRoutes.use('/backup', backupRoutes);
 
 const filteredMainSettings = (
   user: User,

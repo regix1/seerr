@@ -149,6 +149,11 @@ export interface FileFlowsSettings {
   availabilitySync: FileFlowsAvailabilitySync;
 }
 
+export interface BackupSettings {
+  enabled: boolean;
+  retention: number;
+}
+
 export interface ProxySettings {
   enabled: boolean;
   hostname: string;
@@ -426,7 +431,8 @@ export type JobId =
   | 'image-cache-cleanup'
   | 'availability-sync'
   | 'download-completion-check'
-  | 'process-blocklisted-tags';
+  | 'process-blocklisted-tags'
+  | 'db-backup';
 
 export interface AllSettings {
   clientId: string;
@@ -446,6 +452,7 @@ export interface AllSettings {
   network: NetworkSettings;
   metadataSettings: MetadataSettings;
   fileflows: FileFlowsSettings;
+  backup: BackupSettings;
   migrations: string[];
 }
 
@@ -541,6 +548,10 @@ class Settings {
         apiKey: '',
         urlBase: '',
         availabilitySync: 'schedule',
+      },
+      backup: {
+        enabled: true,
+        retention: 7,
       },
       radarr: [],
       sonarr: [],
@@ -706,6 +717,9 @@ class Settings {
         'process-blocklisted-tags': {
           schedule: '0 30 1 */7 * *',
         },
+        'db-backup': {
+          schedule: '0 0 4 * * *',
+        },
       },
       network: {
         csrfProtection: false,
@@ -793,6 +807,14 @@ class Settings {
 
   set fileflows(data: FileFlowsSettings) {
     this.data.fileflows = mergeSettings(this.data.fileflows, data);
+  }
+
+  get backup(): BackupSettings {
+    return this.data.backup;
+  }
+
+  set backup(data: BackupSettings) {
+    this.data.backup = mergeSettings(this.data.backup, data);
   }
 
   get radarr(): RadarrSettings[] {
